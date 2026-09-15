@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.expo/
+bin/
+obj/
+.env
+.env.local
+*.user
+TestResults/
+coverage/

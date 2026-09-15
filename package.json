@@ -1,0 +1,28 @@
+{
+  "name": "topout",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @topout/web",
+    "build": "npm run build --workspace @topout/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "mobile": "npm run start --workspace @topout/mobile",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.10.1",
+    "prettier": "3.6.2",
+    "typescript": "7.0.2",
+    "vitest": "4.0.18"
+  }
+}
