@@ -1,6 +1,6 @@
 # Topout
 
-Topout is a clean starter monorepo for building a web and mobile product with a shared TypeScript package and a layered ASP.NET Core API.
+For logging and planning your climbing and workouts
 
 ## Structure
 
