@@ -1,3 +1,4 @@
+using Topout.Domain.Abstraction;
 using Topout.Domain.Enums;
 
 namespace Topout.Domain.Entities;

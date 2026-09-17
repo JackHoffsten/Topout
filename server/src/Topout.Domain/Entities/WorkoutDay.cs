@@ -1,3 +1,5 @@
+using Topout.Domain.Abstraction;
+
 namespace Topout.Domain.Entities;
 
 public class WorkoutDay : OwnedEntity

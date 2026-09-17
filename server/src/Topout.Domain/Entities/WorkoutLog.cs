@@ -1,9 +1,13 @@
+using Topout.Domain.Abstraction;
+
 namespace Topout.Domain.Entities;
 
-public class WorkoutLog : OwnedEntity
+public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
 {
     public DateOnly Date { get; private set; }
     public string? Notes { get; private set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 
     private readonly List<WorkoutLogEntry> _entries = [];
     public IReadOnlyList<WorkoutLogEntry> Entries => _entries;

@@ -1,3 +1,4 @@
+using Topout.Domain.Abstraction;
 using Topout.Domain.ValueObjects;
 
 namespace Topout.Domain.Entities;

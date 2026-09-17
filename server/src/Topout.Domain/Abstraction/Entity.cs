@@ -1,4 +1,4 @@
-namespace Topout.Domain.Entities;
+namespace Topout.Domain.Abstraction;
 
 public abstract class Entity
 {

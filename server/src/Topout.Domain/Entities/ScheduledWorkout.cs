@@ -1,5 +1,6 @@
 namespace Topout.Domain.Entities;
 
+using Topout.Domain.Abstraction;
 using Topout.Domain.Enums;
 
 public class ScheduledWorkout : OwnedEntity
