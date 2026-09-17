@@ -1,11 +1,15 @@
-// Topout.Infrastructure/Persistence/AppDbContext.cs
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Topout.Application.Abstractions;
 using Topout.Domain.Abstraction;
 using Topout.Domain.Entities;
+using Topout.Infrastructure.Identity;
 
 namespace Topout.Infrastructure.Persistence;
 
-public sealed class AppDbContext : DbContext
+public sealed class AppDbContext
+    : IdentityDbContext<ApplicationUser, ApplicationRole, int>,
+        IUnitOfWork
 {
     public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options) { }
@@ -21,6 +25,7 @@ public sealed class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        base.OnModelCreating(b);
         b.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
 
@@ -36,7 +41,10 @@ public sealed class AppDbContext : DbContext
             if (entry.State == EntityState.Modified && entry.Entity is ICreatedAt)
                 entry.Property(nameof(ICreatedAt.CreatedAt)).IsModified = false;
 
-            if ((entry.State is EntityState.Added or EntityState.Modified) && entry.Entity is IUpdatedAt u)
+            if (
+                (entry.State is EntityState.Added or EntityState.Modified)
+                && entry.Entity is IUpdatedAt u
+            )
                 u.UpdatedAt = now;
         }
 
