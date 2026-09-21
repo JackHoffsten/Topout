@@ -10,7 +10,8 @@ public class WorkoutDay : OwnedEntity
 
     private WorkoutDay() { }
 
-    public WorkoutDay(string name)
+    public WorkoutDay(int userId, string name)
+        : base(userId)
     {
         Rename(name);
     }
@@ -29,10 +30,13 @@ public class WorkoutDay : OwnedEntity
 
     public WorkoutDayExercise AddExercise(Exercise exercise)
     {
+        ArgumentNullException.ThrowIfNull(exercise);
+        if (exercise.UserId != UserId)
+            throw new InvalidOperationException("Exercise and workout day must belong to the same user.");
         if (_exercises.Any(e => e.ExerciseId == exercise.Id))
             throw new InvalidOperationException("Exercise already exists in this workout day.");
 
-        var entry = new WorkoutDayExercise(Id, exercise.Id, order: _exercises.Count + 1);
+        var entry = new WorkoutDayExercise(this, exercise, order: _exercises.Count + 1);
 
         _exercises.Add(entry);
         return entry;

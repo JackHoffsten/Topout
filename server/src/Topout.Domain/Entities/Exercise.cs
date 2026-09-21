@@ -10,7 +10,8 @@ public class Exercise : OwnedEntity
 
     private Exercise() { }
 
-    public Exercise(string name, MuscleGroup muscleGroup)
+    public Exercise(int userId, string name, MuscleGroup muscleGroup)
+        : base(userId)
     {
         Rename(name);
         MuscleGroup = muscleGroup;

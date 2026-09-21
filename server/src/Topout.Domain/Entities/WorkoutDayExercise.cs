@@ -3,9 +3,10 @@ using Topout.Domain.ValueObjects;
 
 namespace Topout.Domain.Entities;
 
-public class WorkoutDayExercise : OwnedEntity
+public class WorkoutDayExercise : Entity
 {
     public int WorkoutDayId { get; private set; }
+    public WorkoutDay WorkoutDay { get; private set; } = null!;
     public int ExerciseId { get; private set; }
     public Exercise Exercise { get; private set; } = null!;
     public int Order { get; private set; }
@@ -15,23 +16,31 @@ public class WorkoutDayExercise : OwnedEntity
 
     private WorkoutDayExercise() { }
 
-    internal WorkoutDayExercise(int workoutDayId, int exerciseId, int order)
+    internal WorkoutDayExercise(WorkoutDay workoutDay, Exercise exercise, int order)
     {
-        WorkoutDayId = workoutDayId;
-        ExerciseId = exerciseId;
+        WorkoutDay = workoutDay;
+        Exercise = exercise;
         Order = order;
     }
 
     internal void SetOrder(int order) => Order = order;
 
-    public WorkoutDaySet AddSet(int targetReps, Weight? targetWeight = null, bool isWarmup = false)
+    public WorkoutDaySet AddSet(
+        int targetReps,
+        Weight? targetWeight = null,
+        bool isWarmup = false,
+        bool isAmrap = false,
+        int? targetRepsMax = null
+    )
     {
         var set = new WorkoutDaySet(
-            workoutDayExerciseId: Id,
+            workoutDayExercise: this,
             order: _plannedSets.Count + 1,
             targetReps: targetReps,
             targetWeight: targetWeight,
-            isWarmup: isWarmup
+            isWarmup: isWarmup,
+            isAmrap: isAmrap,
+            targetRepsMax: targetRepsMax
         );
 
         _plannedSets.Add(set);

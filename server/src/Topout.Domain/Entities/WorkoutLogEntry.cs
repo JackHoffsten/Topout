@@ -3,9 +3,10 @@ using Topout.Domain.ValueObjects;
 
 namespace Topout.Domain.Entities;
 
-public class WorkoutLogEntry : OwnedEntity
+public class WorkoutLogEntry : Entity
 {
     public int WorkoutLogId { get; private set; }
+    public WorkoutLog WorkoutLog { get; private set; } = null!;
     public int ExerciseId { get; private set; }
     public Exercise Exercise { get; private set; } = null!;
     public int Order { get; private set; }
@@ -16,10 +17,10 @@ public class WorkoutLogEntry : OwnedEntity
 
     private WorkoutLogEntry() { }
 
-    internal WorkoutLogEntry(int workoutLogId, int exerciseId, int order)
+    internal WorkoutLogEntry(WorkoutLog workoutLog, Exercise exercise, int order)
     {
-        WorkoutLogId = workoutLogId;
-        ExerciseId = exerciseId;
+        WorkoutLog = workoutLog;
+        Exercise = exercise;
         Order = order;
     }
 
@@ -32,8 +33,9 @@ public class WorkoutLogEntry : OwnedEntity
         string? notes = null
     )
     {
+        WorkoutLog.EnsureEditable();
         var set = new WorkoutLogSet(
-            workoutLogEntryId: Id,
+            workoutLogEntry: this,
             order: _sets.Count + 1,
             reps: reps,
             weight: weight,
@@ -47,6 +49,7 @@ public class WorkoutLogEntry : OwnedEntity
 
     public void RemoveSet(int setId)
     {
+        WorkoutLog.EnsureEditable();
         var set =
             _sets.FirstOrDefault(s => s.Id == setId)
             ?? throw new InvalidOperationException("Set not found.");

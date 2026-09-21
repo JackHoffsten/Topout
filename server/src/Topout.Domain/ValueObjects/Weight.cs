@@ -1,5 +1,7 @@
 namespace Topout.Domain.ValueObjects;
 
+using Topout.Domain.Enums;
+
 public sealed record Weight
 {
     public const decimal KilogramsPerPound = 0.45359237m;
