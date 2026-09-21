@@ -23,10 +23,10 @@ public sealed class AppDbContext
     public DbSet<WorkoutLogEntry> WorkoutLogEntries => Set<WorkoutLogEntry>();
     public DbSet<WorkoutLogSet> WorkoutLogSets => Set<WorkoutLogSet>();
 
-    protected override void OnModelCreating(ModelBuilder b)
+    protected override void OnModelCreating(ModelBuilder builder)
     {
-        base.OnModelCreating(b);
-        b.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+        base.OnModelCreating(builder);
+        builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken ct = default)
@@ -35,17 +35,17 @@ public sealed class AppDbContext
 
         foreach (var entry in ChangeTracker.Entries<Entity>())
         {
-            if (entry.State == EntityState.Added && entry.Entity is ICreatedAt c)
-                c.CreatedAt = now;
+            if (entry.State == EntityState.Added && entry.Entity is ICreatedAt created)
+                created.CreatedAt = now;
 
             if (entry.State == EntityState.Modified && entry.Entity is ICreatedAt)
                 entry.Property(nameof(ICreatedAt.CreatedAt)).IsModified = false;
 
             if (
-                (entry.State is EntityState.Added or EntityState.Modified)
-                && entry.Entity is IUpdatedAt u
+                entry.State is EntityState.Added or EntityState.Modified
+                && entry.Entity is IUpdatedAt updated
             )
-                u.UpdatedAt = now;
+                updated.UpdatedAt = now;
         }
 
         return base.SaveChangesAsync(ct);
