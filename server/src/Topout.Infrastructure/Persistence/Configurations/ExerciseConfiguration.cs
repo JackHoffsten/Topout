@@ -10,6 +10,7 @@ internal sealed class ExerciseConfiguration : IEntityTypeConfiguration<Exercise>
     {
         builder.ConfigureOwner();
         builder.Property(x => x.Name).HasMaxLength(100).IsRequired();
-        builder.HasIndex(x => new { x.UserId, x.Name }).IsUnique();
+        builder.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
+        builder.HasIndex(x => new { x.UserId, x.NormalizedName }).IsUnique();
     }
 }

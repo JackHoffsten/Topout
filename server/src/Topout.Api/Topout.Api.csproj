@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <UserSecretsId>topout-api-development</UserSecretsId>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Topout.Infrastructure/Topout.Infrastructure.csproj" />
   </ItemGroup>

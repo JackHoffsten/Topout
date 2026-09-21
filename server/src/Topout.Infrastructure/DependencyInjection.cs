@@ -3,10 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Topout.Application.Abstractions;
+using Topout.Application.Authentication;
 using Topout.Infrastructure.Identity;
 using Topout.Infrastructure.Persistence;
+using Topout.Infrastructure.Persistence.Repositories;
 
 namespace Topout.Infrastructure;
+
 public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(
@@ -19,6 +22,10 @@ public static class DependencyInjection
         );
 
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
+        services.AddScoped<IExerciseRepository, ExerciseRepository>();
+        services.AddScoped<IAuthenticationService, AuthenticationService>();
+        services.AddScoped<TokenIssuer>();
+        services.AddSingleton(TimeProvider.System);
 
         services.AddIdentityServices();
 
@@ -28,13 +35,17 @@ public static class DependencyInjection
     public static IServiceCollection AddIdentityServices(this IServiceCollection services)
     {
         services
-            .AddIdentity<ApplicationUser, ApplicationRole>(options =>
+            .AddIdentityCore<ApplicationUser>(options =>
             {
                 options.Password.RequireDigit = true;
                 options.Password.RequiredLength = 8;
                 options.Password.RequireNonAlphanumeric = false;
                 options.User.RequireUniqueEmail = true;
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
             })
+            .AddRoles<ApplicationRole>()
+            .AddSignInManager()
             .AddEntityFrameworkStores<AppDbContext>()
             .AddDefaultTokenProviders();
 

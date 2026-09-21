@@ -13,6 +13,7 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
             .SetBasePath(apiDirectory)
             .AddJsonFile("appsettings.json", optional: false)
             .AddJsonFile("appsettings.Development.json", optional: true)
+            .AddUserSecrets("topout-api-development")
             .AddEnvironmentVariables()
             .Build();
 

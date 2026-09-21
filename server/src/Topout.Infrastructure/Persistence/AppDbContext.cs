@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Topout.Application.Abstractions;
+using Topout.Application.Common;
 using Topout.Domain.Abstraction;
 using Topout.Domain.Entities;
 using Topout.Infrastructure.Identity;
@@ -15,6 +17,8 @@ public sealed class AppDbContext
         : base(options) { }
 
     public DbSet<Exercise> Exercises => Set<Exercise>();
+    public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<WorkoutDay> WorkoutDays => Set<WorkoutDay>();
     public DbSet<WorkoutDayExercise> WorkoutDayExercises => Set<WorkoutDayExercise>();
     public DbSet<WorkoutDaySet> WorkoutDaySets => Set<WorkoutDaySet>();
@@ -29,7 +33,7 @@ public sealed class AppDbContext
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken ct = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
 
@@ -48,6 +52,53 @@ public sealed class AppDbContext
                 updated.UpdatedAt = now;
         }
 
-        return base.SaveChangesAsync(ct);
+        try
+        {
+            return await base.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException
+                    is PostgresException
+                    {
+                        SqlState: PostgresErrorCodes.UniqueViolation,
+                        ConstraintName: "IX_Exercises_UserId_NormalizedName"
+                    }
+            )
+        {
+            throw new RequestException(
+                ErrorKind.Conflict,
+                "An exercise with this name already exists."
+            );
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException
+                    is PostgresException
+                    {
+                        SqlState: PostgresErrorCodes.UniqueViolation,
+                        ConstraintName: "EmailIndex" or "UserNameIndex"
+                    }
+            )
+        {
+            throw new RequestException(
+                ErrorKind.Conflict,
+                "An account with this email already exists."
+            );
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException
+                    is PostgresException
+                    {
+                        SqlState: PostgresErrorCodes.ForeignKeyViolation
+                            or PostgresErrorCodes.RestrictViolation,
+                        ConstraintName: "FK_WorkoutDayExercises_Exercises_ExerciseId"
+                            or "FK_WorkoutLogEntries_Exercises_ExerciseId"
+                    }
+            )
+        {
+            throw new RequestException(
+                ErrorKind.Conflict,
+                "This exercise is used by a workout template or log."
+            );
+        }
     }
 }
