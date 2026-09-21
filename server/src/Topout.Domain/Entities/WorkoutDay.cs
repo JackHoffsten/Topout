@@ -32,8 +32,15 @@ public class WorkoutDay : OwnedEntity
     {
         ArgumentNullException.ThrowIfNull(exercise);
         if (exercise.UserId != UserId)
-            throw new InvalidOperationException("Exercise and workout day must belong to the same user.");
-        if (_exercises.Any(e => e.ExerciseId == exercise.Id))
+            throw new InvalidOperationException(
+                "Exercise and workout day must belong to the same user."
+            );
+        if (
+            _exercises.Any(e =>
+                ReferenceEquals(e.Exercise, exercise)
+                || (exercise.Id != 0 && e.Exercise.Id == exercise.Id)
+            )
+        )
             throw new InvalidOperationException("Exercise already exists in this workout day.");
 
         var entry = new WorkoutDayExercise(this, exercise, order: _exercises.Count + 1);
