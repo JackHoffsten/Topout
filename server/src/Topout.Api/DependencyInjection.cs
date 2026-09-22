@@ -15,7 +15,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApi(
         this IServiceCollection services,
-        IConfiguration configuration
+        IConfiguration configuration,
+        IWebHostEnvironment environment
     )
     {
         services
@@ -26,6 +27,33 @@ public static class DependencyInjection
                 )
             );
         services.AddHttpContextAccessor();
+        services.AddAntiforgery(options =>
+        {
+            var development = environment.IsDevelopment();
+            options.HeaderName = "X-CSRF-Token";
+            options.Cookie.Name = development
+                ? "topout-dev-antiforgery"
+                : "__Host-topout-antiforgery";
+            options.Cookie.Path = "/";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = development
+                ? CookieSecurePolicy.None
+                : CookieSecurePolicy.Always;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+        });
+        services.AddCors(options =>
+            options.AddPolicy(
+                "web",
+                policy =>
+                    policy
+                        .WithOrigins(
+                            configuration.GetSection("Web:AllowedOrigins").Get<string[]>() ?? []
+                        )
+                        .WithMethods("GET", "POST", "PUT", "DELETE")
+                        .WithHeaders("Content-Type", "Authorization", "X-CSRF-Token")
+                        .AllowCredentials()
+            )
+        );
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
         services.AddProblemDetails();
         services.AddExceptionHandler<ApiExceptionHandler>();
