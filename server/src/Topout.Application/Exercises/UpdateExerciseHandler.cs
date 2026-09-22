@@ -28,6 +28,7 @@ public sealed class UpdateExerciseHandler(
             );
         exercise.SetMuscleGroup(muscleGroup);
         exercise.Rename(name);
+        exercise.MarkAsCustom();
         await unitOfWork.SaveChangesAsync(ct);
         return ExerciseResponse.From(exercise);
     }

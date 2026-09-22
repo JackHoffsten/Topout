@@ -38,4 +38,6 @@ public class Exercise : OwnedEntity
             throw new ArgumentOutOfRangeException(nameof(muscleGroup));
         MuscleGroup = muscleGroup;
     }
+
+    public void MarkAsCustom() => IsCustom = true;
 }

@@ -109,14 +109,13 @@ public class ExerciseApiTests(ApiFixture fixture)
         );
 
         // Starter copies are user-editable, and changes never affect the other account.
-        Assert.Equal(
-            HttpStatusCode.OK,
-            (
-                await alice.PutAsJsonAsync(
-                    $"/api/exercises/{starters[0].Id}",
-                    new { name = "My Starter", muscleGroup = "Core" }
-                )
-            ).StatusCode
+        var editStarter = await alice.PutAsJsonAsync(
+            $"/api/exercises/{starters[0].Id}",
+            new { name = "My Starter", muscleGroup = "Core" }
+        );
+        Assert.Equal(HttpStatusCode.OK, editStarter.StatusCode);
+        Assert.True(
+            (await editStarter.Content.ReadFromJsonAsync<ExerciseResponse>(Json))!.IsCustom
         );
         Assert.DoesNotContain(
             (await bob.GetFromJsonAsync<ExerciseResponse[]>("/api/exercises", Json))!,

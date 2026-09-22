@@ -16,8 +16,9 @@ public class ExerciseHandlerTests
         var currentUser = new CurrentUser(7);
         repository.Items.Add(new IdentifiedExercise(10, 7, "Row"));
         repository.Items.Add(new IdentifiedExercise(11, 8, "Private"));
+        repository.Items.Add(new IdentifiedExercise(12, 7, "Starter", false));
         var list = await new ListExercisesHandler(repository, currentUser).HandleAsync(default);
-        Assert.Single(list);
+        Assert.Equal(2, list.Count);
         Assert.Equal("Row", list[0].Name);
         var created = await new CreateExerciseHandler(
             repository,
@@ -43,6 +44,9 @@ public class ExerciseHandlerTests
         );
         await update.HandleAsync(10, "Renamed", MuscleGroup.Biceps, default);
         Assert.Equal("RENAMED", repository.Items[0].NormalizedName);
+        var personalized = await update.HandleAsync(12, "My Starter", MuscleGroup.Core, default);
+        Assert.True(personalized.IsCustom);
+        Assert.True(repository.Items.Single(x => x.Id == 12).IsCustom);
         await delete.HandleAsync(10, default);
         Assert.DoesNotContain(repository.Items, x => x.Id == 10);
     }
@@ -108,8 +112,8 @@ public class ExerciseHandlerTests
 
     private sealed class IdentifiedExercise : Exercise
     {
-        public IdentifiedExercise(int id, int userId, string name)
-            : base(userId, name, MuscleGroup.Back)
+        public IdentifiedExercise(int id, int userId, string name, bool isCustom = true)
+            : base(userId, name, MuscleGroup.Back, isCustom)
         {
             Id = id;
         }
