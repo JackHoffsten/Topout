@@ -1,39 +1,65 @@
 # Topout
 
-For logging and planning your climbing and workouts
+Topout is a training application for managing exercises and tracking gym and climbing
+progress. It uses a universal Expo application for Android, iOS, and web, with an ASP.NET
+Core API and PostgreSQL database.
 
-## Structure
+## Repository structure
 
-- `apps/web` — React + Vite web app
-- `apps/mobile` — Expo / React Native mobile app
-- `packages/shared` — shared TypeScript code
-- `server/src/Topout.Domain` — domain models and rules
-- `server/src/Topout.Application` — use cases and contracts
-- `server/src/Topout.Infrastructure` — persistence and integrations
-- `server/src/Topout.Api` — HTTP API composition root
-- `server/tests` — unit tests and PostgreSQL/API integration tests
+- `apps/app` — Expo Router application for Android, iOS, and responsive web
+- `packages/shared` — validated API contracts and platform-independent client code
+- `server/src/Topout.Domain` — domain entities and business rules
+- `server/src/Topout.Application` — application use cases and abstractions
+- `server/src/Topout.Infrastructure` — PostgreSQL persistence and authentication services
+- `server/src/Topout.Api` — ASP.NET Core API
+- `server/tests` — backend unit and integration tests
+- `e2e` — Playwright browser tests
 
-## Getting started
+## Prerequisites
+
+- Node.js 24
+- .NET SDK 10
+- Docker with Linux containers
+
+## Local development
+
+Install dependencies and initialize the database:
 
 ```powershell
-npm install
+npm ci
+npm run db:up
+npm run db:migrate
+```
+
+Run the API and frontend in separate terminals:
+
+```powershell
+npm run api:dev
+```
+
+```powershell
 npm run dev
 ```
 
-Configure the JWT signing secret and PostgreSQL first; see [backend setup and API contracts](docs/backend.md).
-The API can then be started with:
+Open `http://localhost:8081`. The development configuration includes local database
+credentials and a development-only JWT signing key.
 
-```powershell
-dotnet run --project server/src/Topout.Api -- --environment Development --urls https://localhost:7043
-```
+See [frontend setup](docs/frontend.md) and [backend setup](docs/backend.md) for platform,
+configuration, security, and testing details.
 
-## Checks and formatting
+## Verification
 
 ```powershell
 npm run typecheck
-npm run format:check
-dotnet build server/Topout.sln -m:1
+npm test
+npm run build
+npm run test:e2e
 dotnet test server/Topout.sln -m:1
-dotnet tool restore --tool-manifest .config/dotnet-tools.json
-dotnet tool run csharpier -- check server
+```
+
+Run Expo diagnostics from the application directory:
+
+```powershell
+cd apps/app
+npx expo-doctor
 ```

@@ -7,26 +7,46 @@ Infrastructure implements Identity, token issuance, repositories, and persistenc
 
 ## Local setup
 
-Run commands from the repository root. Install the SDK selected by global.json and
-start PostgreSQL. Integration tests use Docker Desktop with Linux containers and create
-their own disposable PostgreSQL 18 databases.
-
-Configure a development connection string and a randomly generated signing secret:
+Run commands from the repository root. Install the SDK selected by `global.json` and start
+a Docker engine with Linux container support. The repository's `compose.yaml` runs
+PostgreSQL 18.6 on localhost only, with data persisted in the
+`topout-postgres-data` Docker volume.
 
 ```powershell
-dotnet user-secrets set "ConnectionStrings:Default" "Host=localhost;Database=topout;Username=postgres;Password=YOUR_PASSWORD" --project server/src/Topout.Api
-$jwtSecret = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(64))
-dotnet user-secrets set "Jwt:SigningKey" $jwtSecret --project server/src/Topout.Api
-dotnet build server/Topout.sln -m:1
-dotnet ef database update --project server/src/Topout.Infrastructure --startup-project server/src/Topout.Api
-dotnet run --project server/src/Topout.Api -- --environment Development --urls https://localhost:7043
+npm run db:up
+npm run db:migrate
 ```
 
-Trust the ASP.NET development certificate if HTTPS is not already configured.
-The JWT issuer, audience, and lifetimes are in appsettings.json. The signing key is
-required at startup and must contain at least 32 UTF-8 bytes; generate a random value.
-For deployment, use secret-managed environment variables: Jwt__SigningKey and
-ConnectionStrings__Default. Use HTTPS, restrict database credentials, and do not log
+The development defaults are database `topout`, user `postgres`, password `postgres`, and
+host port `5432`, matching `appsettings.Development.json`. To override them, copy
+`.env.example` to `.env` and change the values before the first start. If you change the
+database name, user, password, or port, update the development connection string with
+user secrets as shown below. `.env` is ignored by Git; never put production secrets in it.
+
+Check status with `docker compose ps`, follow database output with `npm run db:logs`, and
+stop the database with `npm run db:down`. Stopping preserves the volume and its data.
+`docker compose down --volumes` permanently deletes the development database and should
+only be used when you deliberately want a clean database; rerun `npm run db:up` and
+`npm run db:migrate` afterward.
+
+Integration tests create their own disposable PostgreSQL 18 containers and do not use
+this development database.
+
+The checked-in Development configuration includes the matching connection string and a
+fixed development-only JWT signing key, so no secret setup is required for local testing.
+The key is public and intentionally insecure; never use it outside the Development
+environment. If you customize the Docker credentials, override the connection string:
+
+```powershell
+dotnet user-secrets set "ConnectionStrings:Default" "Host=127.0.0.1;Database=topout;Username=postgres;Password=YOUR_PASSWORD" --project server/src/Topout.Api
+npm run db:migrate
+npm run api:dev
+```
+
+The JWT issuer, audience, and lifetimes are in appsettings.json. Outside Development, the
+signing key is required at startup and must contain at least 32 UTF-8 bytes.
+For deployment, use secret-managed environment variables: `Jwt__SigningKey` and
+`ConnectionStrings__Default`. Use HTTPS, restrict database credentials, and do not log
 authorization headers, passwords, refresh tokens, or response token bodies.
 
 The design-time context factory reads development user secrets and environment variables
@@ -59,10 +79,24 @@ Other login sessions remain active.
 
 Revoke invalidates the refresh-token family. Already-issued access tokens remain valid
 until expiry. Web/mobile clients send the access token as Authorization: Bearer TOKEN.
-The current JSON refresh-token transport is intended for secure client storage. For the
-browser frontend, implement an HttpOnly secure-cookie/BFF flow with CSRF protection
-before persisting sessions; do not put refresh tokens in localStorage.
-No frontend token-storage code is included in this slice.
+The JSON refresh-token transport is for native SecureStore storage. Browser clients use
+GET /api/auth/web/csrf followed by POST /api/auth/web/register, /login, /refresh, or /revoke.
+Registration/login bodies match their native equivalents; refresh/revoke have no body.
+Browser token responses contain only accessToken and accessTokenExpiresAt.
+
+The host-only `__Secure-topout-refresh` cookie is HttpOnly, Secure, SameSite=Lax, scoped to
+/api/auth/web, and expires with the refresh family. Revoke and rejected renewal clear it.
+The readable `__Host-topout-csrf` cookie contains the request verification token. All four
+browser writes require X-CSRF-Token plus the matching cryptographic HttpOnly antiforgery
+cookie and a trusted Origin. GET /csrf also returns csrfToken for same-site cross-origin
+clients that cannot read the API host's cookie. It never returns a refresh token.
+
+Set `Web__AllowedOrigins__0` (and subsequent indexed entries) to exact trusted frontend
+origins, including scheme and port, to enable credentialed CORS. Wildcards are not used.
+Use same-origin hosting or same-site HTTPS subdomains: SameSite=Lax intentionally prevents
+cross-site cookie sessions. Persist ASP.NET Data Protection keys securely across restarts
+and share them across replicas. Configure trusted forwarded headers at deployment; never
+blindly trust public forwarding headers. See [frontend setup](frontend.md).
 
 Authentication endpoints have a per-process, per-IP limit of 60 requests/minute, and
 Identity locks accounts for 15 minutes after five failed password attempts. Configure
@@ -83,8 +117,9 @@ Responses contain id, name, muscleGroup, and isCustom. Muscle groups are enum st
 (e.g. "Back" or "Chest"); integers and unknown values are rejected.
 Names are trimmed, required, limited to 100 characters, and unique per account after
 invariant uppercase normalization. Whitespace inside a name is retained.
-Starter copies have isCustom=false and may be edited/deleted independently.
-Client-created exercises have isCustom=true; editing does not change their origin.
+Starter copies have isCustom=false and may be edited/deleted independently. Editing a
+starter marks that user's copy as custom; it never changes another account's copy. The
+client treats all exercises alike and does not expose this implementation detail in its UI.
 Templates and historical logs prevent deletion of a referenced exercise.
 
 Failures use Problem Details: 400 for invalid input, 401 for invalid authentication,
