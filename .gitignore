@@ -8,3 +8,7 @@ obj/
 *.user
 TestResults/
 coverage/
+playwright-report/
+test-results/
+apps/app/android/
+apps/app/ios/
