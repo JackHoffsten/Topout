@@ -120,6 +120,18 @@ Session renewal is single-flight within a client. Browser tabs use Web Locks to 
 refresh-token rotation and BroadcastChannel to propagate logout. A request is replayed at
 most once after successful renewal. Failed renewal clears the local session.
 
+## Home calendar
+
+Home opens after sign-in and shows a Monday-first month calendar. Select a date and use
+Plan workout to search and select a template. Multiple workouts can be planned on a date.
+Add rest day records a rest-day entry. Plans are saved to the API and survive reloads.
+Select an entry's Remove button to remove it after confirmation; the template is kept.
+Calendar dates use local dates without converting them to UTC.
+
+The calendar references the current template, so editing a template changes the plan shown
+for future sessions. Scheduled templates cannot be deleted until their calendar entries
+are removed. Starting and logging workouts are separate features.
+
 ## Workout templates
 
 Use **Templates** to create reusable exercise plans. Select **Add exercise** and choose an

@@ -155,6 +155,20 @@ applying it to an existing database, resolve template names that differ only by 
 surrounding spaces for the same account. Conflicting data causes a transactional failure;
 the migration does not remove templates or their contents.
 
+## Workout schedule API
+
+The authenticated workout schedule API uses the existing ScheduledWorkout table:
+
+- `GET /api/workout-schedule?from=YYYY-MM-DD&to=YYYY-MM-DD` lists the current user's
+  entries in an inclusive range of at most 63 days.
+- `POST /api/workout-schedule` accepts `{ "date": "2026-10-02", "templateId": 1 }`.
+  A null templateId records a rest day. Multiple entries per date are allowed.
+- `DELETE /api/workout-schedule/{id}` removes an owned entry. Completed entries return 409. Missing and other-user entries or templates return 404.
+
+Dates are date-only values. Scheduling references a live template rather than copying its
+contents; referenced templates retain the existing deletion restriction. No migration is
+needed for calendar planning.
+
 ## Migrations and tests
 
 The original migration is preserved. AddExerciseCatalogAndRefreshSessions adds normalized
