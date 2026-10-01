@@ -10,6 +10,10 @@ import {
   type WorkoutTemplateInput,
   workoutTemplateSchema,
   workoutTemplatesSchema,
+  type ScheduleWorkoutInput,
+  scheduleWorkoutInputSchema,
+  scheduledWorkoutSchema,
+  workoutScheduleSchema,
 } from './contracts';
 
 export class ApiError extends Error {
@@ -191,6 +195,26 @@ export class ApiClient {
 
   listWorkoutTemplates() {
     return this.request('/api/workout-templates', workoutTemplatesSchema);
+  }
+
+  listWorkoutSchedule(from: string, to: string) {
+    return this.request(
+      `/api/workout-schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      workoutScheduleSchema,
+    );
+  }
+
+  scheduleWorkout(input: ScheduleWorkoutInput) {
+    return this.request(
+      '/api/workout-schedule',
+      scheduledWorkoutSchema,
+      'POST',
+      scheduleWorkoutInputSchema.parse(input),
+    );
+  }
+
+  deleteScheduledWorkout(id: number) {
+    return this.request('/api/workout-schedule/' + id, z.undefined(), 'DELETE');
   }
 
   getWorkoutTemplate(id: number) {

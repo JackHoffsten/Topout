@@ -11,6 +11,7 @@ export function Shell({ children }: React.PropsWithChildren) {
   const c = useTheme();
   const path = usePathname();
   const links = [
+    { href: '/home' as const, label: 'Home', icon: 'calendar' as const },
     { href: '/templates' as const, label: 'Templates', icon: 'list' as const },
     { href: '/exercises' as const, label: 'Exercises', icon: 'grid' as const },
     { href: '/account' as const, label: 'Account', icon: 'user' as const },

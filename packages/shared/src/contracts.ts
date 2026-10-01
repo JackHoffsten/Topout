@@ -85,6 +85,22 @@ export const workoutTemplatesSchema = z.array(workoutTemplateSchema);
 
 export type WorkoutTemplate = z.infer<typeof workoutTemplateSchema>;
 
+export const scheduleWorkoutInputSchema = z.object({
+  date: z.iso.date(),
+  templateId: z.number().int().positive().nullable(),
+});
+export type ScheduleWorkoutInput = z.infer<typeof scheduleWorkoutInputSchema>;
+export const scheduledWorkoutSchema = z.object({
+  id: z.number().int().positive(),
+  date: z.iso.date(),
+  templateId: z.number().int().positive().nullable(),
+  templateName: z.string().nullable(),
+  isRestDay: z.boolean(),
+  status: z.enum(['Planned', 'Completed', 'Skipped']),
+});
+export const workoutScheduleSchema = z.array(scheduledWorkoutSchema);
+export type ScheduledWorkout = z.infer<typeof scheduledWorkoutSchema>;
+
 export const loginSchema = z.object({
   email: z.email('Enter a valid email address.').max(256),
   password: z.string().min(1, 'Enter your password.').max(128),

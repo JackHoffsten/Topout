@@ -14,6 +14,8 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
     .filter({ visible: true })
     .fill('StrongPassword123!');
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Exercises', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Exercises', exact: true })).toBeVisible();
   await expect(
     page.getByTestId(info.project.name === 'phone' ? 'phone-navigation' : 'desktop-navigation'),
@@ -86,6 +88,8 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
     .filter({ visible: true })
     .fill('StrongPassword123!');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Exercises', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Exercises', exact: true })).toBeVisible();
   await expect(page.getByText('Updated pull-up', { exact: true })).toHaveCount(0);
 });
