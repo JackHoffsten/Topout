@@ -92,6 +92,19 @@ test('requires actual reps and weight, saves entered sets, and shows completed r
   await screen.findByText('Completed');
   expect(screen.queryByLabelText('Row set 1 reps')).toBeNull();
 });
+
+test('shows the latest matching set instead of planned targets without filling actual inputs', async () => {
+  mockApi.getWorkoutLogging.mockResolvedValue({
+    ...workout,
+    previousSets: [
+      { exerciseId: 1, order: 1, date: '2026-09-29', reps: 10, weightKg: 35, isWarmup: false },
+    ],
+  });
+  await mount();
+  expect(screen.getByText(/Last logged \(2026-09-29\)/)).toBeTruthy();
+  expect(screen.queryByText(/Planned:/)).toBeNull();
+  expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('');
+});
 test('add and remove sets, collapse, cancel, and preserve values after failed saving', async () => {
   await mount();
   await fireEventAsync.changeText(screen.getByLabelText('Row set 1 reps'), '8');

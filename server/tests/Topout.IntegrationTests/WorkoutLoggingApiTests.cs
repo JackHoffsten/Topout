@@ -66,6 +66,64 @@ public class WorkoutLoggingApiTests(ApiFixture fixture)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Previous_sets_are_latest_per_exercise_and_order_and_exclude_current_and_other_users(
+        bool completed
+    )
+    {
+        using var client = await Client();
+        using var other = await Client();
+        var (plan, _, exercise) = await Plan(client);
+        var (otherPlan, _, otherExercise) = await Plan(other);
+        await other.PostAsJsonAsync(
+            $"/api/workout-schedule/{otherPlan.Id}/log",
+            Input(otherExercise.Id)
+        );
+        var current = (
+            await (
+                await client.PostAsJsonAsync(
+                    "/api/workout-schedule",
+                    new ScheduleWorkoutInput(plan.Date.AddDays(1), plan.TemplateId)
+                )
+            ).Content.ReadFromJsonAsync<ScheduledWorkoutResponse>(ExerciseApiTests.Json)
+        )!;
+        var url = $"/api/workout-schedule/{current.Id}/log";
+        Assert.Empty(
+            (
+                await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+            )!.PreviousSets!
+        );
+        if (completed)
+            await client.PostAsJsonAsync(
+                $"/api/workout-schedule/{plan.Id}/log",
+                Input(exercise.Id)
+            );
+        else
+            await client.PutAsJsonAsync(
+                $"/api/workout-schedule/{plan.Id}/log/sets",
+                new RecordSetInput(exercise.Id, 1, 9, 45.5m, true, null)
+            );
+        await client.PutAsJsonAsync(
+            url + "/sets",
+            new RecordSetInput(exercise.Id, 1, 12, 60, false, null)
+        );
+        var context = (
+            await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+        )!;
+        Assert.Equal(9, context.PreviousSets!.Single(x => x.Order == 1).Reps);
+        Assert.Equal(45.5m, context.PreviousSets!.Single(x => x.Order == 1).WeightKg);
+        Assert.Equal(plan.Date, context.PreviousSets![0].Date);
+        Assert.All(context.PreviousSets!, x => Assert.Equal(exercise.Id, x.ExerciseId));
+        await client.DeleteAsync($"/api/workout-schedule/{plan.Id}/log");
+        Assert.Empty(
+            (
+                await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+            )!.PreviousSets!
+        );
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Logs_protect_plans_and_can_be_deleted_without_removing_the_plan(
         bool completed
     )

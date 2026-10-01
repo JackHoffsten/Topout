@@ -75,7 +75,8 @@ public sealed record WorkoutLoggingResponse(
     DateOnly Date,
     string? TemplateName,
     WorkoutTemplateResponse? Template,
-    WorkoutLogResponse? Log
+    WorkoutLogResponse? Log,
+    IReadOnlyList<PreviousSetResponse>? PreviousSets = null
 )
 {
     public static WorkoutLoggingResponse From(ScheduledWorkout schedule) =>
@@ -87,6 +88,15 @@ public sealed record WorkoutLoggingResponse(
             schedule.WorkoutLog is null ? null : WorkoutLogResponse.From(schedule.WorkoutLog)
         );
 }
+
+public sealed record PreviousSetResponse(
+    int ExerciseId,
+    int Order,
+    DateOnly Date,
+    int Reps,
+    decimal WeightKg,
+    bool IsWarmup
+);
 
 public sealed class WorkoutLoggingHandler(
     IWorkoutLogRepository logs,
@@ -102,7 +112,15 @@ public sealed class WorkoutLoggingHandler(
             ?? throw new RequestException(ErrorKind.NotFound, "Scheduled workout not found.");
         if (schedule.IsRestDay)
             throw new RequestException(ErrorKind.Conflict, "Rest days cannot have workout logs.");
-        return WorkoutLoggingResponse.From(schedule);
+        return WorkoutLoggingResponse.From(schedule) with
+        {
+            PreviousSets = await logs.PreviousSetsAsync(
+                user.UserId,
+                schedule.Date,
+                schedule.WorkoutLogId,
+                ct
+            ),
+        };
     }
 
     public async Task<WorkoutLoggingResponse> CompleteAsync(

@@ -337,30 +337,47 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                 <>
                   {item.sets.map((set, j) => {
                     const prefix = `${item.exercise.name} set ${j + 1}`;
+                    const previous = workout.previousSets?.find(
+                      (s) => s.exerciseId === item.exercise.id && s.order === set.order,
+                    );
                     return (
                       <View key={set.order} style={{ gap: 10, paddingVertical: 10 }}>
                         <Label syntax="property">
                           Set <Label syntax="number">{j + 1}</Label>
                         </Label>
-                        {set.target && (
+                        {previous ? (
                           <Label small muted>
-                            Planned:{' '}
+                            Last logged ({previous.date}):{' '}
                             <Label syntax="number" small>
-                              {set.target.targetRepsMin}
-                              {set.target.targetRepsMax != null && `–${set.target.targetRepsMax}`}
+                              {previous.reps}
                             </Label>{' '}
-                            reps
-                            {set.target.targetWeightKg != null && (
-                              <>
-                                {' · '}
-                                <Label syntax="number" small>
-                                  {set.target.targetWeightKg}
-                                </Label>{' '}
-                                kg
-                              </>
-                            )}
-                            {set.target.isAmrap && ' · AMRAP'}
+                            reps ·{' '}
+                            <Label syntax="number" small>
+                              {previous.weightKg}
+                            </Label>{' '}
+                            kg{previous.isWarmup ? ' · Warm-up' : ''}
                           </Label>
+                        ) : (
+                          set.target && (
+                            <Label small muted>
+                              Planned:{' '}
+                              <Label syntax="number" small>
+                                {set.target.targetRepsMin}
+                                {set.target.targetRepsMax != null && `–${set.target.targetRepsMax}`}
+                              </Label>{' '}
+                              reps
+                              {set.target.targetWeightKg != null && (
+                                <>
+                                  {' · '}
+                                  <Label syntax="number" small>
+                                    {set.target.targetWeightKg}
+                                  </Label>{' '}
+                                  kg
+                                </>
+                              )}
+                              {set.target.isAmrap && ' · AMRAP'}
+                            </Label>
+                          )
                         )}
                         <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
                           <View style={{ flex: 1 }}>

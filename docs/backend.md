@@ -176,6 +176,10 @@ needed for calendar planning.
 
 - `GET /api/workout-schedule/{id}/log` returns the scheduled date, current template, and
   saved log (unfinished or completed) if one exists.
+  `previousSets` contains the latest saved result per exercise and set order from other
+  workouts belonging to the current user. Workouts after the selected date are excluded;
+  same-date records use the newest log ID. Unfinished logs are included, and deleting a
+  log removes it from future reference results.
 - `POST /api/workout-schedule/{id}/log` completes the workout with a request like:
 
 ```json

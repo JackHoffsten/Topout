@@ -8,6 +8,34 @@ namespace Topout.Infrastructure.Persistence.Repositories;
 
 internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogRepository
 {
+    public async Task<
+        IReadOnlyList<Topout.Application.WorkoutLogging.PreviousSetResponse>
+    > PreviousSetsAsync(int userId, DateOnly date, int? excludedLogId, CancellationToken ct) =>
+        await db
+            .WorkoutLogSets.AsNoTracking()
+            .Where(s =>
+                s.WorkoutLogEntry.WorkoutLog.UserId == userId
+                && s.WorkoutLogEntry.WorkoutLog.Date <= date
+                && (
+                    !excludedLogId.HasValue || s.WorkoutLogEntry.WorkoutLogId != excludedLogId.Value
+                )
+            )
+            .GroupBy(s => new { s.WorkoutLogEntry.ExerciseId, s.Order })
+            .Select(g =>
+                g.OrderByDescending(s => s.WorkoutLogEntry.WorkoutLog.Date)
+                    .ThenByDescending(s => s.WorkoutLogEntry.WorkoutLogId)
+                    .Select(s => new Topout.Application.WorkoutLogging.PreviousSetResponse(
+                        s.WorkoutLogEntry.ExerciseId,
+                        s.Order,
+                        s.WorkoutLogEntry.WorkoutLog.Date,
+                        s.Reps,
+                        s.Weight.Kilograms,
+                        s.IsWarmup
+                    ))
+                    .First()
+            )
+            .ToArrayAsync(ct);
+
     public async Task DeleteAsync(int userId, int scheduleId, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);

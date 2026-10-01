@@ -4,6 +4,12 @@ namespace Topout.Application.Abstractions;
 
 public interface IWorkoutLogRepository
 {
+    Task<IReadOnlyList<Topout.Application.WorkoutLogging.PreviousSetResponse>> PreviousSetsAsync(
+        int userId,
+        DateOnly date,
+        int? excludedLogId,
+        CancellationToken ct
+    );
     Task DeleteAsync(int userId, int scheduleId, CancellationToken ct);
     Task<ScheduledWorkout?> FindScheduleAsync(int userId, int scheduleId, CancellationToken ct);
     Task<ScheduledWorkout> CompleteAsync(

@@ -143,6 +143,18 @@ export const workoutLoggingSchema = z.object({
   templateName: z.string().nullable(),
   template: workoutTemplateSchema.nullable(),
   log: workoutLogSchema.nullable(),
+  previousSets: z
+    .array(
+      z.object({
+        exerciseId: z.number().int().positive(),
+        order: z.number().int().min(1).max(100),
+        date: z.iso.date(),
+        reps: z.number().int().min(1).max(1000),
+        weightKg: z.number().min(0).max(2000),
+        isWarmup: z.boolean(),
+      }),
+    )
+    .default([]),
 });
 export type WorkoutLogging = z.infer<typeof workoutLoggingSchema>;
 export const recordWorkoutSetSchema = loggedSetSchema.extend({

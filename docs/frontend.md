@@ -136,7 +136,11 @@ are removed.
 
 Select a planned workout on Home and choose Log workout. The editor shows planned targets
 as a reference, with blank fields for actual reps and kilograms. Enter 0 kg for bodyweight
-sets. Add or remove sets and exercises to match the workout actually performed, and add
+sets. When a matching exercise and set number has a previous saved record, Last logged
+shows its date, reps, kilograms, and warm-up flag instead of planned targets. This uses
+the latest workout date on or before the selected date, excludes the current workout,
+and includes unfinished saved logs. Actual inputs are not prefilled from history.
+Add or remove sets and exercises to match the workout actually performed, and add
 warm-up flags or optional notes. Adding a set copies the previous weight, leaving reps blank.
 
 Log set saves an individual set immediately; Logged indicates its values are saved. Changing

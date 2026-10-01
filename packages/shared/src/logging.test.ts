@@ -9,6 +9,7 @@ const response = {
   date: '2026-10-01',
   templateName: 'Pull',
   template: null,
+  previousSets: [],
   log: {
     id: 3,
     date: '2026-10-01',
