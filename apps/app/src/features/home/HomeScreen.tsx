@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Link } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { errorMessage, type ScheduledWorkout } from '@topout/shared';
 import { useSession } from '../../lib/providers';
@@ -28,6 +29,7 @@ export function HomeScreen() {
   const [picker, setPicker] = useState(false);
   const [search, setSearch] = useState('');
   const [removing, setRemoving] = useState<ScheduledWorkout>();
+  const [removingLog, setRemovingLog] = useState<ScheduledWorkout>();
   const days = monthDays(month);
   const from = dateKey(days[0]!);
   const to = dateKey(days.at(-1)!);
@@ -48,6 +50,14 @@ export function HomeScreen() {
     mutationFn: (id: number) => api.deleteScheduledWorkout(id),
     onSuccess: async () => {
       setRemoving(undefined);
+      await cache.invalidateQueries({ queryKey: scheduleKey });
+    },
+  });
+  const removeLog = useMutation({
+    mutationFn: (id: number) => api.deleteWorkoutLog(id),
+    onSuccess: async (_, id) => {
+      setRemovingLog(undefined);
+      cache.removeQueries({ queryKey: ['workout-logging', id] });
       await cache.invalidateQueries({ queryKey: scheduleKey });
     },
   });
@@ -119,35 +129,63 @@ export function HomeScreen() {
               {days.slice(week * 7, week * 7 + 7).map((date) => {
                 const key = dateKey(date);
                 const entries = schedule.data?.filter((plan) => plan.date === key) ?? [];
+                const logged = entries.some(
+                  (plan) => plan.status === 'InProgress' || plan.status === 'Completed',
+                );
                 const today = key === dateKey(new Date());
                 return (
                   <Pressable
                     key={key}
                     accessibilityRole="button"
-                    accessibilityLabel={`${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}${today ? ', today' : ''}, ${entries.length} planned entries`}
+                    accessibilityLabel={`${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}${today ? ', today' : ''}, ${entries.length} planned entries${logged ? ', workout logged' : ''}`}
                     accessibilityState={{ selected: key === selected, disabled: create.isPending }}
                     disabled={create.isPending}
                     onPress={() => selectDate(date)}
                     style={{
                       width: `${100 / 7}%`,
-                      minHeight: wide ? 96 : 54,
-                      padding: 5,
+                      minHeight: wide ? 96 : 72,
+                      padding: wide ? 5 : 2,
                       borderWidth: 1,
                       borderColor: key === selected ? c.focus : c.line,
                       backgroundColor: key === selected ? c.soft : c.surface,
                       gap: 5,
                     }}
                   >
-                    <Text
+                    <View
                       style={{
-                        fontFamily: tokens.font,
-                        fontSize: 14,
-                        fontWeight: today ? '700' : '400',
-                        color: date.getMonth() === month.getMonth() ? c.syntax.number : c.muted,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 2,
                       }}
                     >
-                      {date.getDate()}
-                    </Text>
+                      <Text
+                        style={{
+                          fontFamily: tokens.font,
+                          fontSize: wide ? 14 : 12,
+                          fontWeight: today ? '700' : '400',
+                          color: date.getMonth() === month.getMonth() ? c.syntax.number : c.muted,
+                        }}
+                      >
+                        {date.getDate()}
+                      </Text>
+                      {!wide && logged && (
+                        <View
+                          testID={`logged-${key}`}
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: 6,
+                            flexShrink: 0,
+                            backgroundColor: c.syntax.number,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Feather name="check" size={9} color={c.bg} />
+                        </View>
+                      )}
+                    </View>
                     {wide
                       ? entries.slice(0, 2).map((plan) => (
                           <Text
@@ -163,15 +201,51 @@ export function HomeScreen() {
                           </Text>
                         ))
                       : entries.length > 0 && (
-                          <Text
-                            style={{ fontFamily: tokens.font, fontSize: 11, color: c.syntax.name }}
+                          <View
+                            testID={`plans-${key}`}
+                            style={{
+                              position: 'absolute',
+                              left: 2,
+                              bottom: 4,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 2,
+                              paddingHorizontal: 3,
+                              paddingVertical: 4,
+                              borderRadius: tokens.radius.md,
+                              backgroundColor: c.input,
+                              borderWidth: 1,
+                              borderColor: c.line,
+                            }}
                           >
-                            {entries.length} •
-                          </Text>
+                            <Feather
+                              name={entries[0]!.isRestDay ? 'moon' : 'layers'}
+                              size={11}
+                              color={entries[0]!.isRestDay ? c.syntax.keyword : c.syntax.name}
+                            />
+                            {entries.length > 1 && (
+                              <Text
+                                style={{
+                                  fontFamily: tokens.font,
+                                  fontSize: 10,
+                                  color: c.syntax.name,
+                                }}
+                              >
+                                {entries.length}
+                              </Text>
+                            )}
+                          </View>
                         )}
                     {wide && entries.length > 2 && (
                       <Text style={{ fontFamily: tokens.font, fontSize: 11, color: c.muted }}>
                         +{entries.length - 2}
+                      </Text>
+                    )}
+                    {wide && logged && (
+                      <Text
+                        style={{ fontFamily: tokens.font, fontSize: 11, color: c.syntax.number }}
+                      >
+                        {wide ? '✓ Logged' : '✓'}
                       </Text>
                     )}
                   </Pressable>
@@ -179,6 +253,24 @@ export function HomeScreen() {
               })}
             </View>
           ))}
+          {!wide && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, paddingTop: 4 }}>
+              {(
+                [
+                  ['layers', 'Workout', c.syntax.name],
+                  ['check', 'Logged', c.syntax.number],
+                  ['moon', 'Rest', c.syntax.keyword],
+                ] as const
+              ).map(([icon, label, color]) => (
+                <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Feather name={icon} size={12} color={color} />
+                  <Text style={{ fontFamily: tokens.font, fontSize: 11, color: c.muted }}>
+                    {label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </Card>
         <Card style={{ flex: wide ? 2 : undefined }}>
           <Heading>
@@ -212,8 +304,23 @@ export function HomeScreen() {
                     {plan.isRestDay ? 'Rest day' : plan.templateName}
                   </Label>
                   <Label muted small>
-                    {plan.status}
+                    {plan.status === 'InProgress' ? 'In progress' : plan.status}
                   </Label>
+                  {!plan.isRestDay &&
+                    (plan.status === 'Planned' ||
+                      plan.status === 'InProgress' ||
+                      plan.status === 'Completed') && (
+                      <Link
+                        href={{ pathname: '/workouts/[id]', params: { id: plan.id } }}
+                        style={{ color: c.syntax.property, fontFamily: tokens.font }}
+                      >
+                        {plan.status === 'Completed'
+                          ? 'View workout log'
+                          : plan.status === 'InProgress'
+                            ? 'Resume workout'
+                            : 'Log workout'}
+                      </Link>
+                    )}
                   {!plan.isRestDay && plan.templateId && (
                     <Link
                       href={{ pathname: '/templates/[id]/edit', params: { id: plan.templateId } }}
@@ -222,7 +329,17 @@ export function HomeScreen() {
                       View template
                     </Link>
                   )}
-                  {plan.status !== 'Completed' && (
+                  {plan.status === 'InProgress' || plan.status === 'Completed' ? (
+                    <Button
+                      title="Remove log"
+                      accessibilityLabel={`Remove log for ${plan.templateName}`}
+                      variant="secondary"
+                      onPress={() => {
+                        removeLog.reset();
+                        setRemovingLog(plan);
+                      }}
+                    />
+                  ) : (
                     <Button
                       title="Remove"
                       accessibilityLabel={`Remove ${plan.isRestDay ? 'rest day' : plan.templateName}`}
@@ -240,7 +357,7 @@ export function HomeScreen() {
                 <>
                   <Button
                     title="Plan workout"
-                    disabled={create.isPending}
+                    disabled={create.isPending || plans.some((plan) => plan.isRestDay)}
                     onPress={() => {
                       create.reset();
                       setPicker(true);
@@ -249,6 +366,7 @@ export function HomeScreen() {
                   <Button
                     title="Add rest day"
                     variant="secondary"
+                    disabled={plans.length > 0}
                     busy={create.isPending}
                     onPress={() => create.mutate(null)}
                   />
@@ -330,12 +448,31 @@ export function HomeScreen() {
           )}
         </Card>
       </View>
+      {removingLog && (
+        <ConfirmDialog
+          visible
+          title="Remove workout log?"
+          description="This permanently removes all recorded sets and notes for this workout. The planned template stays on the calendar."
+          confirmLabel="Remove workout log"
+          cancelLabel="Keep log"
+          busy={removeLog.isPending}
+          error={removeLog.isError ? errorMessage(removeLog.error) : undefined}
+          onCancel={() => setRemovingLog(undefined)}
+          onConfirm={() => {
+            if (removingLog) removeLog.mutate(removingLog.id);
+          }}
+        />
+      )}
       <ConfirmDialog
         visible={!!removing}
-        title="Remove plan?"
-        description="This removes the calendar entry. Your template is kept."
-        confirmLabel="Remove plan"
-        cancelLabel="Keep plan"
+        title={removing?.isRestDay ? 'Remove rest day?' : 'Remove plan?'}
+        description={
+          removing?.isRestDay
+            ? 'This date will no longer be marked as a rest day.'
+            : 'This removes the calendar entry. Your template is kept.'
+        }
+        confirmLabel={removing?.isRestDay ? 'Remove rest day' : 'Remove plan'}
+        cancelLabel={removing?.isRestDay ? 'Keep rest day' : 'Keep plan'}
         busy={remove.isPending}
         error={remove.isError ? errorMessage(remove.error) : undefined}
         onCancel={() => setRemoving(undefined)}

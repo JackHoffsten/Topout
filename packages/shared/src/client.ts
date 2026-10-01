@@ -14,6 +14,11 @@ import {
   scheduleWorkoutInputSchema,
   scheduledWorkoutSchema,
   workoutScheduleSchema,
+  type CompleteWorkoutInput,
+  completeWorkoutInputSchema,
+  workoutLoggingSchema,
+  type RecordWorkoutSet,
+  recordWorkoutSetSchema,
 } from './contracts';
 
 export class ApiError extends Error {
@@ -215,6 +220,49 @@ export class ApiClient {
 
   deleteScheduledWorkout(id: number) {
     return this.request('/api/workout-schedule/' + id, z.undefined(), 'DELETE');
+  }
+
+  deleteWorkoutLog(scheduleId: number) {
+    return this.request(`/api/workout-schedule/${scheduleId}/log`, z.undefined(), 'DELETE');
+  }
+
+  getWorkoutLogging(scheduleId: number) {
+    return this.request(`/api/workout-schedule/${scheduleId}/log`, workoutLoggingSchema);
+  }
+
+  completeWorkout(scheduleId: number, input: CompleteWorkoutInput) {
+    return this.request(
+      `/api/workout-schedule/${scheduleId}/log`,
+      workoutLoggingSchema,
+      'POST',
+      completeWorkoutInputSchema.parse(input),
+    );
+  }
+
+  updateWorkout(scheduleId: number, input: CompleteWorkoutInput) {
+    return this.request(
+      `/api/workout-schedule/${scheduleId}/log`,
+      workoutLoggingSchema,
+      'PUT',
+      completeWorkoutInputSchema.parse(input),
+    );
+  }
+
+  recordWorkoutSet(scheduleId: number, input: RecordWorkoutSet) {
+    return this.request(
+      `/api/workout-schedule/${scheduleId}/log/sets`,
+      workoutLoggingSchema,
+      'PUT',
+      recordWorkoutSetSchema.parse(input),
+    );
+  }
+
+  removeWorkoutSet(scheduleId: number, exerciseId: number, order: number) {
+    return this.request(
+      `/api/workout-schedule/${scheduleId}/log/sets/${exerciseId}/${order}`,
+      workoutLoggingSchema,
+      'DELETE',
+    );
   }
 
   getWorkoutTemplate(id: number) {

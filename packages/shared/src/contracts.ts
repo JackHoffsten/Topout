@@ -96,10 +96,60 @@ export const scheduledWorkoutSchema = z.object({
   templateId: z.number().int().positive().nullable(),
   templateName: z.string().nullable(),
   isRestDay: z.boolean(),
-  status: z.enum(['Planned', 'Completed', 'Skipped']),
+  status: z.enum(['Planned', 'InProgress', 'Completed', 'Skipped']),
 });
 export const workoutScheduleSchema = z.array(scheduledWorkoutSchema);
 export type ScheduledWorkout = z.infer<typeof scheduledWorkoutSchema>;
+
+export const loggedSetSchema = z.object({
+  reps: z.number().int().min(1, 'Enter 1–1000 reps.').max(1000, 'Enter 1–1000 reps.'),
+  weightKg: z.number().min(0, 'Enter 0–2000 kg.').max(2000, 'Enter 0–2000 kg.'),
+  isWarmup: z.boolean(),
+  notes: z.string().trim().max(2000).nullable(),
+});
+export const completeWorkoutInputSchema = z
+  .object({
+    notes: z.string().trim().max(2000).nullable(),
+    exercises: z
+      .array(
+        z.object({
+          exerciseId: z.number().int().positive(),
+          sets: z.array(loggedSetSchema).min(1, 'Add at least one set.').max(100),
+        }),
+      )
+      .min(1, 'Add at least one exercise.')
+      .max(100),
+  })
+  .refine(
+    (input) => new Set(input.exercises.map((e) => e.exerciseId)).size === input.exercises.length,
+    { message: 'An exercise can appear only once in a workout.', path: ['exercises'] },
+  );
+export type CompleteWorkoutInput = z.infer<typeof completeWorkoutInputSchema>;
+export const workoutLogSchema = z.object({
+  id: z.number().int().positive(),
+  date: z.iso.date(),
+  notes: z.string().nullable(),
+  completedAt: z.iso.datetime({ offset: true }).nullable(),
+  exercises: z.array(
+    z.object({
+      exercise: exerciseSchema,
+      sets: z.array(loggedSetSchema.extend({ order: z.number().int().min(1).max(100) })),
+    }),
+  ),
+});
+export const workoutLoggingSchema = z.object({
+  scheduleId: z.number().int().positive(),
+  date: z.iso.date(),
+  templateName: z.string().nullable(),
+  template: workoutTemplateSchema.nullable(),
+  log: workoutLogSchema.nullable(),
+});
+export type WorkoutLogging = z.infer<typeof workoutLoggingSchema>;
+export const recordWorkoutSetSchema = loggedSetSchema.extend({
+  exerciseId: z.number().int().positive(),
+  order: z.number().int().min(1).max(100),
+});
+export type RecordWorkoutSet = z.infer<typeof recordWorkoutSetSchema>;
 
 export const loginSchema = z.object({
   email: z.email('Enter a valid email address.').max(256),

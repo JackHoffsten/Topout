@@ -10,11 +10,13 @@ const mockApi = {
   listWorkoutTemplates: jest.fn<() => Promise<any[]>>(),
   scheduleWorkout: jest.fn<(...args: any[]) => Promise<any>>(),
   deleteScheduledWorkout: jest.fn<(...args: any[]) => Promise<void>>(),
+  deleteWorkoutLog: jest.fn<(...args: any[]) => Promise<void>>(),
 };
 jest.mock('../lib/providers', () => ({
   useSession: () => ({ api: mockApi, status: 'authenticated' }),
 }));
 jest.mock('expo-router', () => ({ Link: ({ children }: any) => children }));
+jest.mock('@expo/vector-icons', () => ({ Feather: () => null }));
 
 beforeEach(() => {
   jest.resetAllMocks();
@@ -22,6 +24,7 @@ beforeEach(() => {
   mockApi.listWorkoutTemplates.mockResolvedValue([{ id: 1, name: 'Push', exercises: [] }]);
   mockApi.scheduleWorkout.mockResolvedValue({});
   mockApi.deleteScheduledWorkout.mockResolvedValue(undefined);
+  mockApi.deleteWorkoutLog.mockResolvedValue(undefined);
 });
 
 async function mount() {
@@ -70,6 +73,7 @@ test('searches templates, schedules today, and reloads saved plans', async () =>
     }),
   );
   await screen.findByRole('button', { name: 'Remove Push' });
+  expect(screen.getByRole('button', { name: 'Add rest day' })).toBeDisabled();
   await fireEventAsync.press(screen.getByRole('button', { name: 'Remove Push' }));
   mockApi.listWorkoutSchedule.mockResolvedValue([]);
   await fireEventAsync.press(screen.getByRole('button', { name: 'Remove plan' }));
@@ -89,4 +93,54 @@ test('adds rest days and preserves scheduling errors', async () => {
     }),
   );
   await screen.findByText('Could not connect. Check your connection and try again.');
+});
+
+test.each(['InProgress', 'Completed'])(
+  'marks %s dates logged and removes only the log first',
+  async (status) => {
+    const plan = {
+      id: 2,
+      date: dateKey(new Date()),
+      templateId: 1,
+      templateName: 'Push',
+      isRestDay: false,
+      status,
+    };
+    mockApi.listWorkoutSchedule.mockResolvedValue([plan]);
+    await mount();
+    await screen.findByRole('button', { name: 'Remove log for Push' });
+    expect(screen.queryByRole('button', { name: 'Remove Push' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add rest day' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /workout logged/ })).toBeTruthy();
+    await fireEventAsync.press(screen.getByRole('button', { name: 'Remove log for Push' }));
+    await fireEventAsync.press(screen.getByRole('button', { name: 'Keep log' }));
+    expect(mockApi.deleteWorkoutLog).not.toHaveBeenCalled();
+    await fireEventAsync.press(screen.getByRole('button', { name: 'Remove log for Push' }));
+    mockApi.listWorkoutSchedule.mockResolvedValue([{ ...plan, status: 'Planned' }]);
+    await fireEventAsync.press(screen.getByRole('button', { name: 'Remove workout log' }));
+    await waitFor(() => expect(mockApi.deleteWorkoutLog).toHaveBeenCalledWith(2));
+    await screen.findByRole('button', { name: 'Remove Push' });
+    expect(screen.queryByRole('button', { name: /workout logged/ })).toBeNull();
+    expect(mockApi.deleteScheduledWorkout).not.toHaveBeenCalled();
+  },
+);
+
+test('rest-day confirmation describes removing the rest marker, not a template', async () => {
+  mockApi.listWorkoutSchedule.mockResolvedValue([
+    {
+      id: 3,
+      date: dateKey(new Date()),
+      templateId: null,
+      templateName: null,
+      isRestDay: true,
+      status: 'Planned',
+    },
+  ]);
+  await mount();
+  await fireEventAsync.press(await screen.findByRole('button', { name: 'Remove rest day' }));
+  expect(screen.getByText('Remove rest day?')).toBeTruthy();
+  expect(screen.getByText('This date will no longer be marked as a rest day.')).toBeTruthy();
+  expect(screen.queryByText('This removes the calendar entry. Your template is kept.')).toBeNull();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Keep rest day' }));
+  expect(mockApi.deleteScheduledWorkout).not.toHaveBeenCalled();
 });

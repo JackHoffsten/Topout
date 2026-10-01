@@ -38,7 +38,14 @@ test('home calendar schedules templates and rest days, restores and removes plan
     true,
   );
   await page.getByRole('button', { name: 'Remove rest day', exact: true }).click();
-  await page.getByRole('button', { name: 'Remove plan', exact: true }).click();
+  await expect(
+    page.getByText('This date will no longer be marked as a rest day.', { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Remove rest day', exact: true })
+    .filter({ visible: true })
+    .last()
+    .click();
   await expect(page.getByText('No workouts planned.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Today', exact: true }).click();
   await page.getByRole('button', { name: 'Remove Push', exact: true }).click();
