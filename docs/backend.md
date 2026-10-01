@@ -163,11 +163,61 @@ The authenticated workout schedule API uses the existing ScheduledWorkout table:
   entries in an inclusive range of at most 63 days.
 - `POST /api/workout-schedule` accepts `{ "date": "2026-10-02", "templateId": 1 }`.
   A null templateId records a rest day. Multiple entries per date are allowed.
-- `DELETE /api/workout-schedule/{id}` removes an owned entry. Completed entries return 409. Missing and other-user entries or templates return 404.
+- `DELETE /api/workout-schedule/{id}` removes an owned entry only when it has no workout log. Unfinished and completed logs both prevent removal (409). Missing and other-user entries or templates return 404.
+
+Rest days cannot share a date with workout plans; conflicting requests return 409. Remove
+the existing plan first. Multiple workout plans can still share a date.
 
 Dates are date-only values. Scheduling references a live template rather than copying its
 contents; referenced templates retain the existing deletion restriction. No migration is
 needed for calendar planning.
+
+## Workout logging API
+
+- `GET /api/workout-schedule/{id}/log` returns the scheduled date, current template, and
+  saved log (unfinished or completed) if one exists.
+- `POST /api/workout-schedule/{id}/log` completes the workout with a request like:
+
+```json
+{
+  "notes": null,
+  "exercises": [
+    {
+      "exerciseId": 1,
+      "sets": [{ "reps": 8, "weightKg": 20, "isWarmup": false, "notes": null }]
+    }
+  ]
+}
+```
+
+- `PUT /api/workout-schedule/{id}/log` replaces a completed record with the same full
+  request shape. The log ID and original completion timestamp are preserved.
+- `PUT /api/workout-schedule/{id}/log/sets` records or updates one set with `exerciseId`,
+  `order` (1–100), `reps`, `weightKg`, `isWarmup`, and nullable `notes`. It creates an
+  unfinished log on first use and works for completed logs as well.
+- `DELETE /api/workout-schedule/{id}/log/sets/{exerciseId}/{order}` removes a saved set.
+- `DELETE /api/workout-schedule/{id}/log` permanently removes the entire owned log and its
+  sets and notes, returning 204. The plan is retained and reset to Planned. Missing logs
+  and other-user schedules return 404.
+  Deleting the last set of a completed workout returns 409.
+
+Saved sets include their stable order in responses. Unfinished logs have null completedAt;
+their calendar status is InProgress. Empty planned slots are not stored as actual sets.
+
+At least one exercise and one set per exercise are required. Reps must be integers from
+1–1000; weight must be 0–2000 kg. Notes allow up to 2000 characters. Limits are 100 exercises
+and 100 sets per exercise. Array positions determine ordering. Duplicate exercises return
+409; unavailable or other-user exercises and schedules return 404. Rest days and completed
+workouts cannot be completed again via POST; corrections use PUT. All operations require authentication.
+
+Actual sets and schedule completion are saved in one transaction. A row lock serializes
+completion, set updates, completed edits, and removal. Updating the same set twice replaces
+its values rather than duplicating it. Completion of an unfinished log reuses its ID.
+The existing workout-log tables support this feature without a migration.
+
+The isolated browser test server opts into a larger authentication rate-limit budget with
+`Testing:ExpandedAuthRateLimit`. This setting is honored only in the Testing environment;
+production and development retain the normal limit of 60 requests per IP per minute.
 
 ## Migrations and tests
 

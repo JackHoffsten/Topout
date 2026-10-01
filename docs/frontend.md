@@ -130,7 +130,37 @@ Calendar dates use local dates without converting them to UTC.
 
 The calendar references the current template, so editing a template changes the plan shown
 for future sessions. Scheduled templates cannot be deleted until their calendar entries
-are removed. Starting and logging workouts are separate features.
+are removed.
+
+## Workout logging
+
+Select a planned workout on Home and choose Log workout. The editor shows planned targets
+as a reference, with blank fields for actual reps and kilograms. Enter 0 kg for bodyweight
+sets. Add or remove sets and exercises to match the workout actually performed, and add
+warm-up flags or optional notes. Adding a set copies the previous weight, leaving reps blank.
+
+Log set saves an individual set immediately; Logged indicates its values are saved. Changing
+those values enables Save set. The calendar shows In progress and Resume workout, and saved
+sets are restored after reload. Unsaved planned slots remain blank. Removing a saved set is
+also persisted immediately. Finish workout saves entered sets and marks the entry Completed;
+blank, unlogged sets are skipped. At least one valid set is required.
+
+Use View workout log and Edit workout to correct a completed record. Save changes saves the
+entire edited workout, including notes and exercise changes, while keeping its original log ID
+and completion timestamp. Individual set corrections can also be saved with Save set. A
+completed workout must retain at least one set. Dates with saved sets show a check mark
+(“Logged” on desktop), including unfinished workouts. Calendar entries with logs cannot
+be removed until their logs are removed.
+
+On Home, Remove log permanently deletes that workout's sets and notes after confirmation,
+but keeps the template planned on the date. Remove then removes the calendar plan without
+deleting the template. Rest days cannot be added to dates with workout plans; remove all
+plans first. Likewise, remove a rest day before planning workouts on that date.
+Recorded values remain separate from template targets.
+
+Cancel discards only unsaved edits; previously logged sets remain. Unlogged field edits,
+workout notes, and pending exercise changes are saved when finishing or saving changes, not
+by the individual set action. This slice does not include timers or offline storage.
 
 ## Workout templates
 
