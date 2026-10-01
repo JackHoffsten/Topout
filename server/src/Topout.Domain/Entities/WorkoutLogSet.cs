@@ -21,7 +21,8 @@ public class WorkoutLogSet : Entity
         int reps,
         Weight weight,
         bool isWarmup,
-        string? notes)
+        string? notes
+    )
     {
         if (reps is < 1 or > 1000)
             throw new ArgumentException("Reps must be between 1 and 1000.");
@@ -35,6 +36,16 @@ public class WorkoutLogSet : Entity
     }
 
     internal void SetOrder(int order) => Order = order;
+
+    internal void ReplaceActual(int reps, Weight weight, bool warmup, string? notes)
+    {
+        if (reps is < 1 or > 1000)
+            throw new ArgumentException("Reps must be between 1 and 1000.");
+        Reps = reps;
+        Weight = weight;
+        IsWarmup = warmup;
+        Notes = notes;
+    }
 
     public void Update(int reps, Weight weight)
     {

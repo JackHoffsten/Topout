@@ -22,7 +22,10 @@ public sealed record ScheduledWorkoutResponse(
             workout.WorkoutDayId,
             workout.WorkoutDay?.Name,
             workout.IsRestDay,
-            workout.Status.ToString()
+            workout.Status == Topout.Domain.Enums.ScheduledStatus.Planned
+            && workout.WorkoutLogId.HasValue
+                ? "InProgress"
+                : workout.Status.ToString()
         );
 }
 

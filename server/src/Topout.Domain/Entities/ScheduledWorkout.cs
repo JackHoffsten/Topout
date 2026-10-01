@@ -21,7 +21,9 @@ public class ScheduledWorkout : OwnedEntity
     {
         ArgumentNullException.ThrowIfNull(workoutDay);
         if (workoutDay.UserId != userId)
-            throw new InvalidOperationException("Workout day and schedule must belong to the same user.");
+            throw new InvalidOperationException(
+                "Workout day and schedule must belong to the same user."
+            );
         Date = date;
         WorkoutDay = workoutDay;
     }
@@ -57,13 +59,30 @@ public class ScheduledWorkout : OwnedEntity
             throw new InvalidOperationException("A workout log cannot be attached to a rest day.");
         ArgumentNullException.ThrowIfNull(log);
         if (log.UserId != UserId)
-            throw new InvalidOperationException("Workout log and schedule must belong to the same user.");
+            throw new InvalidOperationException(
+                "Workout log and schedule must belong to the same user."
+            );
         if (!log.IsCompleted)
             throw new InvalidOperationException("Only a completed workout log can be attached.");
         if (Status == ScheduledStatus.Completed)
             throw new ArgumentException("Workout already completed.");
         WorkoutLog = log;
         Status = ScheduledStatus.Completed;
+    }
+
+    public void StartLog(WorkoutLog log)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        if (
+            IsRestDay
+            || Status != ScheduledStatus.Planned
+            || WorkoutLogId.HasValue
+            || WorkoutLog is not null
+        )
+            throw new InvalidOperationException("This workout cannot be started.");
+        if (log.UserId != UserId || log.Date != Date || log.IsCompleted)
+            throw new InvalidOperationException("The unfinished log must belong to this workout.");
+        WorkoutLog = log;
     }
 
     public void DetachLog()

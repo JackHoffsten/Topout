@@ -29,6 +29,19 @@ internal sealed class WorkoutScheduleRepository(AppDbContext db) : IWorkoutSched
         CancellationToken ct
     )
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock({userId}, {date.DayNumber})",
+            ct
+        );
+        var existing = await db
+            .ScheduledWorkouts.Where(x => x.UserId == userId && x.Date == date)
+            .ToArrayAsync(ct);
+        if (existing.Any(x => x.IsRestDay || !templateId.HasValue))
+            throw new RequestException(
+                ErrorKind.Conflict,
+                "Rest days and planned workouts cannot share a date. Remove the existing plan first."
+            );
         ScheduledWorkout workout;
         if (templateId.HasValue)
         {
@@ -43,22 +56,27 @@ internal sealed class WorkoutScheduleRepository(AppDbContext db) : IWorkoutSched
             workout = ScheduledWorkout.CreateRestDay(userId, date);
         db.ScheduledWorkouts.Add(workout);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return workout;
     }
 
     public async Task DeleteAsync(int userId, int id, CancellationToken ct)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var workout =
-            await db.ScheduledWorkouts.SingleOrDefaultAsync(
-                x => x.UserId == userId && x.Id == id,
-                ct
-            ) ?? throw new RequestException(ErrorKind.NotFound, "Scheduled workout not found.");
-        if (workout.Status == ScheduledStatus.Completed)
+            await db
+                .ScheduledWorkouts.FromSqlInterpolated(
+                    $"SELECT * FROM \"ScheduledWorkouts\" WHERE \"Id\" = {id} AND \"UserId\" = {userId} FOR UPDATE"
+                )
+                .SingleOrDefaultAsync(ct)
+            ?? throw new RequestException(ErrorKind.NotFound, "Scheduled workout not found.");
+        if (workout.WorkoutLogId.HasValue || workout.Status == ScheduledStatus.Completed)
             throw new RequestException(
                 ErrorKind.Conflict,
-                "Completed workouts cannot be removed from the calendar."
+                "Remove the workout log before removing this plan."
             );
         db.ScheduledWorkouts.Remove(workout);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
     }
 }

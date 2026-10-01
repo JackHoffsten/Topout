@@ -26,6 +26,17 @@ public class WorkoutLogEntry : Entity
 
     internal void SetOrder(int order) => Order = order;
 
+    internal void RecordSet(int order, int reps, Weight weight, bool warmup, string? notes)
+    {
+        var existing = _sets.FirstOrDefault(s => s.Order == order);
+        if (existing is not null)
+            existing.ReplaceActual(reps, weight, warmup, notes);
+        else
+            _sets.Add(new WorkoutLogSet(this, order, reps, weight, warmup, notes));
+    }
+
+    internal void RemoveRecordedSet(int order) => _sets.RemoveAll(s => s.Order == order);
+
     public WorkoutLogSet AddSet(
         int reps,
         Weight weight,

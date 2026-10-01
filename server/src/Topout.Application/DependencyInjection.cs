@@ -11,6 +11,7 @@ public static class DependencyInjection
     {
         services.AddScoped<ListExercisesHandler>();
         services.AddScoped<Topout.Application.WorkoutSchedule.WorkoutScheduleHandler>();
+        services.AddScoped<Topout.Application.WorkoutLogging.WorkoutLoggingHandler>();
         services.AddScoped<ListWorkoutTemplatesHandler>();
         services.AddScoped<GetWorkoutTemplateHandler>();
         services.AddScoped<SaveWorkoutTemplateHandler>();

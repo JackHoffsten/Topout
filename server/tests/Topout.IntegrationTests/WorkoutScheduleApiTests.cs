@@ -91,6 +91,65 @@ public class WorkoutScheduleApiTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task Rest_days_cannot_share_dates_with_planned_workouts()
+    {
+        using var client = await Client();
+        var response = await client.PostAsJsonAsync(
+            "/api/workout-templates",
+            new WorkoutTemplateInput("Push", [])
+        );
+        var template = (
+            await response.Content.ReadFromJsonAsync<WorkoutTemplateResponse>(ExerciseApiTests.Json)
+        )!;
+        var date = new DateOnly(2026, 10, 2);
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (
+                await client.PostAsJsonAsync(
+                    "/api/workout-schedule",
+                    new ScheduleWorkoutInput(date, template.Id)
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (
+                await client.PostAsJsonAsync(
+                    "/api/workout-schedule",
+                    new ScheduleWorkoutInput(date, null)
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (
+                await client.PostAsJsonAsync(
+                    "/api/workout-schedule",
+                    new ScheduleWorkoutInput(date.AddDays(1), null)
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (
+                await client.PostAsJsonAsync(
+                    "/api/workout-schedule",
+                    new ScheduleWorkoutInput(date.AddDays(1), template.Id)
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (
+                await client.PostAsJsonAsync(
+                    "/api/workout-schedule",
+                    new ScheduleWorkoutInput(date.AddDays(1), null)
+                )
+            ).StatusCode
+        );
+    }
+
+    [Fact]
     public async Task Schedule_is_user_scoped_and_rejects_invalid_dates_and_ranges()
     {
         using var owner = await Client();

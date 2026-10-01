@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<IExerciseRepository, ExerciseRepository>();
         services.AddScoped<IWorkoutScheduleRepository, WorkoutScheduleRepository>();
+        services.AddScoped<IWorkoutLogRepository, WorkoutLogRepository>();
         services.AddScoped<IWorkoutTemplateRepository, WorkoutTemplateRepository>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<TokenIssuer>();
