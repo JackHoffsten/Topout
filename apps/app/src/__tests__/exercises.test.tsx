@@ -30,7 +30,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: mockReplace }),
 }));
 
-jest.mock('@expo/vector-icons', () => ({ Feather: () => null }));
+jest.mock('@expo/vector-icons', () => ({ Feather: () => null, Ionicons: () => null }));
 async function mount(element: React.ReactElement) {
   const client = new QueryClient({
     defaultOptions: {
