@@ -69,6 +69,7 @@ export async function startTestServer() {
       ...process.env,
       Logging__LogLevel__Default: 'Warning',
       ASPNETCORE_ENVIRONMENT: 'Testing',
+      Testing__ExpandedAuthRateLimit: 'true',
       ASPNETCORE_URLS: `http://127.0.0.1:${apiPort}`,
       ConnectionStrings__Default: `Host=127.0.0.1;Port=${port};Database=postgres;Username=postgres;Password=${password}`,
       Jwt__SigningKey: randomBytes(48).toString('base64'),

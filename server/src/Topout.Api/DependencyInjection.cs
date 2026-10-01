@@ -109,7 +109,13 @@ public static class DependencyInjection
                         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                         _ => new FixedWindowRateLimiterOptions
                         {
-                            PermitLimit = 60,
+                            // Browser suites share one loopback IP across many accounts.
+                            // The override is opt-in and unavailable outside Testing.
+                            PermitLimit =
+                                environment.IsEnvironment("Testing")
+                                && configuration.GetValue<bool>("Testing:ExpandedAuthRateLimit")
+                                    ? 600
+                                    : 60,
                             Window = TimeSpan.FromMinutes(1),
                             QueueLimit = 0,
                         }
