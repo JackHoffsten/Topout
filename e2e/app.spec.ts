@@ -65,7 +65,7 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
   await page.emulateMedia({ colorScheme: 'dark' });
   await expect(
     page.getByTestId(info.project.name === 'phone' ? 'phone-navigation' : 'desktop-navigation'),
-  ).toHaveCSS('background-color', 'rgb(28, 42, 34)');
+  ).toHaveCSS('background-color', 'rgb(25, 26, 27)');
   await page.screenshot({
     path: test.info().outputPath('exercise-library-dark.png'),
     fullPage: true,

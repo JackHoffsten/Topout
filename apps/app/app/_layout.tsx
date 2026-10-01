@@ -2,8 +2,10 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Providers, useSession } from '../src/lib/providers';
-import { Loading } from '../src/ui/components';
+import { Loading } from '../src/ui/components/Loading';
+
 export const unstable_settings = { initialRouteName: 'index' };
+
 function Routes() {
   const { status } = useSession();
   if (status === 'restoring') return <Loading />;
@@ -22,6 +24,7 @@ function Routes() {
     </>
   );
 }
+
 export default function Root() {
   return (
     <SafeAreaProvider>

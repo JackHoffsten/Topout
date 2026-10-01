@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ApiError } from '@topout/shared';
 import { ExerciseList } from '../features/exercises/ExerciseList';
 import { ExerciseEditor } from '../features/exercises/ExerciseEditor';
+
 const exercise = { id: 1, name: 'Pull-up', muscleGroup: 'Back', isCustom: true };
 const mockApi = {
   listExercises: jest.fn<() => Promise<any[]>>(),
@@ -19,13 +20,16 @@ const mockApi = {
   deleteExercise: jest.fn<(...args: any[]) => Promise<void>>(),
 };
 const mockReplace = jest.fn();
+
 jest.mock('../lib/providers', () => ({
   useSession: () => ({ api: mockApi, status: 'authenticated' }),
 }));
+
 jest.mock('expo-router', () => ({
   Link: ({ children }: any) => children,
   useRouter: () => ({ replace: mockReplace }),
 }));
+
 jest.mock('@expo/vector-icons', () => ({ Feather: () => null }));
 async function mount(element: React.ReactElement) {
   const client = new QueryClient({
@@ -36,10 +40,12 @@ async function mount(element: React.ReactElement) {
   });
   return render(<QueryClientProvider client={client}>{element}</QueryClientProvider>);
 }
+
 beforeEach(() => {
   jest.resetAllMocks();
   mockApi.listExercises.mockResolvedValue([]);
 });
+
 test('loading and empty states', async () => {
   let resolve!: (value: any[]) => void;
   mockApi.listExercises.mockImplementation(
@@ -53,6 +59,7 @@ test('loading and empty states', async () => {
   await act(async () => resolve([]));
   await screen.findByText('No exercises');
 });
+
 test('starter and custom exercises have the same presentation', async () => {
   mockApi.listExercises.mockResolvedValue([
     { ...exercise, id: 1, name: 'Pull-up', isCustom: false },
@@ -66,6 +73,7 @@ test('starter and custom exercises have the same presentation', async () => {
   expect(screen.queryByText('MADE BY YOU')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Refresh exercises' })).toBeNull();
 });
+
 test('create validates, then surfaces duplicate names', async () => {
   mockApi.createExercise.mockRejectedValue(
     new ApiError(409, 'An exercise with this name already exists.'),
@@ -78,6 +86,7 @@ test('create validates, then surfaces duplicate names', async () => {
   await fireEvent.press(screen.getByRole('button', { name: 'Create exercise' }));
   await screen.findByText('An exercise with this name already exists.');
 });
+
 test('successful creation returns to library', async () => {
   mockApi.createExercise.mockResolvedValue(exercise);
   await mount(<ExerciseEditor />);
@@ -85,6 +94,7 @@ test('successful creation returns to library', async () => {
   await fireEvent.press(screen.getByRole('button', { name: 'Create exercise' }));
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/exercises'));
 });
+
 test('edit loads existing values and saves changes', async () => {
   mockApi.listExercises.mockResolvedValue([exercise]);
   mockApi.updateExercise.mockResolvedValue(exercise);
@@ -100,6 +110,7 @@ test('edit loads existing values and saves changes', async () => {
     }),
   );
 });
+
 test('referenced deletion stays open with error; successful deletion refreshes library', async () => {
   mockApi.listExercises.mockResolvedValue([exercise]);
   mockApi.deleteExercise

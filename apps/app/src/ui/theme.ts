@@ -1,48 +1,79 @@
-import { useWindowDimensions } from 'react-native';
+import { Platform, TextStyle, useWindowDimensions } from 'react-native';
 import { usePreferredColorScheme } from './colorScheme';
+
+export const webInputStyle =
+  Platform.OS === 'web'
+    ? ({ outlineStyle: 'none', outlineWidth: 0 } as unknown as TextStyle)
+    : undefined;
+
 export const tokens = {
   space: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },
-  radius: { sm: 10, md: 18, lg: 28 },
-  type: { small: 13, body: 16, title: 30, hero: 48 },
+  radius: { sm: 2, md: 4, lg: 6 },
+  type: { small: 12, body: 14, title: 24, hero: 36 },
+  font: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'Consolas' }),
   elevation: {
-    shadowColor: '#102c22',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    elevation: 2,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
   },
 };
+
 export const light = {
-  bg: '#F6F5F0',
-  surface: '#FFFFFF',
-  ink: '#183A2C',
-  muted: '#6B756C',
-  line: '#E2E6DC',
-  primary: '#204C38',
+  bg: '#FFFFFF',
+  chrome: '#FAFAFD',
+  surface: '#FAFAFD',
+  input: '#FFFFFF',
+  ink: '#202020',
+  muted: '#606060',
+  line: '#E4E5E6',
+  primary: '#0069CC',
   onPrimary: '#FFFFFF',
-  soft: '#EAF0E6',
-  accent: '#B85838',
-  error: '#A52B29',
-  errorBg: '#FCEEE9',
-  focus: '#B85838',
+  soft: '#EAEAEA',
+  accent: '#0069CC',
+  error: '#AD0707',
+  errorBg: '#FDEDED',
+  focus: '#0069CC',
+  syntax: {
+    name: '#795E26',
+    number: '#098658',
+    string: '#A31515',
+    keyword: '#AF00DB',
+    property: '#001080',
+  },
 };
+
 export const dark = {
-  bg: '#121C17',
-  surface: '#1C2A22',
-  ink: '#ECF2E7',
-  muted: '#ADB9AD',
-  line: '#35453A',
-  primary: '#B7D5A5',
-  onPrimary: '#183023',
-  soft: '#2B3C30',
-  accent: '#EBA37E',
-  error: '#FFA8A3',
-  errorBg: '#402B28',
-  focus: '#EBA37E',
+  bg: '#121314',
+  chrome: '#191A1B',
+  surface: '#202122',
+  input: '#191A1B',
+  ink: '#BFBFBF',
+  muted: '#8C8C8C',
+  line: '#2A2B2C',
+  primary: '#297AA0',
+  onPrimary: '#FFFFFF',
+  soft: '#242526',
+  accent: '#48A0C7',
+  error: '#F48771',
+  errorBg: '#3A1D1D',
+  focus: '#3994BC',
+  syntax: {
+    name: '#DCDCAA',
+    number: '#B5CEA8',
+    string: '#CE9178',
+    keyword: '#C586C0',
+    property: '#9CDCFE',
+  },
 };
+
+export type SyntaxKind = keyof typeof light.syntax;
+
 export function useTheme() {
   return usePreferredColorScheme() === 'dark' ? dark : light;
 }
+
 export function useDesktop() {
   return useWindowDimensions().width >= 900;
 }

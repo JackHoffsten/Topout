@@ -9,33 +9,43 @@ import {
 import { AuthScreen } from '../features/auth/AuthScreen';
 import { Shell } from '../ui/Shell';
 import { Text } from 'react-native';
+
 const mockLogin = jest.fn<(...args: any[]) => Promise<void>>();
 const mockRegister = jest.fn();
 let mockDesktop = false;
+
 jest.mock('../lib/providers', () => ({
   useSession: () => ({ api: { login: mockLogin, register: mockRegister }, status: 'anonymous' }),
 }));
+
 jest.mock('../lib/session', () => ({ broadcastLogout: jest.fn() }));
+
 jest.mock('../ui/theme', () => {
   const actual = jest.requireActual<Record<string, unknown>>('../ui/theme');
   return { ...actual, useDesktop: () => mockDesktop };
 });
+
 jest.mock('expo-router', () => ({
   Link: ({ children }: any) => children,
   usePathname: () => '/exercises',
 }));
+
 jest.mock('@expo/vector-icons', () => ({ Feather: () => null }));
+
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: require('react-native').View }));
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockDesktop = false;
 });
+
 test('registration validates input before calling the server', async () => {
   await render(<AuthScreen register />);
   await fireEvent.press(screen.getByRole('button', { name: 'Create account' }));
   await screen.findByText('Enter your name.');
   expect(mockRegister).not.toHaveBeenCalled();
 });
+
 test('login submits valid credentials and shows server failure', async () => {
   mockLogin.mockRejectedValue(new Error('offline'));
   await render(<AuthScreen />);
@@ -47,6 +57,7 @@ test('login submits valid credentials and shows server failure', async () => {
   );
   await screen.findByText('Could not connect. Check your connection and try again.');
 });
+
 test('navigation adapts from phone tabs to desktop sidebar', async () => {
   const rendered = await render(
     <Shell>

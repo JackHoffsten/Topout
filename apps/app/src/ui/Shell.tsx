@@ -3,13 +3,15 @@ import { Pressable, Text, View } from 'react-native';
 import { Link, usePathname } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { Brand } from './components';
-import { useDesktop, useTheme } from './theme';
+import { Brand } from './components/Brand';
+import { tokens, useDesktop, useTheme } from './theme';
+
 export function Shell({ children }: React.PropsWithChildren) {
   const wide = useDesktop();
   const c = useTheme();
   const path = usePathname();
   const links = [
+    { href: '/templates' as const, label: 'Templates', icon: 'list' as const },
     { href: '/exercises' as const, label: 'Exercises', icon: 'grid' as const },
     { href: '/account' as const, label: 'Account', icon: 'user' as const },
   ];
@@ -20,7 +22,7 @@ export function Shell({ children }: React.PropsWithChildren) {
         flexDirection: wide ? 'column' : 'row',
         padding: wide ? 16 : 8,
         gap: 8,
-        backgroundColor: c.surface,
+        backgroundColor: c.chrome,
         borderColor: c.line,
         borderTopWidth: wide ? 0 : 1,
       }}
@@ -39,12 +41,19 @@ export function Shell({ children }: React.PropsWithChildren) {
               justifyContent: wide ? 'flex-start' : 'center',
               gap: 8,
               padding: 12,
-              borderRadius: 12,
+              borderRadius: tokens.radius.sm,
               backgroundColor: path.startsWith(item.href) ? c.soft : 'transparent',
             }}
           >
             <Feather name={item.icon} size={20} color={c.ink} />
-            <Text style={{ color: c.ink, fontSize: wide ? 15 : 12, fontWeight: '600' }}>
+            <Text
+              style={{
+                color: c.ink,
+                fontSize: wide ? 14 : 11,
+                fontWeight: '500',
+                fontFamily: tokens.font,
+              }}
+            >
               {item.label}
             </Text>
           </Pressable>
@@ -52,8 +61,9 @@ export function Shell({ children }: React.PropsWithChildren) {
       ))}
     </View>
   );
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.surface }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.chrome }}>
       <View style={{ flex: 1, flexDirection: wide ? 'row' : 'column' }}>
         {wide ? (
           <View style={{ width: 230, borderRightWidth: 1, borderColor: c.line, paddingTop: 32 }}>

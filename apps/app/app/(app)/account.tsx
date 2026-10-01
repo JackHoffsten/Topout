@@ -1,11 +1,18 @@
 import { useState } from 'react';
 import { errorMessage } from '@topout/shared';
 import { useSession } from '../../src/lib/providers';
-import { Button, Card, ErrorNotice, Heading, Label, Page } from '../../src/ui/components';
+import { Page } from '../../src/ui/components/Page';
+import { Heading } from '../../src/ui/components/Heading';
+import { Card } from '../../src/ui/components/Card';
+import { Label } from '../../src/ui/components/Label';
+import { ErrorNotice } from '../../src/ui/components/ErrorNotice';
+import { Button } from '../../src/ui/components/Button';
+
 export default function Account() {
   const { logout } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+
   return (
     <Page>
       <Heading>Your account</Heading>

@@ -1,22 +1,21 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { type Exercise, errorMessage, muscleLabel } from '@topout/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 import { useSession } from '../../lib/providers';
-import {
-  Button,
-  Card,
-  ConfirmDialog,
-  ErrorNotice,
-  Field,
-  Heading,
-  Label,
-  Loading,
-  Page,
-} from '../../ui/components';
-import { useDesktop, useTheme } from '../../ui/theme';
+import { Page } from '../../ui/components/Page';
+import { Heading } from '../../ui/components/Heading';
+import { Label } from '../../ui/components/Label';
+import { Card } from '../../ui/components/Card';
+import { Field } from '../../ui/components/Field';
+import { Loading } from '../../ui/components/Loading';
+import { ErrorNotice } from '../../ui/components/ErrorNotice';
+import { Button } from '../../ui/components/Button';
+import { ConfirmDialog } from '../../ui/components/ConfirmDialog';
+import { tokens, useDesktop, useTheme } from '../../ui/theme';
 import { exercisesKey, useExercises } from './queries';
 
 export function ExerciseList() {
@@ -38,6 +37,7 @@ export function ExerciseList() {
   const visible = data.filter((x) =>
     (x.name + ' ' + muscleLabel(x.muscleGroup)).toLowerCase().includes(search.toLowerCase()),
   );
+
   return (
     <Page>
       <View
@@ -53,19 +53,38 @@ export function ExerciseList() {
           <Link href="/exercises/new" asChild>
             <Pressable
               accessibilityRole="link"
-              style={{ backgroundColor: c.primary, borderRadius: 12, padding: 16 }}
+              style={{ backgroundColor: c.primary, borderRadius: tokens.radius.sm, padding: 16 }}
             >
-              <Text style={{ color: c.onPrimary, fontWeight: '600' }}>＋ New exercise</Text>
+              <Text style={{ color: c.onPrimary, fontWeight: '600', fontFamily: tokens.font }}>
+                ＋ New exercise
+              </Text>
             </Pressable>
           </Link>
         )}
       </View>
       <Label muted>Search, add, edit, or delete exercises.</Label>
       <Card style={{ padding: 20, gap: 8 }}>
-        <Text style={{ color: c.muted, fontSize: 10, letterSpacing: 1.5, fontWeight: '700' }}>
+        <Text
+          style={{
+            color: c.muted,
+            fontSize: 10,
+            letterSpacing: 1.5,
+            fontWeight: '700',
+            fontFamily: tokens.font,
+          }}
+        >
           TOTAL EXERCISES
         </Text>
-        <Text style={{ color: c.ink, fontSize: 32, fontWeight: '600' }}>{data.length}</Text>
+        <Text
+          style={{
+            color: c.syntax.number,
+            fontSize: 28,
+            fontWeight: '600',
+            fontFamily: tokens.font,
+          }}
+        >
+          {data.length}
+        </Text>
       </Card>
       {!wide && (
         <Link href="/exercises/new" asChild>
@@ -73,12 +92,14 @@ export function ExerciseList() {
             accessibilityRole="link"
             style={{
               backgroundColor: c.primary,
-              borderRadius: 12,
+              borderRadius: tokens.radius.sm,
               padding: 16,
               alignItems: 'center',
             }}
           >
-            <Text style={{ color: c.onPrimary, fontWeight: '600' }}>＋ New exercise</Text>
+            <Text style={{ color: c.onPrimary, fontWeight: '600', fontFamily: tokens.font }}>
+              ＋ New exercise
+            </Text>
           </Pressable>
         </Link>
       )}
@@ -126,19 +147,26 @@ export function ExerciseList() {
                 style={{
                   width: 44,
                   height: 44,
-                  borderRadius: 12,
+                  borderRadius: tokens.radius.sm,
                   backgroundColor: c.soft,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Feather name="activity" size={22} color={c.primary} />
+                <Ionicons name="barbell-sharp" size={22} color={c.primary} />
               </View>
               <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
-                <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>
+                <Text
+                  style={{
+                    color: c.syntax.name,
+                    fontSize: 15,
+                    fontWeight: '600',
+                    fontFamily: tokens.font,
+                  }}
+                >
                   {exercise.name}
                 </Text>
-                <Text style={{ color: c.muted, fontSize: 12 }}>
+                <Text style={{ color: c.syntax.string, fontSize: 12, fontFamily: tokens.font }}>
                   {muscleLabel(exercise.muscleGroup)}
                 </Text>
               </View>

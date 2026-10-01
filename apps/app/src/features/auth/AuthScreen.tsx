@@ -6,8 +6,14 @@ import { Controller, useForm } from 'react-hook-form';
 import { errorMessage, loginSchema, registerSchema } from '@topout/shared';
 import { useSession } from '../../lib/providers';
 import { broadcastLogout } from '../../lib/session';
-import { Brand, Button, Card, ErrorNotice, Field, Heading, Label } from '../../ui/components';
-import { useDesktop, useTheme } from '../../ui/theme';
+import { Brand } from '../../ui/components/Brand';
+import { Label } from '../../ui/components/Label';
+import { Card } from '../../ui/components/Card';
+import { Heading } from '../../ui/components/Heading';
+import { Field } from '../../ui/components/Field';
+import { ErrorNotice } from '../../ui/components/ErrorNotice';
+import { Button } from '../../ui/components/Button';
+import { tokens, useDesktop, useTheme } from '../../ui/theme';
 
 export function AuthScreen({ register = false }: { register?: boolean }) {
   const c = useTheme();
@@ -39,6 +45,7 @@ export function AuthScreen({ register = false }: { register?: boolean }) {
       setError(errorMessage(problem));
     }
   });
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
       <KeyboardAvoidingView
@@ -67,10 +74,10 @@ export function AuthScreen({ register = false }: { register?: boolean }) {
                     accessibilityRole="header"
                     style={{
                       color: c.ink,
-                      fontSize: 52,
-                      lineHeight: 58,
-                      letterSpacing: -2,
-                      fontWeight: '700',
+                      fontSize: 38,
+                      lineHeight: 46,
+                      fontWeight: '600',
+                      fontFamily: tokens.font,
                     }}
                   >
                     Track your training.
@@ -174,7 +181,8 @@ export function AuthScreen({ register = false }: { register?: boolean }) {
                     href={register ? '/login' : '/register'}
                     style={{
                       color: c.primary,
-                      fontWeight: '700',
+                      fontFamily: tokens.font,
+                      fontWeight: '600',
                       fontSize: 14,
                       paddingVertical: 2,
                     }}

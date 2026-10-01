@@ -12,21 +12,20 @@ import {
   muscleLabel,
 } from '@topout/shared';
 import { useSession } from '../../lib/providers';
-import {
-  Button,
-  Card,
-  ErrorNotice,
-  Field,
-  Heading,
-  Label,
-  Loading,
-  Page,
-} from '../../ui/components';
-import { useTheme } from '../../ui/theme';
+import { Loading } from '../../ui/components/Loading';
+import { Page } from '../../ui/components/Page';
+import { ErrorNotice } from '../../ui/components/ErrorNotice';
+import { Button } from '../../ui/components/Button';
+import { Heading } from '../../ui/components/Heading';
+import { Label } from '../../ui/components/Label';
+import { Card } from '../../ui/components/Card';
+import { Field } from '../../ui/components/Field';
+import { tokens, useTheme } from '../../ui/theme';
 import { exercisesKey, useExercises } from './queries';
 
 export function ExerciseEditor({ id }: { id?: number }) {
   const query = useExercises();
+
   if (id !== undefined) {
     if (query.isPending) return <Loading />;
     if (query.isError)
@@ -41,7 +40,9 @@ export function ExerciseEditor({ id }: { id?: number }) {
           />
         </Page>
       );
+
     const exercise = query.data?.find((x) => x.id === id);
+
     if (!exercise)
       return (
         <Page>
@@ -49,8 +50,10 @@ export function ExerciseEditor({ id }: { id?: number }) {
           <Link href="/exercises">Back to exercises</Link>
         </Page>
       );
+
     return <EditorForm key={exercise.id} exercise={exercise} />;
   }
+
   return <EditorForm />;
 }
 function EditorForm({ exercise }: { exercise?: Exercise }) {
@@ -79,9 +82,13 @@ function EditorForm({ exercise }: { exercise?: Exercise }) {
     }
     save.mutate(parsed.data);
   });
+
   return (
     <Page>
-      <Link href="/exercises" style={{ color: c.muted, fontSize: 14, paddingVertical: 10 }}>
+      <Link
+        href="/exercises"
+        style={{ color: c.muted, fontSize: 14, paddingVertical: 10, fontFamily: tokens.font }}
+      >
         ← Exercises
       </Link>
       <Heading large>{exercise ? 'Edit exercise' : 'New exercise'}</Heading>
@@ -97,6 +104,7 @@ function EditorForm({ exercise }: { exercise?: Exercise }) {
           render={({ field, fieldState }) => (
             <Field
               label="Exercise name"
+              syntax="name"
               placeholder="e.g. Weighted pull-up"
               value={field.value}
               onChangeText={field.onChange}
@@ -121,13 +129,18 @@ function EditorForm({ exercise }: { exercise?: Exercise }) {
                     accessibilityLabel={muscleLabel(group)}
                     onPress={() => field.onChange(group)}
                     style={{
-                      borderRadius: 12,
+                      borderRadius: tokens.radius.sm,
                       paddingHorizontal: 16,
                       paddingVertical: 13,
                       backgroundColor: field.value === group ? c.primary : c.soft,
                     }}
                   >
-                    <Text style={{ color: field.value === group ? c.onPrimary : c.ink }}>
+                    <Text
+                      style={{
+                        color: field.value === group ? c.onPrimary : c.ink,
+                        fontFamily: tokens.font,
+                      }}
+                    >
                       {muscleLabel(group)}
                     </Text>
                   </Pressable>
