@@ -7,6 +7,9 @@ import {
   exerciseSchema,
   exercisesSchema,
   problemSchema,
+  type WorkoutTemplateInput,
+  workoutTemplateSchema,
+  workoutTemplatesSchema,
 } from './contracts';
 
 export class ApiError extends Error {
@@ -18,7 +21,9 @@ export class ApiError extends Error {
     this.name = 'ApiError';
   }
 }
+
 export type Fetcher = typeof fetch;
+
 export async function readResponse(response: Response): Promise<unknown> {
   if (response.status === 204) return undefined;
   const body: unknown = await response.json().catch(() => null);
@@ -28,7 +33,7 @@ export async function readResponse(response: Response): Promise<unknown> {
       400: 'Check the details and try again.',
       401: 'Please sign in again.',
       403: 'Your session could not be verified. Please try again.',
-      404: 'This exercise is no longer available.',
+      404: 'This item is no longer available.',
       409: 'This change could not be saved.',
       429: 'Too many attempts. Give it a moment and try again.',
     };
@@ -45,11 +50,13 @@ export async function readResponse(response: Response): Promise<unknown> {
   }
   return body;
 }
+
 export function errorMessage(error: unknown): string {
   return error instanceof ApiError
     ? error.message
     : 'Could not connect. Check your connection and try again.';
 }
+
 export interface SessionTransport {
   login(input: LoginInput): Promise<AccessSession>;
   register(input: RegisterInput): Promise<AccessSession>;
@@ -57,6 +64,7 @@ export interface SessionTransport {
   revoke(): Promise<void>;
   clear(): Promise<void>;
 }
+
 export type SessionStatus = 'restoring' | 'authenticated' | 'anonymous';
 
 export class ApiClient {
@@ -66,36 +74,44 @@ export class ApiClient {
   private initialization?: Promise<void>;
   private renewal?: Promise<void>;
   private generation = 0;
+
   constructor(
     private baseUrl: string,
     private transport: SessionTransport,
     private fetcher: Fetcher = fetch,
   ) {}
+
   getStatus = (): SessionStatus => this.status;
+
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
     };
   };
+
   private set(session: AccessSession | null) {
     this.token = session?.accessToken ?? null;
     this.status = session ? 'authenticated' : 'anonymous';
     this.listeners.forEach((listener) => listener());
   }
+
   initialize() {
     return (this.initialization ??= this.refresh().catch(() => undefined));
   }
+
   async login(input: LoginInput) {
     const generation = ++this.generation;
     const session = await this.transport.login(input);
     if (generation === this.generation) this.set(session);
   }
+
   async register(input: RegisterInput) {
     const generation = ++this.generation;
     const session = await this.transport.register(input);
     if (generation === this.generation) this.set(session);
   }
+
   private refresh(): Promise<void> {
     if (this.renewal) return this.renewal;
     const generation = this.generation;
@@ -118,12 +134,14 @@ export class ApiClient {
     });
     return this.renewal;
   }
+
   async logout() {
     // Serialize logout after an in-flight refresh so it revokes the successor.
     await this.renewal?.catch(() => undefined);
     await this.transport.revoke();
     await this.forget();
   }
+
   async forget() {
     ++this.generation;
     try {
@@ -132,6 +150,7 @@ export class ApiClient {
       this.set(null);
     }
   }
+
   private async request<T>(
     path: string,
     schema: z.ZodType<T>,
@@ -152,6 +171,7 @@ export class ApiClient {
       });
     const sentToken = this.token;
     let response = await send();
+
     if (response.status === 401) {
       if (sentToken === this.token) await this.refresh();
       if (!this.token || generation !== this.generation)
@@ -159,19 +179,44 @@ export class ApiClient {
       response = await send();
       if (response.status === 401) await this.forget();
     }
+
     if (generation !== this.generation)
       throw new ApiError(401, 'Your session changed. Please sign in again.');
     return schema.parse(await readResponse(response));
   }
+
   listExercises() {
     return this.request('/api/exercises', exercisesSchema);
   }
+
+  listWorkoutTemplates() {
+    return this.request('/api/workout-templates', workoutTemplatesSchema);
+  }
+
+  getWorkoutTemplate(id: number) {
+    return this.request('/api/workout-templates/' + id, workoutTemplateSchema);
+  }
+
+  createWorkoutTemplate(input: WorkoutTemplateInput) {
+    return this.request('/api/workout-templates', workoutTemplateSchema, 'POST', input);
+  }
+
+  updateWorkoutTemplate(id: number, input: WorkoutTemplateInput) {
+    return this.request('/api/workout-templates/' + id, workoutTemplateSchema, 'PUT', input);
+  }
+
+  deleteWorkoutTemplate(id: number) {
+    return this.request('/api/workout-templates/' + id, z.undefined(), 'DELETE');
+  }
+
   createExercise(input: ExerciseInput) {
     return this.request('/api/exercises', exerciseSchema, 'POST', input);
   }
+
   updateExercise(id: number, input: ExerciseInput) {
     return this.request('/api/exercises/' + id, exerciseSchema, 'PUT', input);
   }
+
   deleteExercise(id: number) {
     return this.request('/api/exercises/' + id, z.undefined(), 'DELETE');
   }

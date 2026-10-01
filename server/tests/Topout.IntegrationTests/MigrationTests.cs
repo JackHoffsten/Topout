@@ -36,7 +36,16 @@ public class MigrationTests(ApiFixture fixture)
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"""INSERT INTO "Exercises" ("Name", "MuscleGroup", "UserId") VALUES ({"Existing Row"}, {2}, {user.Id}), ({"Existing Curl"}, {4}, {user.Id})"""
         );
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"""INSERT INTO "WorkoutDays" ("Name", "UserId") VALUES ({" Pull "}, {user.Id}), ({"Push"}, {user.Id})"""
+        );
         await db.Database.MigrateAsync();
+        var templates = await db
+            .WorkoutDays.Where(x => x.UserId == user.Id)
+            .OrderBy(x => x.Name)
+            .ToArrayAsync();
+        Assert.Equal(new[] { "PULL", "PUSH" }, templates.Select(x => x.NormalizedName));
+        Assert.Equal("Pull", templates[0].Name);
         var exercises = await db
             .Exercises.Where(x => x.UserId == user.Id)
             .OrderBy(x => x.Name)

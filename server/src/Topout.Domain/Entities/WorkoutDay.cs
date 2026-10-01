@@ -5,6 +5,7 @@ namespace Topout.Domain.Entities;
 public class WorkoutDay : OwnedEntity
 {
     public string Name { get; private set; } = string.Empty;
+    public string NormalizedName { get; private set; } = string.Empty;
     private readonly List<WorkoutDayExercise> _exercises = [];
     public IReadOnlyList<WorkoutDayExercise> Exercises => _exercises;
 
@@ -20,12 +21,47 @@ public class WorkoutDay : OwnedEntity
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Workout day name is required.", nameof(name));
-        if (name.Length > 100)
+        if (name.Trim().Length > 100)
             throw new ArgumentException(
                 "Workout day name must be 100 characters or fewer.",
                 nameof(name)
             );
         Name = name.Trim();
+        NormalizedName = Name.ToUpperInvariant();
+    }
+
+    public void ReplaceContents(WorkoutDay source)
+    {
+        if (source.UserId != UserId)
+            throw new ArgumentException("Templates must belong to the same user.");
+        // Build a complete valid replacement before changing the existing aggregate.
+        var copy = new WorkoutDay(UserId, source.Name);
+        foreach (var item in source.Exercises)
+        {
+            var entry = copy.AddExercise(item.Exercise);
+            foreach (var set in item.PlannedSets)
+                entry.AddSet(
+                    set.TargetRepsMin,
+                    set.TargetWeight,
+                    set.IsWarmup,
+                    set.IsAmrap,
+                    set.TargetRepsMax
+                );
+        }
+        Rename(copy.Name);
+        _exercises.Clear();
+        foreach (var item in copy.Exercises)
+        {
+            var entry = AddExercise(item.Exercise);
+            foreach (var set in item.PlannedSets)
+                entry.AddSet(
+                    set.TargetRepsMin,
+                    set.TargetWeight,
+                    set.IsWarmup,
+                    set.IsAmrap,
+                    set.TargetRepsMax
+                );
+        }
     }
 
     public WorkoutDayExercise AddExercise(Exercise exercise)

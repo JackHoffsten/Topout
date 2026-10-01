@@ -61,6 +61,35 @@ public sealed class AppDbContext
                     is PostgresException
                     {
                         SqlState: PostgresErrorCodes.UniqueViolation,
+                        ConstraintName: "IX_WorkoutDays_UserId_NormalizedName"
+                    }
+            )
+        {
+            throw new RequestException(
+                ErrorKind.Conflict,
+                "A workout template with this name already exists."
+            );
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException
+                    is PostgresException
+                    {
+                        SqlState: PostgresErrorCodes.ForeignKeyViolation
+                            or PostgresErrorCodes.RestrictViolation,
+                        ConstraintName: "FK_ScheduledWorkouts_WorkoutDays_WorkoutDayId"
+                    }
+            )
+        {
+            throw new RequestException(
+                ErrorKind.Conflict,
+                "This workout template is used by a scheduled workout."
+            );
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException
+                    is PostgresException
+                    {
+                        SqlState: PostgresErrorCodes.UniqueViolation,
                         ConstraintName: "IX_Exercises_UserId_NormalizedName"
                     }
             )

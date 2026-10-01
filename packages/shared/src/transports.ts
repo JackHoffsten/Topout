@@ -12,6 +12,7 @@ export interface TokenStore {
   set(token: string): Promise<void>;
   clear(): Promise<void>;
 }
+
 export function nativeTransport(
   baseUrl: string,
   store: TokenStore,
@@ -26,11 +27,13 @@ export function nativeTransport(
       }),
     );
   }
+
   async function save(path: string, body: unknown) {
     const session = nativeSessionSchema.parse(await post(path, body));
     await store.set(session.refreshToken);
     return accessSessionSchema.parse(session);
   }
+
   return {
     login: (input: LoginInput) => save('login', input),
     register: (input: RegisterInput) => save('register', input),
@@ -46,7 +49,9 @@ export function nativeTransport(
     clear: () => store.clear(),
   };
 }
+
 export type SessionLock = <T>(action: () => Promise<T>) => Promise<T>;
+
 export function webTransport(
   baseUrl: string,
   lock: SessionLock,
@@ -66,6 +71,7 @@ export function webTransport(
       }),
     );
   }
+
   return {
     login: (input) => lock(async () => accessSessionSchema.parse(await post('login', input))),
     register: (input) => lock(async () => accessSessionSchema.parse(await post('register', input))),

@@ -10,7 +10,8 @@ internal sealed class WorkoutDayConfiguration : IEntityTypeConfiguration<Workout
     {
         builder.ConfigureOwner();
         builder.Property(x => x.Name).HasMaxLength(100).IsRequired();
-        builder.HasIndex(x => new { x.UserId, x.Name }).IsUnique();
+        builder.Property(x => x.NormalizedName).HasMaxLength(100).IsRequired();
+        builder.HasIndex(x => new { x.UserId, x.NormalizedName }).IsUnique();
         builder.Navigation(x => x.Exercises).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

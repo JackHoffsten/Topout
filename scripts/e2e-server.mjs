@@ -6,6 +6,10 @@ import { serveWeb } from './serve-web.mjs';
 
 // Own disposable database only; never reads development database credentials.
 export async function startTestServer() {
+  const apiPort = Number(process.env.TOPOUT_E2E_API_PORT ?? 5081);
+  const configuration = process.env.TOPOUT_E2E_CONFIGURATION ?? 'Debug';
+  if (!['Debug', 'Release'].includes(configuration))
+    throw new Error('Invalid test build configuration');
   const name = 'topout-e2e-' + randomUUID();
   let container;
   let api;
@@ -65,7 +69,7 @@ export async function startTestServer() {
       ...process.env,
       Logging__LogLevel__Default: 'Warning',
       ASPNETCORE_ENVIRONMENT: 'Testing',
-      ASPNETCORE_URLS: 'http://127.0.0.1:5080',
+      ASPNETCORE_URLS: `http://127.0.0.1:${apiPort}`,
       ConnectionStrings__Default: `Host=127.0.0.1;Port=${port};Database=postgres;Username=postgres;Password=${password}`,
       Jwt__SigningKey: randomBytes(48).toString('base64'),
       Web__AllowedOrigins__0: 'https://localhost:8443',
@@ -77,6 +81,8 @@ export async function startTestServer() {
         'database',
         'update',
         '--no-build',
+        '--configuration',
+        configuration,
         '--project',
         'server/src/Topout.Infrastructure',
         '--startup-project',
@@ -84,21 +90,26 @@ export async function startTestServer() {
       ],
       { env, stdio: 'inherit' },
     );
-    api = spawn('dotnet', [resolve('server/src/Topout.Api/bin/Debug/net10.0/Topout.Api.dll')], {
-      env,
-      cwd: resolve('server/src/Topout.Api'),
-      stdio: 'inherit',
-    });
+    api = spawn(
+      'dotnet',
+      [resolve(`server/src/Topout.Api/bin/${configuration}/net10.0/Topout.Api.dll`)],
+      {
+        env,
+        cwd: resolve('server/src/Topout.Api'),
+        stdio: 'inherit',
+      },
+    );
     for (let attempt = 0; ; attempt++) {
       try {
-        await fetch('http://127.0.0.1:5080/api/exercises');
+        if (api.exitCode !== null) throw new Error('Test API exited before startup');
+        await fetch(`http://127.0.0.1:${apiPort}/api/exercises`);
         break;
       } catch {
         if (attempt === 60) throw new Error('API did not start');
         await setTimeout(500);
       }
     }
-    server = await serveWeb();
+    server = await serveWeb({ apiPort });
     return cleanup;
   } catch (error) {
     cleanup();

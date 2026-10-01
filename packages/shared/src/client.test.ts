@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { ApiClient, ApiError, type SessionTransport } from './client';
 import { nativeTransport, webTransport } from './transports';
 import { loginSchema, registerSchema } from './contracts';
+
 const session = { accessToken: 'old', accessTokenExpiresAt: '2026-09-21T18:00:00Z' };
 const nativeSession = {
   ...session,
@@ -9,6 +10,7 @@ const nativeSession = {
   refreshTokenExpiresAt: '2026-10-21T18:00:00Z',
 };
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+
 function transport(): SessionTransport {
   return {
     login: vi.fn().mockResolvedValue(session),
@@ -18,6 +20,7 @@ function transport(): SessionTransport {
     clear: vi.fn().mockResolvedValue(undefined),
   };
 }
+
 describe('sessions', () => {
   it('calls browser fetch without an incompatible receiver', async () => {
     const fetcher: typeof fetch = async function (this: unknown) {
@@ -28,6 +31,7 @@ describe('sessions', () => {
     await api.initialize();
     expect(await api.listExercises()).toEqual([]);
   });
+
   it('restores once and shares one renewal between concurrent unauthorized requests', async () => {
     const auth = transport();
     let renew!: (value: typeof session) => void;
@@ -56,6 +60,7 @@ describe('sessions', () => {
     expect(fetcher).toHaveBeenCalledTimes(4);
     expect(api.getStatus()).toBe('authenticated');
   });
+
   it('replays once then clears a session if the retry is unauthorized', async () => {
     const auth = transport();
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({}, 401));
@@ -66,6 +71,7 @@ describe('sessions', () => {
     expect(api.getStatus()).toBe('anonymous');
     expect(auth.clear).toHaveBeenCalled();
   });
+
   it('clears failed renewal and revokes on logout', async () => {
     const auth = transport();
     const api = new ApiClient('', auth);
@@ -78,6 +84,7 @@ describe('sessions', () => {
     expect(auth.revoke).toHaveBeenCalledOnce();
     expect(api.getStatus()).toBe('anonymous');
   });
+
   it('native transport restores and rotates SecureStore data without exposing the refresh token', async () => {
     const store = { get: vi.fn().mockResolvedValue('previous'), set: vi.fn(), clear: vi.fn() };
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response(nativeSession));
@@ -88,6 +95,7 @@ describe('sessions', () => {
       refreshToken: 'previous',
     });
   });
+
   it('web transport uses cookies and a CSRF header, without storing a refresh token', async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -101,6 +109,7 @@ describe('sessions', () => {
     });
     expect(fetcher.mock.calls[1][1]?.body).toBeUndefined();
   });
+
   it('forms enforce registration rules without applying them to existing login passwords', () => {
     expect(
       registerSchema.safeParse({ email: 'bad', password: 'short', displayName: ' ' }).success,
@@ -113,6 +122,7 @@ describe('sessions', () => {
       true,
     );
   });
+
   it('failed native restoration removes the rejected persisted refresh token', async () => {
     const store = { get: vi.fn().mockResolvedValue('expired'), set: vi.fn(), clear: vi.fn() };
     const api = new ApiClient(
@@ -123,6 +133,7 @@ describe('sessions', () => {
     expect(store.clear).toHaveBeenCalledOnce();
     expect(api.getStatus()).toBe('anonymous');
   });
+
   it('web restoration without a cookie ends anonymously', async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -135,6 +146,7 @@ describe('sessions', () => {
     await api.initialize();
     expect(api.getStatus()).toBe('anonymous');
   });
+
   it('logout waits for renewal before revoking and does not resurrect a session', async () => {
     const auth = transport();
     let complete!: (value: typeof session) => void;
@@ -153,6 +165,7 @@ describe('sessions', () => {
     expect(auth.revoke).toHaveBeenCalledOnce();
     expect(api.getStatus()).toBe('anonymous');
   });
+
   it('clears in-memory state even when secure storage cleanup fails', async () => {
     const auth = transport();
     vi.mocked(auth.refresh).mockRejectedValue(new Error('expired'));
