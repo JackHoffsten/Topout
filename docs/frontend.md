@@ -120,6 +120,26 @@ Session renewal is single-flight within a client. Browser tabs use Web Locks to 
 refresh-token rotation and BroadcastChannel to propagate logout. A request is replayed at
 most once after successful renewal. Failed renewal clears the local session.
 
+## Workout templates
+
+Use **Templates** to create reusable exercise plans. Select **Add exercise** and choose an
+exercise from the searchable dropdown. Edit its sets, then select **Add exercise** to
+confirm it or **Cancel** to discard that exercise draft. Confirmed exercises collapse to
+their name and set count; select the header to expand them. Move buttons work while
+collapsed, and set ordering is available when expanded. Each newly added exercise
+starts with two sets of 8 reps. Adding another set copies the previous set; when there are
+no sets, it starts with 8 reps and no weight. All fields remain editable.
+
+Reps specifies an exact target unless Max reps is entered, in which case the two fields
+define a range. Weight is optional and uses kilograms. Warm-up and AMRAP are independent
+set flags. Templates can be saved without exercises or sets. Changes remain in the editor
+until Save is selected, and failed saves preserve the draft. Cancel asks before discarding
+an edited draft. Drafts are not persisted across page reloads.
+
+Template management does not start a workout or schedule a date. Exercises referenced by
+templates cannot be deleted until removed from the templates. Templates referenced by
+scheduled workouts cannot be deleted.
+
 ## Verification
 
 Run the standard frontend checks from the repository root:
@@ -140,7 +160,10 @@ npx expo-doctor
 
 Playwright tests require Chromium, Docker, .NET 10, and the EF Core command-line tool. They
 create an isolated PostgreSQL container, apply migrations, start the API and HTTPS preview,
-and test desktop and phone layouts. Ports `5080` and `8443` must be available.
+and test desktop and phone layouts. Ports `5081` and `8443` must be available. Build the
+backend before running Playwright. Tests use the Debug build by default; set
+`TOPOUT_E2E_CONFIGURATION=Release` to use a Release build. `TOPOUT_E2E_API_PORT` overrides
+the test API port when needed.
 
 Install the Playwright browser when needed:
 

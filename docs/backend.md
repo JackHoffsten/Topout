@@ -126,6 +126,35 @@ Failures use Problem Details: 400 for invalid input, 401 for invalid authenticat
 404 for missing or other-user exercises, 409 for duplicate names/referenced deletes,
 and 429 for rate limiting. Unexpected errors return a generic 500 and are logged server-side.
 
+## Workout template API
+
+All `/api/workout-templates` endpoints require authentication and scope records to the
+signed-in account. `GET` lists templates, `GET /{id}` returns one template, `POST` creates
+one, `PUT /{id}` replaces its complete contents, and `DELETE /{id}` deletes it.
+
+Create and update accept `name` and an ordered `exercises` array. Each entry contains
+`exerciseId` and an ordered `sets` array. Each set contains `targetRepsMin`, optional
+`targetRepsMax`, optional `targetWeightKg`, `isWarmup`, and `isAmrap`. Responses contain
+`id`, `name`, and ordered entries with the full `exercise` DTO and `sets`. Array position
+defines order; clients do not submit database ordering values or child IDs.
+
+Names are trimmed, limited to 100 characters, and unique per account without regard to
+case. Templates may be empty, and exercises may have no sets. An exercise can appear only
+once per template. Reps must be 1–1000, maximum reps cannot be below minimum reps, and
+optional weights must be 0–2000 kg. Blank weight means unspecified; zero is a valid target.
+AMRAP marks a set as as-many-reps-as-possible while retaining its numeric target.
+
+Create returns 201, update/read return 200, and delete returns 204. Failures use Problem
+Details: 400 for invalid targets, 404 for missing or other-user records, and 409 for
+duplicate names/exercises or templates referenced by scheduled workouts. Replacements
+are transactional: a failed save leaves the previous template intact. Concurrent saves
+are serialized, with the last successful save replacing the complete draft.
+
+`AddWorkoutTemplateNames` backfills normalized names and adds a unique index. Before
+applying it to an existing database, resolve template names that differ only by case or
+surrounding spaces for the same account. Conflicting data causes a transactional failure;
+the migration does not remove templates or their contents.
+
 ## Migrations and tests
 
 The original migration is preserved. AddExerciseCatalogAndRefreshSessions adds normalized
