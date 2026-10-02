@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { useFonts, FontDisplay } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Providers, useSession } from '../src/lib/providers';
@@ -26,6 +27,14 @@ function Routes() {
 }
 
 export default function Root() {
+  const [fontsLoaded, fontError] = useFonts({
+    CascadiaMono: {
+      uri: require('../assets/fonts/CascadiaMono-Regular.ttf'),
+      display: FontDisplay.SWAP,
+    },
+  });
+  if (fontError) throw fontError;
+  if (!fontsLoaded) return null;
   return (
     <SafeAreaProvider>
       <Providers>

@@ -6,6 +6,15 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
   const email = `web-${Date.now()}-${info.project.name}@example.com`;
   await page.goto('/exercises');
   await expect(page).toHaveURL(/login/);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Array.from(document.fonts).some(
+          (font) => font.family.replace(/["']/g, '') === 'CascadiaMono' && font.status === 'loaded',
+        ),
+      ),
+    )
+    .toBe(true);
   await page.getByRole('link', { name: 'Create an account' }).click();
   await page.getByLabel('Name', { exact: true }).fill('Climber');
   await page.getByRole('textbox', { name: 'Email', exact: true }).fill(email);

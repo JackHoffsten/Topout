@@ -10,7 +10,12 @@ export const tokens = {
   space: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },
   radius: { sm: 2, md: 4, lg: 6 },
   type: { small: 12, body: 14, title: 24, hero: 36 },
-  font: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'Consolas' }),
+  font: Platform.select({
+    ios: 'CascadiaMono',
+    android: 'CascadiaMono',
+    web: 'Consolas, CascadiaMono, Menlo, "Liberation Mono", monospace',
+    default: 'CascadiaMono',
+  }),
   elevation: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
