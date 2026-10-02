@@ -23,6 +23,7 @@ const set = {
 const template = { id: 1, name: 'Pull', exercises: [{ exercise, sets: [set, set] }] };
 const mockApi = {
   listExercises: jest.fn<() => Promise<any[]>>(),
+  createExercise: jest.fn<(...args: any[]) => Promise<any>>(),
   listWorkoutTemplates: jest.fn<() => Promise<any[]>>(),
   getWorkoutTemplate: jest.fn<(...args: any[]) => Promise<any>>(),
   createWorkoutTemplate: jest.fn<(...args: any[]) => Promise<any>>(),
@@ -198,4 +199,56 @@ test('delete conflict remains visible and successful deletion reloads templates'
   mockApi.listWorkoutTemplates.mockResolvedValue([]);
   await fireEvent.press(screen.getByRole('button', { name: 'Delete template' }));
   await screen.findByText('No templates');
+});
+
+test('creates a missing exercise inline and preserves the template draft', async () => {
+  const created = { ...exercise, id: 3, name: 'Cable row', isCustom: true };
+  mockApi.createExercise.mockResolvedValue(created);
+  await mount(<TemplateEditor />);
+  await fireEvent.changeText(screen.getByLabelText('Template name'), 'Pull');
+  await fireEvent.press(screen.getByRole('button', { name: 'Add exercise' }));
+  await fireEvent.press(await screen.findByRole('button', { name: 'Select Row' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Add exercise' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Add exercise' }));
+  await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'Curl');
+  expect(screen.queryByRole('button', { name: 'Create exercise' })).toBeNull();
+  await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'Cable row');
+  await fireEvent.press(screen.getByRole('button', { name: 'Create exercise' }));
+  expect(screen.getByLabelText('Exercise name').props.value).toBe('Cable row');
+  await fireEvent.press(screen.getByRole('radio', { name: 'Back' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Create exercise' }));
+  await screen.findByLabelText('Cable row set 1 reps');
+  expect(screen.getByLabelText('Cable row set 2 reps').props.value).toBe('8');
+  expect(mockApi.createExercise).toHaveBeenCalledWith({ name: 'Cable row', muscleGroup: 'Back' });
+  expect(mockReplace).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByRole('button', { name: 'Add exercise' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Create template' }));
+  await waitFor(() =>
+    expect(mockApi.createWorkoutTemplate).toHaveBeenCalledWith({
+      name: 'Pull',
+      exercises: [
+        { exerciseId: 1, sets: [set, set] },
+        { exerciseId: 3, sets: [set, set] },
+      ],
+    }),
+  );
+});
+
+test('inline creation errors and cancellation preserve the search and template name', async () => {
+  mockApi.createExercise.mockRejectedValue(
+    new ApiError(409, 'An exercise with this name already exists.'),
+  );
+  await mount(<TemplateEditor />);
+  await fireEvent.changeText(screen.getByLabelText('Template name'), 'Pull');
+  await fireEvent.press(screen.getByRole('button', { name: 'Add exercise' }));
+  await screen.findByRole('button', { name: 'Select Row' });
+  await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'Cable row');
+  await fireEvent.press(screen.getByRole('button', { name: 'Create exercise' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Create exercise' }));
+  await screen.findByText('An exercise with this name already exists.');
+  expect(screen.getByLabelText('Exercise name').props.value).toBe('Cable row');
+  await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.getByLabelText('Search exercises').props.value).toBe('Cable row');
+  expect(screen.getByLabelText('Template name').props.value).toBe('Pull');
+  expect(mockReplace).not.toHaveBeenCalled();
 });

@@ -51,25 +51,41 @@ export function ExerciseEditor({ id }: { id?: number }) {
         </Page>
       );
 
-    return <EditorForm key={exercise.id} exercise={exercise} />;
+    return <ExerciseForm key={exercise.id} exercise={exercise} />;
   }
 
-  return <EditorForm />;
+  return <ExerciseForm />;
 }
-function EditorForm({ exercise }: { exercise?: Exercise }) {
+export function ExerciseForm({
+  exercise,
+  initialName = '',
+  embedded = false,
+  onCreated,
+  onCancel,
+}: {
+  exercise?: Exercise;
+  initialName?: string;
+  embedded?: boolean;
+  onCreated?: (exercise: Exercise) => void;
+  onCancel?: () => void;
+}) {
   const c = useTheme();
   const { api } = useSession();
   const cache = useQueryClient();
   const router = useRouter();
   const { control, handleSubmit, setError } = useForm<ExerciseInput>({
-    defaultValues: { name: exercise?.name ?? '', muscleGroup: exercise?.muscleGroup ?? 'None' },
+    defaultValues: {
+      name: exercise?.name ?? initialName,
+      muscleGroup: exercise?.muscleGroup ?? 'None',
+    },
   });
   const save = useMutation({
     mutationFn: (input: ExerciseInput) =>
       exercise ? api.updateExercise(exercise.id, input) : api.createExercise(input),
-    onSuccess: async () => {
+    onSuccess: async (created) => {
       await cache.invalidateQueries({ queryKey: exercisesKey });
-      router.replace('/exercises');
+      if (onCreated) onCreated(created);
+      else router.replace('/exercises');
     },
   });
   const submit = handleSubmit((values) => {
@@ -83,20 +99,23 @@ function EditorForm({ exercise }: { exercise?: Exercise }) {
     save.mutate(parsed.data);
   });
 
-  return (
-    <Page>
-      <Link
-        href="/exercises"
-        style={{ color: c.muted, fontSize: 14, paddingVertical: 10, fontFamily: tokens.font }}
-      >
-        ← Exercises
-      </Link>
-      <Heading large>{exercise ? 'Edit exercise' : 'New exercise'}</Heading>
+  const content = (
+    <>
+      {!embedded && (
+        <Link
+          href="/exercises"
+          style={{ color: c.muted, fontSize: 14, paddingVertical: 10, fontFamily: tokens.font }}
+        >
+          ← Exercises
+        </Link>
+      )}
+      <Heading large={!embedded}>{exercise ? 'Edit exercise' : 'New exercise'}</Heading>
       <Label muted>
         {exercise
           ? 'Update the exercise name or muscle group.'
           : 'Enter a name and select the primary muscle group.'}
       </Label>
+      {embedded && <Label muted>Creating this exercise saves it to your exercise library.</Label>}
       <Card style={{ maxWidth: 680, width: '100%', gap: 24 }}>
         <Controller
           control={control}
@@ -159,9 +178,10 @@ function EditorForm({ exercise }: { exercise?: Exercise }) {
           title="Cancel"
           variant="secondary"
           disabled={save.isPending}
-          onPress={() => router.replace('/exercises')}
+          onPress={() => (onCancel ? onCancel() : router.replace('/exercises'))}
         />
       </Card>
-    </Page>
+    </>
   );
+  return embedded ? content : <Page>{content}</Page>;
 }

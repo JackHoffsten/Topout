@@ -23,6 +23,7 @@ import { Field } from '../../ui/components/Field';
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog';
 import { tokens, useDesktop, useTheme } from '../../ui/theme';
 import { useExercises } from '../exercises/queries';
+import { ExerciseForm } from '../exercises/ExerciseEditor';
 import { templatesKey } from './queries';
 
 type DraftSet = {
@@ -110,6 +111,7 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
   const [picker, setPicker] = useState(false);
   const [pending, setPending] = useState<DraftExercise>();
   const [dropdown, setDropdown] = useState(false);
+  const [creatingExercise, setCreatingExercise] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const items = pending ? [...savedItems, pending] : savedItems;
   const [search, setSearch] = useState('');
@@ -183,6 +185,7 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
         accessibilityRole="button"
         accessibilityLabel="Choose exercise"
         accessibilityState={{ expanded: dropdown }}
+        disabled={creatingExercise}
         onPress={() => setDropdown(!dropdown)}
         style={{
           padding: 14,
@@ -198,7 +201,20 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
         </Label>
         <Label>{dropdown ? '▴' : '▾'}</Label>
       </Pressable>
-      {dropdown && (
+      {creatingExercise && (
+        <ExerciseForm
+          embedded
+          initialName={search.trim()}
+          onCancel={() => setCreatingExercise(false)}
+          onCreated={(exercise) => {
+            setPending({ exercise, sets: [toDraft(), toDraft()] });
+            setCreatingExercise(false);
+            setDropdown(false);
+            setSearch('');
+          }}
+        />
+      )}
+      {dropdown && !creatingExercise && (
         <View style={{ gap: 12 }}>
           <Field
             label="Search exercises"
@@ -220,45 +236,57 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
               />
             </>
           ) : (
-            <ScrollView style={{ maxHeight: 240 }} keyboardShouldPersistTaps="handled">
-              {exercises.data
-                .filter(
+            <>
+              <ScrollView style={{ maxHeight: 240 }} keyboardShouldPersistTaps="handled">
+                {exercises.data
+                  .filter(
+                    (e) =>
+                      !savedItems.some((item) => item.exercise.id === e.id) &&
+                      `${e.name} ${muscleLabel(e.muscleGroup)}`
+                        .toLowerCase()
+                        .includes(search.toLowerCase()),
+                  )
+                  .map((exercise) => (
+                    <Pressable
+                      key={exercise.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Select ${exercise.name}`}
+                      onPress={() => {
+                        setPending((previous) =>
+                          previous?.exercise.id === exercise.id
+                            ? previous
+                            : { exercise, sets: [toDraft(), toDraft()] },
+                        );
+                        setDropdown(false);
+                        setSearch('');
+                      }}
+                      style={{ padding: 14, borderBottomWidth: 1, borderColor: c.line }}
+                    >
+                      <Label syntax="name">{exercise.name}</Label>
+                      <Label syntax="string" small>
+                        {muscleLabel(exercise.muscleGroup)}
+                      </Label>
+                    </Pressable>
+                  ))}
+                {!exercises.data.some(
                   (e) =>
                     !savedItems.some((item) => item.exercise.id === e.id) &&
                     `${e.name} ${muscleLabel(e.muscleGroup)}`
                       .toLowerCase()
                       .includes(search.toLowerCase()),
-                )
-                .map((exercise) => (
-                  <Pressable
-                    key={exercise.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Select ${exercise.name}`}
-                    onPress={() => {
-                      setPending((previous) =>
-                        previous?.exercise.id === exercise.id
-                          ? previous
-                          : { exercise, sets: [toDraft(), toDraft()] },
-                      );
-                      setDropdown(false);
-                      setSearch('');
-                    }}
-                    style={{ padding: 14, borderBottomWidth: 1, borderColor: c.line }}
-                  >
-                    <Label syntax="name">{exercise.name}</Label>
-                    <Label syntax="string" small>
-                      {muscleLabel(exercise.muscleGroup)}
-                    </Label>
-                  </Pressable>
-                ))}
-              {!exercises.data.some(
-                (e) =>
-                  !savedItems.some((item) => item.exercise.id === e.id) &&
-                  `${e.name} ${muscleLabel(e.muscleGroup)}`
-                    .toLowerCase()
-                    .includes(search.toLowerCase()),
-              ) && <Label muted>No exercises found.</Label>}
-            </ScrollView>
+                ) && <Label muted>No exercises found.</Label>}
+              </ScrollView>
+              {search.trim() &&
+                !exercises.data.some(
+                  (e) => e.name.toLowerCase() === search.trim().toLowerCase(),
+                ) && (
+                  <Button
+                    title="Create exercise"
+                    variant="secondary"
+                    onPress={() => setCreatingExercise(true)}
+                  />
+                )}
+            </>
           )}
         </View>
       )}
@@ -484,7 +512,7 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
           }}
         />
       )}
-      {picker && (
+      {picker && !creatingExercise && (
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <Button
             title="Add exercise"
