@@ -1,0 +1,43 @@
+{
+    admin off
+    servers {
+        trusted_proxies static 172.30.82.1
+        trusted_proxies_strict
+    }
+}
+
+:80 {
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Frame-Options DENY
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        -Server
+    }
+    handle /health {
+        respond 404
+    }
+    @api path /api /api/*
+    handle @api {
+        request_body {
+            max_size 1MB
+        }
+        reverse_proxy backend:8080 {
+            header_up -Forwarded
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-For {client_ip}
+            header_up Host topout.jackhoffsten.se
+        }
+    }
+    handle {
+        root * /srv
+        encode zstd gzip
+        @assets path /_expo/static/* /assets/*
+        header @assets Cache-Control "public, max-age=31536000, immutable"
+        route {
+            try_files {path} /index.html
+            header /index.html Cache-Control "no-cache"
+            file_server
+        }
+    }
+}

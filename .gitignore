@@ -5,6 +5,16 @@ bin/
 obj/
 .env
 .env.local
+.env.*
+!.env.example
+**/secrets/
+*.pem
+*.pfx
+*.p12
+*.key
+/deploy/runtime.json
+/deploy/migration.json
+/deploy/*_password
 *.user
 TestResults/
 coverage/
