@@ -6,6 +6,10 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
   const email = `web-${Date.now()}-${info.project.name}@example.com`;
   await page.goto('/exercises');
   await expect(page).toHaveURL(/login/);
+  const emailField = page.getByRole('textbox', { name: 'Email', exact: true });
+  await expect(emailField).toHaveCSS('font-size', info.project.name === 'phone' ? '16px' : '14px');
+  await emailField.focus();
+  await emailField.blur();
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -53,6 +57,10 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
   await page.getByRole('button', { name: 'Create exercise', exact: true }).focus();
   await page.keyboard.press('Enter');
   await page.getByLabel('Search exercises', { exact: true }).fill('Test pull-up');
+  await expect(page.getByLabel('Search exercises', { exact: true })).toHaveCSS(
+    'font-size',
+    info.project.name === 'phone' ? '16px' : '14px',
+  );
   await expect(page.getByLabel('Search exercises', { exact: true })).toHaveCSS(
     'outline-width',
     '0px',

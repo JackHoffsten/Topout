@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Pressable, Text, TextInput, View, type TextInputProps } from 'react-native';
-import { useTheme, tokens, webInputStyle, type SyntaxKind } from '../theme';
+import { Platform, Pressable, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { useDesktop, useTheme, tokens, webInputStyle, type SyntaxKind } from '../theme';
 
 export function Field({
   label,
@@ -10,6 +10,7 @@ export function Field({
   ...props
 }: TextInputProps & { label: string; error?: string; password?: boolean; syntax?: SyntaxKind }) {
   const c = useTheme();
+  const desktop = useDesktop();
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
   return (
@@ -62,6 +63,8 @@ export function Field({
             },
             webInputStyle,
             props.style,
+            // Small inputs trigger focus zoom in mobile browsers. Keep manual zoom available.
+            Platform.OS === 'web' && !desktop ? { fontSize: 16 } : undefined,
           ]}
         />
         {password && (
