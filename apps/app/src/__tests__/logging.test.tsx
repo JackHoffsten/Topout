@@ -4,7 +4,7 @@ import { renderAsync, screen, fireEventAsync, waitFor } from '@testing-library/r
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WorkoutLogger } from '../features/logging/WorkoutLogger';
 
-const exercise = { id: 1, name: 'Row', muscleGroup: 'Back', isCustom: false };
+const exercise = { id: 1, name: 'Row', muscleGroups: ['Back'], isCustom: false };
 const workout = {
   scheduleId: 2,
   date: '2026-10-01',

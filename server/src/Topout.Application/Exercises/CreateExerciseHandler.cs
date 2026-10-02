@@ -13,11 +13,11 @@ public sealed class CreateExerciseHandler(
 {
     public async Task<ExerciseResponse> HandleAsync(
         string name,
-        MuscleGroup muscleGroup,
+        MuscleGroup[] muscleGroups,
         CancellationToken ct
     )
     {
-        var exercise = new Exercise(user.UserId, name, muscleGroup);
+        var exercise = new Exercise(user.UserId, name, muscleGroups);
         if (await repository.NameExistsAsync(user.UserId, exercise.NormalizedName, null, ct))
             throw new RequestException(
                 ErrorKind.Conflict,

@@ -12,7 +12,7 @@ import { ApiError } from '@topout/shared';
 import { ExerciseList } from '../features/exercises/ExerciseList';
 import { ExerciseEditor } from '../features/exercises/ExerciseEditor';
 
-const exercise = { id: 1, name: 'Pull-up', muscleGroup: 'Back', isCustom: true };
+const exercise = { id: 1, name: 'Pull-up', muscleGroups: ['Back'], isCustom: true };
 const mockApi = {
   listExercises: jest.fn<() => Promise<any[]>>(),
   createExercise: jest.fn<(...args: any[]) => Promise<any>>(),
@@ -102,11 +102,12 @@ test('edit loads existing values and saves changes', async () => {
   const field = await screen.findByLabelText('Exercise name');
   expect(field.props.value).toBe('Pull-up');
   await fireEvent.changeText(field, 'Weighted pull-up');
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Biceps' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
   await waitFor(() =>
     expect(mockApi.updateExercise).toHaveBeenCalledWith(1, {
       name: 'Weighted pull-up',
-      muscleGroup: 'Back',
+      muscleGroups: ['Back', 'Biceps'],
     }),
   );
 });

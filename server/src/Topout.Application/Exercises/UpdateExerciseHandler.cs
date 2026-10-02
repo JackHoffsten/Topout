@@ -14,7 +14,7 @@ public sealed class UpdateExerciseHandler(
     public async Task<ExerciseResponse> HandleAsync(
         int id,
         string name,
-        MuscleGroup muscleGroup,
+        MuscleGroup[] muscleGroups,
         CancellationToken ct
     )
     {
@@ -26,7 +26,7 @@ public sealed class UpdateExerciseHandler(
                 ErrorKind.Conflict,
                 "An exercise with this name already exists."
             );
-        exercise.SetMuscleGroup(muscleGroup);
+        exercise.SetMuscleGroups(muscleGroups);
         exercise.Rename(name);
         exercise.MarkAsCustom();
         await unitOfWork.SaveChangesAsync(ct);

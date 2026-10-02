@@ -54,6 +54,8 @@ public class MigrationTests(ApiFixture fixture)
         Assert.All(exercises, x => Assert.True(x.IsCustom));
         Assert.Equal("EXISTING CURL", exercises[0].NormalizedName);
         Assert.Equal("EXISTING ROW", exercises[1].NormalizedName);
+        Assert.Equal(new[] { Topout.Domain.Enums.MuscleGroup.Biceps }, exercises[0].MuscleGroups);
+        Assert.Equal(new[] { Topout.Domain.Enums.MuscleGroup.Back }, exercises[1].MuscleGroups);
         // This disposable database is removed with its fixture container.
     }
 }

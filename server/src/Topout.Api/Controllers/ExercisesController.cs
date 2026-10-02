@@ -23,7 +23,7 @@ public sealed class ExercisesController : ControllerBase
         CancellationToken ct
     )
     {
-        var exercise = await handler.HandleAsync(request.Name, request.MuscleGroup!.Value, ct);
+        var exercise = await handler.HandleAsync(request.Name, request.MuscleGroups, ct);
         return Created($"/api/exercises/{exercise.Id}", exercise);
     }
 
@@ -33,7 +33,7 @@ public sealed class ExercisesController : ControllerBase
         ExerciseRequest request,
         [FromServices] UpdateExerciseHandler handler,
         CancellationToken ct
-    ) => Ok(await handler.HandleAsync(id, request.Name, request.MuscleGroup!.Value, ct));
+    ) => Ok(await handler.HandleAsync(id, request.Name, request.MuscleGroups, ct));
 
     [HttpDelete("{id:int:min(1)}")]
     public async Task<IActionResult> Delete(

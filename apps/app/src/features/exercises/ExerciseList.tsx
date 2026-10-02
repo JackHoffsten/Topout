@@ -35,7 +35,9 @@ export function ExerciseList() {
   });
   const data = query.data ?? [];
   const visible = data.filter((x) =>
-    (x.name + ' ' + muscleLabel(x.muscleGroup)).toLowerCase().includes(search.toLowerCase()),
+    (x.name + ' ' + x.muscleGroups.map(muscleLabel).join(', '))
+      .toLowerCase()
+      .includes(search.toLowerCase()),
   );
 
   return (
@@ -167,7 +169,7 @@ export function ExerciseList() {
                   {exercise.name}
                 </Text>
                 <Text style={{ color: c.syntax.string, fontSize: 12, fontFamily: tokens.font }}>
-                  {muscleLabel(exercise.muscleGroup)}
+                  {exercise.muscleGroups.map(muscleLabel).join(', ')}
                 </Text>
               </View>
               <Link

@@ -24,7 +24,7 @@ public class ExerciseHandlerTests
             repository,
             unitOfWork,
             currentUser
-        ).HandleAsync("Pull-Up", MuscleGroup.Back, default);
+        ).HandleAsync("Pull-Up", [MuscleGroup.Back], default);
         Assert.True(created.IsCustom);
         Assert.Equal(7, repository.Items.Last().UserId);
         Assert.Equal(1, unitOfWork.Saves);
@@ -33,7 +33,7 @@ public class ExerciseHandlerTests
             ErrorKind.NotFound,
             (
                 await Assert.ThrowsAsync<RequestException>(() =>
-                    update.HandleAsync(11, "Stolen", MuscleGroup.Back, default)
+                    update.HandleAsync(11, "Stolen", [MuscleGroup.Back], default)
                 )
             ).Kind
         );
@@ -42,9 +42,9 @@ public class ExerciseHandlerTests
             ErrorKind.NotFound,
             (await Assert.ThrowsAsync<RequestException>(() => delete.HandleAsync(11, default))).Kind
         );
-        await update.HandleAsync(10, "Renamed", MuscleGroup.Biceps, default);
+        await update.HandleAsync(10, "Renamed", [MuscleGroup.Biceps], default);
         Assert.Equal("RENAMED", repository.Items[0].NormalizedName);
-        var personalized = await update.HandleAsync(12, "My Starter", MuscleGroup.Core, default);
+        var personalized = await update.HandleAsync(12, "My Starter", [MuscleGroup.Core], default);
         Assert.True(personalized.IsCustom);
         Assert.True(repository.Items.Single(x => x.Id == 12).IsCustom);
         await delete.HandleAsync(10, default);
@@ -64,7 +64,7 @@ public class ExerciseHandlerTests
             ErrorKind.Conflict,
             (
                 await Assert.ThrowsAsync<RequestException>(() =>
-                    create.HandleAsync(" row ", MuscleGroup.Back, default)
+                    create.HandleAsync(" row ", [MuscleGroup.Back], default)
                 )
             ).Kind
         );
@@ -73,7 +73,7 @@ public class ExerciseHandlerTests
             ErrorKind.Conflict,
             (
                 await Assert.ThrowsAsync<RequestException>(() =>
-                    update.HandleAsync(12, "ROW", MuscleGroup.Back, default)
+                    update.HandleAsync(12, "ROW", [MuscleGroup.Back], default)
                 )
             ).Kind
         );

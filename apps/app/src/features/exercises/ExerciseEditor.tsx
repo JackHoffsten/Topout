@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -76,7 +76,7 @@ export function ExerciseForm({
   const { control, handleSubmit, setError } = useForm<ExerciseInput>({
     defaultValues: {
       name: exercise?.name ?? initialName,
-      muscleGroup: exercise?.muscleGroup ?? 'None',
+      muscleGroups: exercise?.muscleGroups ?? [],
     },
   });
   const save = useMutation({
@@ -112,8 +112,8 @@ export function ExerciseForm({
       <Heading large={!embedded}>{exercise ? 'Edit exercise' : 'New exercise'}</Heading>
       <Label muted>
         {exercise
-          ? 'Update the exercise name or muscle group.'
-          : 'Enter a name and select the primary muscle group.'}
+          ? 'Update the exercise name or muscle groups.'
+          : 'Enter a name and select muscle groups.'}
       </Label>
       {embedded && <Label muted>Creating this exercise saves it to your exercise library.</Label>}
       <Card style={{ maxWidth: 680, width: '100%', gap: 24 }}>
@@ -135,35 +135,59 @@ export function ExerciseForm({
         />
         <Controller
           control={control}
-          name="muscleGroup"
+          name="muscleGroups"
           render={({ field }) => (
             <View style={{ gap: 12 }}>
-              <Label>Primary muscle group</Label>
+              <Label>Muscle groups (optional)</Label>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {muscleGroups.map((group) => (
-                  <Pressable
-                    key={group}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: field.value === group }}
-                    accessibilityLabel={muscleLabel(group)}
-                    onPress={() => field.onChange(group)}
-                    style={{
-                      borderRadius: tokens.radius.sm,
-                      paddingHorizontal: 16,
-                      paddingVertical: 13,
-                      backgroundColor: field.value === group ? c.primary : c.soft,
-                    }}
-                  >
-                    <Text
+                {muscleGroups
+                  .filter((group) => group !== 'None')
+                  .map((group) => (
+                    <Pressable
+                      key={group}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: field.value.includes(group) }}
+                      aria-checked={field.value.includes(group)}
+                      accessibilityLabel={muscleLabel(group)}
+                      {...(Platform.OS === 'web'
+                        ? {
+                            onKeyDown: (event: { key: string; preventDefault: () => void }) => {
+                              // React Native Web does not activate checkbox-role Pressables with Space.
+                              if (event.key === ' ') {
+                                event.preventDefault();
+                                field.onChange(
+                                  field.value.includes(group)
+                                    ? field.value.filter((value) => value !== group)
+                                    : [...field.value, group],
+                                );
+                              }
+                            },
+                          }
+                        : {})}
+                      onPress={() =>
+                        field.onChange(
+                          field.value.includes(group)
+                            ? field.value.filter((value) => value !== group)
+                            : [...field.value, group],
+                        )
+                      }
                       style={{
-                        color: field.value === group ? c.onPrimary : c.ink,
-                        fontFamily: tokens.font,
+                        borderRadius: tokens.radius.sm,
+                        paddingHorizontal: 16,
+                        paddingVertical: 13,
+                        backgroundColor: field.value.includes(group) ? c.primary : c.soft,
                       }}
                     >
-                      {muscleLabel(group)}
-                    </Text>
-                  </Pressable>
-                ))}
+                      <Text
+                        style={{
+                          color: field.value.includes(group) ? c.onPrimary : c.ink,
+                          fontFamily: tokens.font,
+                        }}
+                      >
+                        {muscleLabel(group)}
+                      </Text>
+                    </Pressable>
+                  ))}
               </View>
             </View>
           )}

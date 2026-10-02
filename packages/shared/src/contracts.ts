@@ -20,10 +20,17 @@ export const muscleGroupSchema = z.enum(muscleGroups);
 
 export type MuscleGroup = z.infer<typeof muscleGroupSchema>;
 
+export const exerciseMuscleGroupsSchema = z
+  .array(muscleGroupSchema.exclude(['None']))
+  .refine(
+    (groups) => new Set(groups).size === groups.length,
+    'Muscle groups must not be repeated.',
+  );
+
 export const exerciseSchema = z.object({
   id: z.number().int().positive(),
   name: z.string(),
-  muscleGroup: muscleGroupSchema,
+  muscleGroups: exerciseMuscleGroupsSchema,
   isCustom: z.boolean(),
 });
 
@@ -37,7 +44,7 @@ export const exerciseInputSchema = z.object({
     .trim()
     .min(1, 'Give your exercise a name.')
     .max(100, 'Use 100 characters or fewer.'),
-  muscleGroup: muscleGroupSchema,
+  muscleGroups: exerciseMuscleGroupsSchema,
 });
 
 export type ExerciseInput = z.infer<typeof exerciseInputSchema>;

@@ -1,6 +1,20 @@
 import { expect, it, vi } from 'vitest';
 import { ApiClient, ApiError, type SessionTransport } from './client';
-import { workoutTemplateInputSchema, workoutTemplateSchema } from './contracts';
+import {
+  exerciseInputSchema,
+  workoutTemplateInputSchema,
+  workoutTemplateSchema,
+} from './contracts';
+
+it('validates multiple muscle groups, empty selections and invalid or duplicate groups', () => {
+  expect(
+    exerciseInputSchema.parse({ name: 'Row', muscleGroups: ['Back', 'Biceps'] }).muscleGroups,
+  ).toEqual(['Back', 'Biceps']);
+  expect(exerciseInputSchema.safeParse({ name: 'Row', muscleGroups: [] }).success).toBe(true);
+  for (const muscleGroups of [['Back', 'Back'], ['None'], ['Unknown']]) {
+    expect(exerciseInputSchema.safeParse({ name: 'Row', muscleGroups }).success).toBe(false);
+  }
+});
 
 const set = {
   targetRepsMin: 8,
@@ -14,7 +28,7 @@ const template = {
   id: 2,
   name: 'Push',
   exercises: [
-    { exercise: { id: 1, name: 'Press', muscleGroup: 'Chest', isCustom: false }, sets: [set] },
+    { exercise: { id: 1, name: 'Press', muscleGroups: ['Chest'], isCustom: false }, sets: [set] },
   ],
 };
 

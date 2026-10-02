@@ -7,6 +7,19 @@ namespace Topout.UnitTests;
 public class GymDomainTests
 {
     [Fact]
+    public void Exercise_supports_multiple_groups_and_rejects_invalid_selections()
+    {
+        var exercise = new Exercise(1, "Row", new[] { MuscleGroup.Biceps, MuscleGroup.Back });
+        Assert.Equal(new[] { MuscleGroup.Back, MuscleGroup.Biceps }, exercise.MuscleGroups);
+        Assert.Throws<ArgumentException>(() =>
+            exercise.SetMuscleGroups([MuscleGroup.Back, MuscleGroup.Back])
+        );
+        Assert.Throws<ArgumentException>(() => exercise.SetMuscleGroups([MuscleGroup.None]));
+        exercise.SetMuscleGroups([]);
+        Assert.Empty(exercise.MuscleGroups);
+    }
+
+    [Fact]
     public void Exercise_normalizes_names_and_retains_origin_when_edited()
     {
         var exercise = new Exercise(1, "  Pull-Up  ", MuscleGroup.Back, false);

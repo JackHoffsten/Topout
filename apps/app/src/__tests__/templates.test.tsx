@@ -12,7 +12,7 @@ import { ApiError } from '@topout/shared';
 import { TemplateList } from '../features/templates/TemplateList';
 import { TemplateEditor } from '../features/templates/TemplateEditor';
 
-const exercise = { id: 1, name: 'Row', muscleGroup: 'Back', isCustom: false };
+const exercise = { id: 1, name: 'Row', muscleGroups: ['Back'], isCustom: false };
 const set = {
   targetRepsMin: 8,
   targetRepsMax: null,
@@ -202,7 +202,13 @@ test('delete conflict remains visible and successful deletion reloads templates'
 });
 
 test('creates a missing exercise inline and preserves the template draft', async () => {
-  const created = { ...exercise, id: 3, name: 'Cable row', isCustom: true };
+  const created = {
+    ...exercise,
+    id: 3,
+    name: 'Cable row',
+    muscleGroups: ['Back', 'Biceps'],
+    isCustom: true,
+  };
   mockApi.createExercise.mockResolvedValue(created);
   await mount(<TemplateEditor />);
   await fireEvent.changeText(screen.getByLabelText('Template name'), 'Pull');
@@ -215,11 +221,15 @@ test('creates a missing exercise inline and preserves the template draft', async
   await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'Cable row');
   await fireEvent.press(screen.getByRole('button', { name: 'Create exercise' }));
   expect(screen.getByLabelText('Exercise name').props.value).toBe('Cable row');
-  await fireEvent.press(screen.getByRole('radio', { name: 'Back' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Back' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Biceps' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Create exercise' }));
   await screen.findByLabelText('Cable row set 1 reps');
   expect(screen.getByLabelText('Cable row set 2 reps').props.value).toBe('8');
-  expect(mockApi.createExercise).toHaveBeenCalledWith({ name: 'Cable row', muscleGroup: 'Back' });
+  expect(mockApi.createExercise).toHaveBeenCalledWith({
+    name: 'Cable row',
+    muscleGroups: ['Back', 'Biceps'],
+  });
   expect(mockReplace).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole('button', { name: 'Add exercise' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Create template' }));

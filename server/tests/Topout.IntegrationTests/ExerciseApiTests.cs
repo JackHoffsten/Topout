@@ -63,7 +63,7 @@ public class ExerciseApiTests(ApiFixture fixture)
             new
             {
                 name = "  Custom Row ",
-                muscleGroup = "Back",
+                muscleGroups = new[] { "Back", "Biceps" },
                 userId = 999,
             }
         );
@@ -71,9 +71,14 @@ public class ExerciseApiTests(ApiFixture fixture)
         var exercise = (await create.Content.ReadFromJsonAsync<ExerciseResponse>(Json))!;
         Assert.Equal("Custom Row", exercise.Name);
         Assert.True(exercise.IsCustom);
+        Assert.Equal(new[] { MuscleGroup.Back, MuscleGroup.Biceps }, exercise.MuscleGroups);
+        var persisted = (
+            await alice.GetFromJsonAsync<ExerciseResponse[]>("/api/exercises", Json)
+        )!.Single(x => x.Id == exercise.Id);
+        Assert.Equal(exercise.MuscleGroups, persisted.MuscleGroups);
         var duplicate = await alice.PostAsJsonAsync(
             "/api/exercises",
-            new { name = "custom row", muscleGroup = "Back" }
+            new { name = "custom row", muscleGroups = new[] { "Back" } }
         );
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
 
@@ -82,7 +87,7 @@ public class ExerciseApiTests(ApiFixture fixture)
             (
                 await bob.PutAsJsonAsync(
                     $"/api/exercises/{exercise.Id}",
-                    new { name = "Stolen", muscleGroup = "Back" }
+                    new { name = "Stolen", muscleGroups = new[] { "Back" } }
                 )
             ).StatusCode
         );
@@ -99,7 +104,7 @@ public class ExerciseApiTests(ApiFixture fixture)
             (
                 await alice.PutAsJsonAsync(
                     $"/api/exercises/{exercise.Id}",
-                    new { name = "Renamed Row", muscleGroup = "Biceps" }
+                    new { name = "Renamed Row", muscleGroups = new[] { "Biceps" } }
                 )
             ).StatusCode
         );
@@ -111,7 +116,7 @@ public class ExerciseApiTests(ApiFixture fixture)
         // Starter copies are user-editable, and changes never affect the other account.
         var editStarter = await alice.PutAsJsonAsync(
             $"/api/exercises/{starters[0].Id}",
-            new { name = "My Starter", muscleGroup = "Core" }
+            new { name = "My Starter", muscleGroups = new[] { "Core" } }
         );
         Assert.Equal(HttpStatusCode.OK, editStarter.StatusCode);
         Assert.True(
@@ -145,10 +150,12 @@ public class ExerciseApiTests(ApiFixture fixture)
         foreach (
             var body in new object[]
             {
-                new { name = " ", muscleGroup = "Back" },
-                new { name = "Row", muscleGroup = "Invalid" },
-                new { name = new string('a', 101), muscleGroup = "Back" },
-                new { name = "Row", muscleGroup = 999 },
+                new { name = " ", muscleGroups = new[] { "Back" } },
+                new { name = "Row", muscleGroups = new[] { "Invalid" } },
+                new { name = new string('a', 101), muscleGroups = new[] { "Back" } },
+                new { name = "Row", muscleGroups = new[] { 999 } },
+                new { name = "Row", muscleGroups = new[] { "Back", "Back" } },
+                new { name = "Row", muscleGroups = new[] { "None", "Back" } },
                 new { name = "Row" },
             }
         )

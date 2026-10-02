@@ -47,7 +47,9 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
   await expect(otherTab.getByRole('heading', { name: 'Exercises', exact: true })).toBeVisible();
   await page.getByRole('link', { name: /New exercise/ }).click();
   await page.getByLabel('Exercise name', { exact: true }).fill('Test pull-up');
-  await page.getByRole('radio', { name: 'Back', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Back', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Biceps', exact: true }).focus();
+  await page.keyboard.press('Space');
   await page.getByRole('button', { name: 'Create exercise', exact: true }).focus();
   await page.keyboard.press('Enter');
   await page.getByLabel('Search exercises', { exact: true }).fill('Test pull-up');
@@ -67,10 +69,14 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
   await expect(page.getByRole('button', { name: 'Refresh exercises' })).toHaveCount(0);
   await expect(page.getByText('Test pull-up', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Edit Test pull-up' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Back', exact: true })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Biceps', exact: true })).toBeChecked();
+  await page.getByRole('checkbox', { name: 'Back', exact: true }).click();
   await page.getByLabel('Exercise name', { exact: true }).fill('Updated pull-up');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await page.getByLabel('Search exercises', { exact: true }).fill('Updated pull-up');
   await expect(page.getByText('Updated pull-up', { exact: true })).toBeVisible();
+  await expect(page.getByText('Biceps', { exact: true })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('exercise-library.png'), fullPage: true });
   await page.bringToFront();
   await page.emulateMedia({ colorScheme: 'dark' });

@@ -109,11 +109,13 @@ Every endpoint requires authentication. The user ID comes exclusively from the v
 JWT; request bodies cannot choose the account to read or modify.
 
 - GET /api/exercises returns the current user's exercises ordered by normalized name.
-- POST /api/exercises accepts name and muscleGroup; returns 201 with the created exercise.
-- PUT /api/exercises/{id} replaces name and muscleGroup; returns 200.
+- POST /api/exercises accepts name and muscleGroups; returns 201 with the created exercise.
+- PUT /api/exercises/{id} replaces name and muscleGroups; returns 200.
 - DELETE /api/exercises/{id} returns 204.
 
-Responses contain id, name, muscleGroup, and isCustom. Muscle groups are enum strings
+Responses contain id, name, muscleGroups, and isCustom. muscleGroups is an array of distinct enum strings; an empty array means unspecified. The `None` value is not accepted in this array. Existing single-group exercises are preserved by the migration.
+
+Muscle groups are enum strings
 (e.g. "Back" or "Chest"); integers and unknown values are rejected.
 Names are trimmed, required, limited to 100 characters, and unique per account after
 invariant uppercase normalization. Whitespace inside a name is retained.

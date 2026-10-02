@@ -242,7 +242,7 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
                   .filter(
                     (e) =>
                       !savedItems.some((item) => item.exercise.id === e.id) &&
-                      `${e.name} ${muscleLabel(e.muscleGroup)}`
+                      `${e.name} ${e.muscleGroups.map(muscleLabel).join(', ')}`
                         .toLowerCase()
                         .includes(search.toLowerCase()),
                   )
@@ -264,14 +264,14 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
                     >
                       <Label syntax="name">{exercise.name}</Label>
                       <Label syntax="string" small>
-                        {muscleLabel(exercise.muscleGroup)}
+                        {exercise.muscleGroups.map(muscleLabel).join(', ')}
                       </Label>
                     </Pressable>
                   ))}
                 {!exercises.data.some(
                   (e) =>
                     !savedItems.some((item) => item.exercise.id === e.id) &&
-                    `${e.name} ${muscleLabel(e.muscleGroup)}`
+                    `${e.name} ${e.muscleGroups.map(muscleLabel).join(', ')}`
                       .toLowerCase()
                       .includes(search.toLowerCase()),
                 ) && <Label muted>No exercises found.</Label>}

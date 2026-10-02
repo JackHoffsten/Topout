@@ -17,7 +17,7 @@ const response = {
     completedAt: '2026-10-01T12:00:00Z',
     exercises: [
       {
-        exercise: { id: 1, name: 'Row', muscleGroup: 'Back', isCustom: true },
+        exercise: { id: 1, name: 'Row', muscleGroups: ['Back'], isCustom: true },
         sets: [{ ...set, order: 1 }],
       },
     ],
