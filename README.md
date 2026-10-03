@@ -1,29 +1,17 @@
 # Topout
 
-Topout is a training application for managing exercises and tracking gym and climbing
-progress. It uses a universal Expo application for Android, iOS, and web, with an ASP.NET
-Core API and PostgreSQL database.
+Track gym workouts and climbing in a shared Android, iOS, and web app.
 
-## Repository structure
-
-- `apps/app` — Expo Router application for Android, iOS, and responsive web
-- `packages/shared` — validated API contracts and platform-independent client code
-- `server/src/Topout.Domain` — domain entities and business rules
-- `server/src/Topout.Application` — application use cases and abstractions
-- `server/src/Topout.Infrastructure` — PostgreSQL persistence and authentication services
-- `server/src/Topout.Api` — ASP.NET Core API
-- `server/tests` — backend unit and integration tests
-- `e2e` — Playwright browser tests
-
-## Prerequisites
+## Requirements
 
 - Node.js 24
-- .NET SDK 10
+- .NET SDK 10 (see `global.json`)
 - Docker with Linux containers
+- EF Core CLI 10: `dotnet tool install --global dotnet-ef --version "10.*"`
 
-## Local development
+## Run locally
 
-Install dependencies and initialize the database:
+From the repository root:
 
 ```powershell
 npm ci
@@ -31,7 +19,7 @@ npm run db:up
 npm run db:migrate
 ```
 
-Run the API and frontend in separate terminals:
+Start the API and frontend in separate terminals:
 
 ```powershell
 npm run api:dev
@@ -41,25 +29,26 @@ npm run api:dev
 npm run dev
 ```
 
-Open `http://localhost:8081`. The development configuration includes local database
-credentials and a development-only JWT signing key.
+Open http://localhost:8081. The API runs on http://127.0.0.1:5080.
+Local database credentials and a development-only JWT key are included; no manual secret
+setup is needed. Never use these defaults in production.
 
-See [frontend setup](docs/frontend.md) and [backend setup](docs/backend.md) for platform,
-configuration, security, and testing details.
+## Project layout
 
-## Verification
+- `apps/app`: Expo frontend
+- `packages/shared`: API client, types, and runtime validation
+- `server/src`: ASP.NET Core API, application, domain, and infrastructure layers
+- `server/tests`: backend tests
+- `e2e`: Playwright browser tests
+
+## Checks
 
 ```powershell
 npm run typecheck
 npm test
 npm run build
-npm run test:e2e
 dotnet test server/Topout.sln -m:1
 ```
 
-Run Expo diagnostics from the application directory:
-
-```powershell
-cd apps/app
-npx expo-doctor
-```
+See [frontend development](docs/frontend.md) for mobile setup and browser tests, and
+[backend development](docs/backend.md) for database configuration and migrations.
