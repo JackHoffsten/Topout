@@ -22,6 +22,12 @@ import { Loading } from '../../ui/components/Loading';
 import { Page } from '../../ui/components/Page';
 import { useDesktop } from '../../ui/theme';
 import { useExercises } from '../exercises/queries';
+import { templatesKey } from '../templates/queries';
+import {
+  templateFromLog,
+  templateFromLoggedSet,
+  type TemplateSetSelection,
+} from './templateFromLog';
 
 type DraftSet = {
   side: 'Both' | 'Left' | 'Right';
@@ -151,6 +157,47 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
   const [picker, setPicker] = useState(false);
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [confirmTemplate, setConfirmTemplate] = useState(false);
+  const [templateSet, setTemplateSet] = useState<TemplateSetSelection>();
+  const updateTemplateSet = useMutation({
+    mutationFn: async (selection: TemplateSetSelection) => {
+      const current = await api.getWorkoutLogging(workout.scheduleId);
+      const input = templateFromLoggedSet(current, selection);
+      if (!input || current.template?.id !== workout.template?.id)
+        throw new Error('The saved set no longer matches the template.');
+      return api.updateWorkoutTemplate(current.template!.id, input);
+    },
+    onSuccess: async () => {
+      setTemplateSet(undefined);
+      await Promise.all([
+        cache.invalidateQueries({ queryKey: templatesKey }),
+        cache.invalidateQueries({ queryKey: ['workout-logging'] }),
+        cache.invalidateQueries({ queryKey: ['workout-schedule'] }),
+      ]);
+    },
+  });
+  const selectTemplateSet = (selection: TemplateSetSelection) => {
+    updateTemplateSet.reset();
+    setTemplateSet(selection);
+  };
+  const updateTemplate = useMutation({
+    mutationFn: async () => {
+      // Recheck persisted data rather than using draft edits or an old cached template.
+      const current = await api.getWorkoutLogging(workout.scheduleId);
+      const input = templateFromLog(current);
+      if (!input || current.template?.id !== workout.template?.id)
+        throw new Error('The saved workout no longer matches the template.');
+      return api.updateWorkoutTemplate(current.template!.id, input);
+    },
+    onSuccess: async () => {
+      setConfirmTemplate(false);
+      await Promise.all([
+        cache.invalidateQueries({ queryKey: templatesKey }),
+        cache.invalidateQueries({ queryKey: ['workout-logging'] }),
+        cache.invalidateQueries({ queryKey: ['workout-schedule'] }),
+      ]);
+    },
+  });
   const save = useMutation({
     mutationFn: (input: Parameters<typeof api.completeWorkout>[1]) =>
       workout.log?.completedAt
@@ -215,7 +262,8 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
       await cache.invalidateQueries({ queryKey: ['workout-schedule'] });
     },
   });
-  const busy = save.isPending || record.isPending || remove.isPending;
+  const busy =
+    save.isPending || record.isPending || remove.isPending || updateTemplateSet.isPending;
   const logSet = (i: number, j: number) => {
     const set = items[i]!.sets[j]!;
     const parsed = recordWorkoutSetSchema.safeParse({
@@ -358,6 +406,28 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                       {set.notes}
                     </Label>
                   )}
+                  {workout.template && (
+                    <Button
+                      title="Update template set"
+                      accessibilityLabel={`Update template ${item.exercise.name} set ${set.order}${(set.side ?? 'Both') === 'Both' ? '' : ` ${set.side.toLowerCase()}`}`}
+                      variant="secondary"
+                      disabled={
+                        busy ||
+                        !templateFromLoggedSet(workout, {
+                          exerciseId: item.exercise.id,
+                          order: set.order,
+                          side: set.side ?? 'Both',
+                        })
+                      }
+                      onPress={() =>
+                        selectTemplateSet({
+                          exerciseId: item.exercise.id,
+                          order: set.order,
+                          side: set.side ?? 'Both',
+                        })
+                      }
+                    />
+                  )}
                 </View>
               ))}
             </Card>
@@ -370,12 +440,49 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
           )}
           <Button
             title="Edit workout"
+            disabled={busy || updateTemplate.isPending}
             onPress={() => {
               setItems(initialItems(workout));
               setNotes(workout.log?.notes ?? '');
               setEditing(true);
             }}
           />
+          {workout.template && (
+            <>
+              <Button
+                title="Update template"
+                variant="secondary"
+                disabled={busy || !templateFromLog(workout) || updateTemplate.isPending}
+                onPress={() => {
+                  updateTemplate.reset();
+                  setConfirmTemplate(true);
+                }}
+              />
+              {!templateFromLog(workout) && (
+                <Label small muted>
+                  To update the template, exercises, set positions, and left/right splits must
+                  match.
+                </Label>
+              )}
+              {updateTemplate.isSuccess && <Label>Template updated.</Label>}
+              {!confirmTemplate && (
+                <ErrorNotice
+                  message={updateTemplate.isError ? updateTemplate.error.message : undefined}
+                />
+              )}
+              <ConfirmDialog
+                visible={confirmTemplate}
+                title="Update template from log?"
+                description="Replace template reps and weights with saved results. Rep ranges become exact reps. Warm-up and AMRAP flags stay unchanged. Other dates using this template will show the new targets; saved logs stay unchanged."
+                confirmLabel="Confirm update"
+                cancelLabel="Cancel"
+                error={updateTemplate.isError ? updateTemplate.error.message : undefined}
+                busy={updateTemplate.isPending}
+                onCancel={() => setConfirmTemplate(false)}
+                onConfirm={() => updateTemplate.mutate()}
+              />
+            </>
+          )}
           <Button title="Back to Calendar" onPress={() => router.replace('/calendar')} />
         </>
       ) : (
@@ -575,6 +682,29 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                             disabled={busy}
                             onPress={() => changeSet(i, j, { warmup: !set.warmup })}
                           />
+                          {set.saved && workout.template && (
+                            <Button
+                              title="Update template set"
+                              accessibilityLabel={`Update template ${prefix}`}
+                              variant="secondary"
+                              disabled={
+                                busy ||
+                                set.saved !== signature(set) ||
+                                !templateFromLoggedSet(workout, {
+                                  exerciseId: item.exercise.id,
+                                  order: set.order,
+                                  side: set.side,
+                                })
+                              }
+                              onPress={() =>
+                                selectTemplateSet({
+                                  exerciseId: item.exercise.id,
+                                  order: set.order,
+                                  side: set.side,
+                                })
+                              }
+                            />
+                          )}
                           <Button
                             title="Remove set"
                             accessibilityLabel={`Remove ${prefix}`}
@@ -754,7 +884,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
           <Button
             title={workout.log?.completedAt ? 'Save changes' : 'Finish workout'}
             busy={save.isPending}
-            disabled={record.isPending || remove.isPending}
+            disabled={record.isPending || remove.isPending || updateTemplateSet.isPending}
             onPress={finish}
           />
           <Button
@@ -787,6 +917,25 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
           />
         </>
       )}
+      {updateTemplateSet.isSuccess && <Label>Template set updated.</Label>}
+      {!templateSet && (
+        <ErrorNotice
+          message={updateTemplateSet.isError ? updateTemplateSet.error.message : undefined}
+        />
+      )}
+      <ConfirmDialog
+        visible={!!templateSet}
+        title="Update template set?"
+        description="Copy this saved set's reps and weight to its template target. Rep ranges become exact reps. Other sets and flags stay unchanged. For a split set, only the selected side changes."
+        confirmLabel="Confirm set update"
+        cancelLabel="Cancel"
+        busy={updateTemplateSet.isPending}
+        error={updateTemplateSet.isError ? updateTemplateSet.error.message : undefined}
+        onCancel={() => setTemplateSet(undefined)}
+        onConfirm={() => {
+          if (templateSet) updateTemplateSet.mutate(templateSet);
+        }}
+      />
     </Page>
   );
 }
