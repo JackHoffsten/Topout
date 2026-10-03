@@ -1,10 +1,15 @@
-import { View, type ViewStyle } from 'react-native';
+import { View, type ViewStyle, type ViewProps } from 'react-native';
 import { useTheme, tokens } from '../theme';
 
-export function Card({ children, style }: React.PropsWithChildren<{ style?: ViewStyle }>) {
+export function Card({
+  children,
+  style,
+  onLayout,
+}: React.PropsWithChildren<{ style?: ViewStyle; onLayout?: ViewProps['onLayout'] }>) {
   const c = useTheme();
   return (
     <View
+      onLayout={onLayout}
       style={[
         {
           padding: 20,

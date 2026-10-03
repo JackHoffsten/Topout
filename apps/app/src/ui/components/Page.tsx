@@ -1,11 +1,20 @@
 import React from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, type ScrollViewProps } from 'react-native';
 import { useTheme } from '../theme';
 
-export function Page({ children }: React.PropsWithChildren) {
+export function Page({
+  children,
+  scrollRef,
+  onContentSizeChange,
+}: React.PropsWithChildren<{
+  scrollRef?: React.Ref<ScrollView>;
+  onContentSizeChange?: ScrollViewProps['onContentSizeChange'];
+}>) {
   const c = useTheme();
   return (
     <ScrollView
+      ref={scrollRef}
+      onContentSizeChange={onContentSizeChange}
       keyboardShouldPersistTaps="handled"
       style={{ flex: 1, backgroundColor: c.bg }}
       contentContainerStyle={{

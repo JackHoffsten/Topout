@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -30,8 +30,10 @@ import { ClimbEditor } from './ClimbEditor';
 import { ClimbSummary } from './ClimbSummary';
 import { Field } from '../../ui/components/Field';
 import { TotalCard } from '../../ui/components/TotalCard';
+import { useDesktop } from '../../ui/theme';
 
 export function ClimbHistory() {
+  const wide = useDesktop();
   const { api } = useSession();
   const cache = useQueryClient();
   const router = useRouter();
@@ -51,6 +53,33 @@ export function ClimbHistory() {
   const [gradeOpen, setGradeOpen] = useState(false);
   const [gradeSearch, setGradeSearch] = useState('');
   const [totalCount, setTotalCount] = useState<number>();
+  const scroll = useRef<ScrollView>(null);
+  const pendingScroll = useRef(selectedId);
+  const positions = useRef(new Map<number, number>());
+  const scrollFrame = useRef<number | undefined>(undefined);
+  const scrollToSelected = () => {
+    if (
+      !pendingScroll.current ||
+      expanded !== pendingScroll.current ||
+      !records.some((log) => log.id === pendingScroll.current)
+    )
+      return;
+    if (scrollFrame.current !== undefined) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = requestAnimationFrame(() => {
+      const id = pendingScroll.current;
+      const y = id === undefined ? undefined : positions.current.get(id);
+      if (y !== undefined && scroll.current) {
+        scroll.current.scrollTo({ y: Math.max(0, y - 12), animated: true });
+        pendingScroll.current = undefined;
+      }
+    });
+  };
+  useEffect(
+    () => () => {
+      if (scrollFrame.current !== undefined) cancelAnimationFrame(scrollFrame.current);
+    },
+    [],
+  );
   useEffect(() => {
     const timer = setTimeout(() => {
       const value = search.trim() || undefined;
@@ -59,8 +88,15 @@ export function ClimbHistory() {
     return () => clearTimeout(timer);
   }, [search]);
   useEffect(() => {
+    pendingScroll.current = selectedId;
+    positions.current.clear();
     setExpanded(selectedId);
     setEditing(undefined);
+    if (selectedId) {
+      setFilters({});
+      setSearch('');
+      setShowFilters(false);
+    }
   }, [selectedId]);
   const history = useInfiniteQuery({
     queryKey: ['climb-logs', 'history', filters],
@@ -81,14 +117,31 @@ export function ClimbHistory() {
     if (count !== undefined) setTotalCount(count);
   }, [history.data]);
   const records = history.data?.pages.flatMap((page) => page.items) ?? [];
-  const logs = Array.from(
-    new Map(
-      (selected.data && expanded === selectedId
-        ? [selected.data, ...records.filter((log) => log.id !== selectedId)]
-        : records
-      ).map((log) => [log.id, log]),
-    ).values(),
-  );
+  const logs = [...new Map(records.map((log) => [log.id, log])).values()];
+  // Only use the standalone detail as a fallback if the list failed entirely.
+  if (history.isError && !records.length && selected.data) logs.push(selected.data);
+  useEffect(() => {
+    if (
+      pendingScroll.current === selectedId &&
+      expanded === selectedId &&
+      selected.data &&
+      !records.some((log) => log.id === selectedId) &&
+      history.hasNextPage &&
+      !history.isFetching &&
+      !history.isError
+    ) {
+      void history.fetchNextPage();
+    }
+  }, [
+    selectedId,
+    expanded,
+    selected.data,
+    history.data,
+    history.hasNextPage,
+    history.isFetching,
+    history.isError,
+    history.fetchNextPage,
+  ]);
   const remove = useMutation({
     mutationFn: (id: number) => api.deleteClimbLog(id),
     onSuccess: async (_, id) => {
@@ -97,6 +150,7 @@ export function ClimbHistory() {
       setExpanded(undefined);
       if (selectedId === id) router.replace('/climbs');
       cache.removeQueries({ queryKey: ['climb-logs', 'detail', id] });
+      await cache.invalidateQueries({ queryKey: ['progress'] });
       await cache.invalidateQueries({
         predicate: (query) =>
           query.queryKey[0] === 'climb-logs' &&
@@ -105,7 +159,7 @@ export function ClimbHistory() {
     },
   });
   return (
-    <Page>
+    <Page scrollRef={scroll} onContentSizeChange={scrollToSelected}>
       <ListHeader
         title="Climbs"
         action="Log climb"
@@ -309,9 +363,13 @@ export function ClimbHistory() {
             onChangeText={(to) => setDraft({ ...draft, to })}
           />
           {filterError && <ErrorNotice message={filterError} />}
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View
+            testID="climb-filter-actions"
+            style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}
+          >
             <Button
-              title="Apply filters"
+              title={wide ? 'Apply filters' : 'Apply'}
+              accessibilityLabel="Apply filters"
               onPress={() => {
                 const validDate = (value?: string) =>
                   !value ||
@@ -335,7 +393,8 @@ export function ClimbHistory() {
               }}
             />
             <Button
-              title="Clear filters"
+              title={wide ? 'Clear filters' : 'Clear'}
+              accessibilityLabel="Clear filters"
               variant="secondary"
               onPress={() => {
                 setDraft({});
@@ -388,7 +447,13 @@ export function ClimbHistory() {
             </Label>
           )}
           {logs.map((log) => (
-            <Card key={log.id}>
+            <Card
+              key={log.id}
+              onLayout={(event) => {
+                positions.current.set(log.id, event.nativeEvent.layout.y);
+                if (log.id === pendingScroll.current) scrollToSelected();
+              }}
+            >
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${expanded === log.id ? 'Collapse' : 'Expand'} climb ${log.name || log.grade}`}

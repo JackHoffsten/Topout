@@ -147,7 +147,7 @@ test.each([
   expect(mockPush).toHaveBeenCalledWith({ pathname: '/climbs', params: { climb: 7 } });
 });
 
-test('history loads more records and expands an older selected climb without duplicating it', async () => {
+test('history automatically loads an older selected climb in its sorted position without duplicating it', async () => {
   mockClimb = '7';
   mockApi.listClimbHistory.mockImplementation(async (page) =>
     page === 1
@@ -164,15 +164,16 @@ test('history loads more records and expands an older selected climb without dup
   expect(screen.getByText('TOTAL CLIMBS')).toBeTruthy();
   await screen.findByText('120');
   expect(screen.getByText('Gym')).toBeTruthy();
-  await fireEventAsync.press(screen.getByRole('button', { name: 'Load more climbs' }));
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  });
   await waitFor(() => expect(mockApi.listClimbHistory).toHaveBeenCalledWith(2));
   await waitFor(() =>
     expect(screen.queryByRole('button', { name: 'Load more climbs' })).toBeNull(),
   );
   expect(screen.getAllByRole('button', { name: 'Collapse climb Problem' })).toHaveLength(1);
+  expect(
+    screen
+      .getAllByRole('button', { name: /^(Expand|Collapse) climb / })
+      .map((button) => button.props.accessibilityLabel),
+  ).toEqual(['Expand climb Newer', 'Collapse climb Problem']);
 });
 
 test('a selected climb remains available when history cannot load', async () => {
