@@ -222,8 +222,10 @@ type, grade system, exact grade, environment, outcome, wall angle, style, and in
 ranges. Apply filters to search all records, not only loaded pages; use Reset filters to
 clear them without clearing the search text. Choose a grade system to enable the searchable
 grade picker; changing the system clears the selected grade. Expand a record for its date, climbing type, grade system, environment,
-wall angle, styles, location, and edit/delete controls. Selected records load independently
-of pagination, so older climbs can be opened directly.
+wall angle, styles, location, and edit/delete controls. Calendar links expand the selected
+record and scroll to its normal list position without moving it to the top. Earlier pages
+load automatically when needed to reach an older climb. A separately loaded detail remains
+available if the history request fails.
 
 Rest days must be removed before adding climbing logs, and climbing logs must be removed
 before adding a rest day. Gym plans can coexist with climbs. Grades are not converted
