@@ -27,6 +27,7 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
                         ["Jwt:Issuer"] = "Topout.Tests",
                         ["Jwt:Audience"] = "Topout.Tests.Client",
                         ["Jwt:SigningKey"] = "integration-test-only-key-at-least-32-bytes-long",
+                        ["Testing:ExpandedAuthRateLimit"] = "true",
                     }
                 )
         );

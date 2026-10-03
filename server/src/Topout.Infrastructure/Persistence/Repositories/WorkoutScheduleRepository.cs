@@ -37,6 +37,14 @@ internal sealed class WorkoutScheduleRepository(AppDbContext db) : IWorkoutSched
         var existing = await db
             .ScheduledWorkouts.Where(x => x.UserId == userId && x.Date == date)
             .ToArrayAsync(ct);
+        if (
+            !templateId.HasValue
+            && await db.ClimbLogs.AnyAsync(x => x.UserId == userId && x.Date == date, ct)
+        )
+            throw new RequestException(
+                ErrorKind.Conflict,
+                "Remove the climbing logs before marking this date as a rest day."
+            );
         if (existing.Any(x => x.IsRestDay || !templateId.HasValue))
             throw new RequestException(
                 ErrorKind.Conflict,

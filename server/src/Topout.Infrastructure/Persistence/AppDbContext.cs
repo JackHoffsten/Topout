@@ -17,6 +17,7 @@ public sealed class AppDbContext
         : base(options) { }
 
     public DbSet<Exercise> Exercises => Set<Exercise>();
+    public DbSet<ClimbLog> ClimbLogs => Set<ClimbLog>();
     public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<WorkoutDay> WorkoutDays => Set<WorkoutDay>();
