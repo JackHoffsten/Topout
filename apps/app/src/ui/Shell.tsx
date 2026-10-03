@@ -51,25 +51,36 @@ export function Shell({ children }: React.PropsWithChildren) {
               backgroundColor: path.startsWith(item.href) ? c.soft : 'transparent',
             }}
           >
-            {item.href === '/templates' ? (
-              <View
-                accessible={false}
-                style={{ width: 20, height: 20, justifyContent: 'center', gap: 4 }}
-              >
-                {[0, 1, 2].map((row) => (
-                  <View key={row} style={{ flexDirection: 'row', gap: 4 }}>
-                    <View
-                      style={{ width: 2, height: 2, borderRadius: 1, backgroundColor: c.ink }}
-                    />
-                    <View
-                      style={{ width: 14, height: 2, borderRadius: 1, backgroundColor: c.ink }}
-                    />
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <Feather name={item.icon} size={20} color={c.ink} />
-            )}
+            <View
+              testID={`navigation-icon-${item.label.toLowerCase()}`}
+              style={{
+                width: 24,
+                height: 24,
+                flexShrink: 0,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {item.href === '/templates' ? (
+                <View
+                  accessible={false}
+                  style={{ width: 20, height: 20, justifyContent: 'center', gap: 4 }}
+                >
+                  {[0, 1, 2].map((row) => (
+                    <View key={row} style={{ flexDirection: 'row', gap: 4 }}>
+                      <View
+                        style={{ width: 2, height: 2, borderRadius: 1, backgroundColor: c.ink }}
+                      />
+                      <View
+                        style={{ width: 14, height: 2, borderRadius: 1, backgroundColor: c.ink }}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Feather name={item.icon} size={20} color={c.ink} />
+              )}
+            </View>
             {showLabels && (
               <Text
                 style={{

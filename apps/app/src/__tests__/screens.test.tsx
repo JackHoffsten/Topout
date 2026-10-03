@@ -66,6 +66,13 @@ test('navigation adapts from phone tabs to desktop sidebar', async () => {
   );
   expect(screen.getByTestId('phone-navigation')).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Progress' })).toBeTruthy();
+  for (const label of ['calendar', 'progress', 'climbs', 'templates', 'exercises', 'account']) {
+    expect(screen.getByTestId(`navigation-icon-${label}`)).toHaveStyle({
+      width: 24,
+      height: 24,
+      flexShrink: 0,
+    });
+  }
   mockDesktop = true;
   await rendered.rerenderAsync(
     <Shell>
