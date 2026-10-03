@@ -1,6 +1,7 @@
 namespace Topout.Domain.Entities;
 
 using Topout.Domain.Abstraction;
+using Topout.Domain.Enums;
 using Topout.Domain.ValueObjects;
 
 public class WorkoutLogSet : Entity
@@ -8,6 +9,7 @@ public class WorkoutLogSet : Entity
     public int WorkoutLogEntryId { get; private set; }
     public WorkoutLogEntry WorkoutLogEntry { get; private set; } = null!;
     public int Order { get; private set; }
+    public SetSide Side { get; private set; }
     public int Reps { get; private set; }
     public Weight Weight { get; private set; } = Weight.Zero;
     public bool IsWarmup { get; private set; }
@@ -21,7 +23,8 @@ public class WorkoutLogSet : Entity
         int reps,
         Weight weight,
         bool isWarmup,
-        string? notes
+        string? notes,
+        SetSide side = SetSide.Both
     )
     {
         if (reps is < 1 or > 1000)
@@ -29,6 +32,9 @@ public class WorkoutLogSet : Entity
 
         WorkoutLogEntry = workoutLogEntry;
         Order = order;
+        if (!Enum.IsDefined(side))
+            throw new ArgumentException("Invalid set side.");
+        Side = side;
         Reps = reps;
         Weight = weight;
         IsWarmup = isWarmup;

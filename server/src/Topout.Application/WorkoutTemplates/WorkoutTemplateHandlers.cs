@@ -65,7 +65,12 @@ public sealed class SaveWorkoutTemplateHandler(
                         : Weight.FromKilograms(set.TargetWeightKg.Value),
                     set.IsWarmup,
                     set.IsAmrap,
-                    set.TargetRepsMax
+                    set.TargetRepsMax,
+                    set.RightTarget?.TargetRepsMin,
+                    set.RightTarget?.TargetRepsMax,
+                    set.RightTarget?.TargetWeightKg is null
+                        ? null
+                        : Weight.FromKilograms(set.RightTarget.TargetWeightKg.Value)
                 );
         }
         return WorkoutTemplateResponse.From(await templates.SaveAsync(id, draft, ct));

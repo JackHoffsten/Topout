@@ -45,7 +45,10 @@ public class WorkoutDay : OwnedEntity
                     set.TargetWeight,
                     set.IsWarmup,
                     set.IsAmrap,
-                    set.TargetRepsMax
+                    set.TargetRepsMax,
+                    set.RightTargetRepsMin,
+                    set.RightTargetRepsMax,
+                    set.RightTargetWeight
                 );
         }
         Rename(copy.Name);
@@ -59,7 +62,10 @@ public class WorkoutDay : OwnedEntity
                     set.TargetWeight,
                     set.IsWarmup,
                     set.IsAmrap,
-                    set.TargetRepsMax
+                    set.TargetRepsMax,
+                    set.RightTargetRepsMin,
+                    set.RightTargetRepsMax,
+                    set.RightTargetWeight
                 );
         }
     }

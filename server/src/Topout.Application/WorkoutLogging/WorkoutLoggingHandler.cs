@@ -8,14 +8,25 @@ using Topout.Domain.ValueObjects;
 
 namespace Topout.Application.WorkoutLogging;
 
-public sealed record LoggedSetInput(int Reps, decimal WeightKg, bool IsWarmup, string? Notes);
+public sealed record LoggedSetInput(
+    int Reps,
+    decimal WeightKg,
+    bool IsWarmup,
+    string? Notes,
+    [property: System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault
+    )]
+        SetSide Side = SetSide.Both,
+    int? Order = null
+);
 
 public sealed record LoggedSetResponse(
     int Reps,
     decimal WeightKg,
     bool IsWarmup,
     string? Notes,
-    int Order
+    int Order,
+    SetSide Side = SetSide.Both
 );
 
 public sealed record RecordSetInput(
@@ -24,7 +35,11 @@ public sealed record RecordSetInput(
     int Reps,
     decimal WeightKg,
     bool IsWarmup,
-    string? Notes
+    string? Notes,
+    [property: System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault
+    )]
+        SetSide Side = SetSide.Both
 );
 
 public sealed record LoggedExerciseInput(int ExerciseId, IReadOnlyList<LoggedSetInput> Sets);
@@ -57,12 +72,14 @@ public sealed record WorkoutLogResponse(
                 .Select(e => new LoggedExerciseResponse(
                     ExerciseResponse.From(e.Exercise),
                     e.Sets.OrderBy(s => s.Order)
+                        .ThenBy(s => s.Side)
                         .Select(s => new LoggedSetResponse(
                             s.Reps,
                             s.Weight.Kilograms,
                             s.IsWarmup,
                             s.Notes,
-                            s.Order
+                            s.Order,
+                            s.Side
                         ))
                         .ToArray()
                 ))
@@ -95,7 +112,8 @@ public sealed record PreviousSetResponse(
     DateOnly Date,
     int Reps,
     decimal WeightKg,
-    bool IsWarmup
+    bool IsWarmup,
+    SetSide Side = SetSide.Both
 );
 
 public sealed class WorkoutLoggingHandler(
@@ -149,12 +167,14 @@ public sealed class WorkoutLoggingHandler(
             || input.Exercises.Any(e =>
                 e is null
                 || e.Sets is null
-                || e.Sets.Count is < 1 or > 100
+                || e.Sets.Count is < 1 or > 200
                 || e.Sets.Any(s =>
                     s is null
                     || s.Reps is < 1 or > 1000
                     || s.WeightKg is < 0 or > 2000
                     || s.Notes?.Length > 2000
+                    || !Enum.IsDefined(s.Side)
+                    || (s.Order.HasValue && s.Order.Value is < 1 or > 100)
                 )
             )
         )
@@ -174,12 +194,31 @@ public sealed class WorkoutLoggingHandler(
             if (!available.TryGetValue(item.ExerciseId, out var exercise))
                 throw new RequestException(ErrorKind.NotFound, "Exercise not found.");
             var entry = log.AddEntry(exercise);
-            foreach (var set in item.Sets)
-                entry.AddSet(
+            var ordered = item
+                .Sets.Select((set, index) => (Set: set, Order: set.Order ?? index + 1))
+                .ToArray();
+            if (
+                ordered.Any(s => s.Order is < 1 or > 100)
+                || ordered
+                    .GroupBy(s => s.Order)
+                    .Any(g =>
+                        g.Select(s => s.Set.Side).Distinct().Count() != g.Count()
+                        || (g.Count() > 1 && g.Any(s => s.Set.Side == SetSide.Both))
+                    )
+            )
+                throw new RequestException(
+                    ErrorKind.Validation,
+                    "Each set may contain either one normal result or separate left/right results."
+                );
+            foreach (var (set, order) in ordered)
+                log.RecordSet(
+                    exercise,
+                    order,
                     set.Reps,
                     Weight.FromKilograms(set.WeightKg),
                     set.IsWarmup,
-                    set.Notes?.Trim()
+                    set.Notes?.Trim(),
+                    set.Side
                 );
         }
         log.Complete(clock.GetUtcNow().UtcDateTime);
@@ -198,6 +237,7 @@ public sealed class WorkoutLoggingHandler(
             || input.Reps is < 1 or > 1000
             || input.WeightKg is < 0 or > 2000
             || input.Notes?.Length > 2000
+            || !Enum.IsDefined(input.Side)
         )
             throw new RequestException(
                 ErrorKind.Validation,
@@ -216,7 +256,8 @@ public sealed class WorkoutLoggingHandler(
             Weight.FromKilograms(input.WeightKg),
             input.IsWarmup,
             input.Notes?.Trim(),
-            ct
+            ct,
+            input.Side
         );
         return await GetAsync(scheduleId, ct);
     }
@@ -225,10 +266,13 @@ public sealed class WorkoutLoggingHandler(
         int scheduleId,
         int exerciseId,
         int order,
-        CancellationToken ct
+        CancellationToken ct,
+        SetSide side = SetSide.Both
     )
     {
-        await logs.RemoveSetAsync(user.UserId, scheduleId, exerciseId, order, ct);
+        if (!Enum.IsDefined(side))
+            throw new RequestException(ErrorKind.Validation, "Invalid set side.");
+        await logs.RemoveSetAsync(user.UserId, scheduleId, exerciseId, order, ct, side);
         return await GetAsync(scheduleId, ct);
     }
 

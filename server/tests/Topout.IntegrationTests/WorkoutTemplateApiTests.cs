@@ -14,6 +14,41 @@ namespace Topout.IntegrationTests;
 public class WorkoutTemplateApiTests(ApiFixture fixture)
 {
     private const string Url = "/api/workout-templates";
+
+    [Fact]
+    public async Task Split_targets_persist_and_invalid_updates_are_atomic()
+    {
+        using var client = await Client();
+        var exercise = (await Exercises(client))[0];
+        var split = new PlannedSetInput(8, 10, 12, false, false, new(10, 12, 14));
+        var input = new WorkoutTemplateInput("Unilateral", [new(exercise.Id, [split])]);
+        var created = await client.PostAsJsonAsync(Url, input);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var template = await Read(created);
+        var restored = await Read(await client.GetAsync($"{Url}/{template.Id}"));
+        Assert.Equal(split, restored.Exercises[0].Sets[0]);
+        var invalid = input with
+        {
+            Exercises = [new(exercise.Id, [split with { RightTarget = new(10, 5, 14) }])],
+        };
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (await client.PutAsJsonAsync($"{Url}/{template.Id}", invalid)).StatusCode
+        );
+        restored = await Read(await client.GetAsync($"{Url}/{template.Id}"));
+        Assert.Equal(split, restored.Exercises[0].Sets[0]);
+        var normal = input with
+        {
+            Exercises = [new(exercise.Id, [split with { RightTarget = null }])],
+        };
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync($"{Url}/{template.Id}", normal)).StatusCode
+        );
+        restored = await Read(await client.GetAsync($"{Url}/{template.Id}"));
+        Assert.Null(restored.Exercises[0].Sets[0].RightTarget);
+    }
+
     private static readonly PlannedSetInput Set = new(8, 12, 20.5m, true, true);
 
     private async Task<HttpClient> Client()

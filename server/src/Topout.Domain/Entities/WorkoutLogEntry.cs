@@ -1,4 +1,5 @@
 using Topout.Domain.Abstraction;
+using Topout.Domain.Enums;
 using Topout.Domain.ValueObjects;
 
 namespace Topout.Domain.Entities;
@@ -26,16 +27,30 @@ public class WorkoutLogEntry : Entity
 
     internal void SetOrder(int order) => Order = order;
 
-    internal void RecordSet(int order, int reps, Weight weight, bool warmup, string? notes)
+    internal void RecordSet(
+        int order,
+        int reps,
+        Weight weight,
+        bool warmup,
+        string? notes,
+        SetSide side = SetSide.Both
+    )
     {
-        var existing = _sets.FirstOrDefault(s => s.Order == order);
+        if (!Enum.IsDefined(side))
+            throw new ArgumentException("Invalid set side.");
+        if (_sets.Any(s => s.Order == order && (s.Side == SetSide.Both) != (side == SetSide.Both)))
+            throw new InvalidOperationException(
+                "Remove the existing set before changing its split mode."
+            );
+        var existing = _sets.FirstOrDefault(s => s.Order == order && s.Side == side);
         if (existing is not null)
             existing.ReplaceActual(reps, weight, warmup, notes);
         else
-            _sets.Add(new WorkoutLogSet(this, order, reps, weight, warmup, notes));
+            _sets.Add(new WorkoutLogSet(this, order, reps, weight, warmup, notes, side));
     }
 
-    internal void RemoveRecordedSet(int order) => _sets.RemoveAll(s => s.Order == order);
+    internal void RemoveRecordedSet(int order, SetSide side = SetSide.Both) =>
+        _sets.RemoveAll(s => s.Order == order && s.Side == side);
 
     public WorkoutLogSet AddSet(
         int reps,

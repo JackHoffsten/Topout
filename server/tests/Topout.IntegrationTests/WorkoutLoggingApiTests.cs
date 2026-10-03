@@ -14,6 +14,112 @@ namespace Topout.IntegrationTests;
 [Collection("api")]
 public class WorkoutLoggingApiTests(ApiFixture fixture)
 {
+    [Fact]
+    public async Task Split_sets_save_restore_edit_delete_and_keep_side_specific_history()
+    {
+        using var client = await Client();
+        var (plan, template, exercise) = await Plan(client);
+        var url = $"/api/workout-schedule/{plan.Id}/log";
+        var left = new RecordSetInput(
+            exercise.Id,
+            1,
+            8,
+            12,
+            false,
+            null,
+            Topout.Domain.Enums.SetSide.Left
+        );
+        var right = left with
+        {
+            Side = Topout.Domain.Enums.SetSide.Right,
+            Reps = 10,
+            WeightKg = 14,
+        };
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync(url + "/sets", left, ExerciseApiTests.Json)).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync(url + "/sets", right, ExerciseApiTests.Json)).StatusCode
+        );
+        var restored = (
+            await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+        )!;
+        Assert.Equal(2, restored.Log!.Exercises.Single().Sets.Count);
+        Assert.All(restored.Log.Exercises.Single().Sets, s => Assert.Equal(1, s.Order));
+        var complete = new CompleteWorkoutInput(
+            null,
+            [
+                new(
+                    exercise.Id,
+                    [
+                        new(8, 12, false, null, Topout.Domain.Enums.SetSide.Left, 1),
+                        new(10, 14, false, null, Topout.Domain.Enums.SetSide.Right, 1),
+                    ]
+                ),
+            ]
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PostAsJsonAsync(url, complete, ExerciseApiTests.Json)).StatusCode
+        );
+        var edited = complete with
+        {
+            Exercises =
+            [
+                new(
+                    exercise.Id,
+                    [
+                        new(9, 13, false, null, Topout.Domain.Enums.SetSide.Left, 1),
+                        complete.Exercises[0].Sets[1],
+                    ]
+                ),
+            ],
+        };
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync(url, edited, ExerciseApiTests.Json)).StatusCode
+        );
+        var secondPlan = (
+            await (
+                await client.PostAsJsonAsync(
+                    "/api/workout-schedule",
+                    new ScheduleWorkoutInput(new DateOnly(2026, 10, 2), template.Id)
+                )
+            ).Content.ReadFromJsonAsync<ScheduledWorkoutResponse>()
+        )!;
+        var next = (
+            await client.GetFromJsonAsync<WorkoutLoggingResponse>(
+                $"/api/workout-schedule/{secondPlan.Id}/log",
+                ExerciseApiTests.Json
+            )
+        )!;
+        Assert.Equal(
+            9,
+            next.PreviousSets!.Single(s => s.Side == Topout.Domain.Enums.SetSide.Left).Reps
+        );
+        Assert.Equal(
+            10,
+            next.PreviousSets!.Single(s => s.Side == Topout.Domain.Enums.SetSide.Right).Reps
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.DeleteAsync(url + $"/sets/{exercise.Id}/1?side=Left")).StatusCode
+        );
+        var remaining = (
+            await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+        )!;
+        Assert.Equal(
+            Topout.Domain.Enums.SetSide.Right,
+            remaining.Log!.Exercises.Single().Sets.Single().Side
+        );
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (await client.DeleteAsync(url + $"/sets/{exercise.Id}/1?side=Right")).StatusCode
+        );
+    }
+
     private async Task<HttpClient> Client()
     {
         var client = fixture.Client();

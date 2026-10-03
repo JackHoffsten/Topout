@@ -7,6 +7,23 @@ namespace Topout.UnitTests;
 public class GymDomainTests
 {
     [Fact]
+    public void Split_results_keep_one_order_and_cannot_overwrite_another_side()
+    {
+        var log = new WorkoutLog(1, new DateOnly(2026, 10, 1));
+        var exercise = new Exercise(1, "Curl", MuscleGroup.Biceps);
+        log.RecordSet(exercise, 1, 8, Weight.FromKilograms(12), false, null, SetSide.Left);
+        log.RecordSet(exercise, 1, 10, Weight.FromKilograms(14), false, null, SetSide.Right);
+        log.RecordSet(exercise, 1, 9, Weight.FromKilograms(12), false, null, SetSide.Left);
+        Assert.Equal(2, log.Entries.Single().Sets.Count);
+        Assert.Equal(10, log.Entries.Single().Sets.Single(s => s.Side == SetSide.Right).Reps);
+        Assert.Throws<InvalidOperationException>(() =>
+            log.RecordSet(exercise, 1, 8, Weight.Zero, false, null)
+        );
+        log.RemoveRecordedSet(exercise.Id, 1, SetSide.Left);
+        Assert.Equal(SetSide.Right, log.Entries.Single().Sets.Single().Side);
+    }
+
+    [Fact]
     public void Exercise_supports_multiple_groups_and_rejects_invalid_selections()
     {
         var exercise = new Exercise(1, "Row", new[] { MuscleGroup.Biceps, MuscleGroup.Back });

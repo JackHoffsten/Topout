@@ -1,4 +1,5 @@
 using Topout.Domain.Entities;
+using Topout.Domain.Enums;
 
 namespace Topout.Application.Abstractions;
 
@@ -28,13 +29,15 @@ public interface IWorkoutLogRepository
         Topout.Domain.ValueObjects.Weight weight,
         bool warmup,
         string? notes,
-        CancellationToken ct
+        CancellationToken ct,
+        SetSide side = SetSide.Both
     );
     Task RemoveSetAsync(
         int userId,
         int scheduleId,
         int exerciseId,
         int order,
-        CancellationToken ct
+        CancellationToken ct,
+        SetSide side = SetSide.Both
     );
 }

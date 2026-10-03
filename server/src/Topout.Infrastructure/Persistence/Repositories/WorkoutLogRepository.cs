@@ -20,7 +20,12 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
                     !excludedLogId.HasValue || s.WorkoutLogEntry.WorkoutLogId != excludedLogId.Value
                 )
             )
-            .GroupBy(s => new { s.WorkoutLogEntry.ExerciseId, s.Order })
+            .GroupBy(s => new
+            {
+                s.WorkoutLogEntry.ExerciseId,
+                s.Order,
+                s.Side,
+            })
             .Select(g =>
                 g.OrderByDescending(s => s.WorkoutLogEntry.WorkoutLog.Date)
                     .ThenByDescending(s => s.WorkoutLogEntry.WorkoutLogId)
@@ -30,7 +35,8 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
                         s.WorkoutLogEntry.WorkoutLog.Date,
                         s.Reps,
                         s.Weight.Kilograms,
-                        s.IsWarmup
+                        s.IsWarmup,
+                        s.Side
                     ))
                     .First()
             )
@@ -150,7 +156,8 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
         Topout.Domain.ValueObjects.Weight weight,
         bool warmup,
         string? notes,
-        CancellationToken ct
+        CancellationToken ct,
+        SetSide side = SetSide.Both
     )
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -163,7 +170,17 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
             db.WorkoutLogs.Add(log);
         }
         db.Entry(exercise).State = EntityState.Unchanged;
-        log.RecordSet(exercise, order, reps, weight, warmup, notes);
+        var entry = log.Entries.FirstOrDefault(e => e.ExerciseId == exercise.Id);
+        if (
+            entry?.Sets.Any(s =>
+                s.Order == order && (s.Side == SetSide.Both) != (side == SetSide.Both)
+            ) == true
+        )
+            throw new RequestException(
+                ErrorKind.Conflict,
+                "Remove the existing set before changing its split mode."
+            );
+        log.RecordSet(exercise, order, reps, weight, warmup, notes, side);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }
@@ -173,7 +190,8 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
         int scheduleId,
         int exerciseId,
         int order,
-        CancellationToken ct
+        CancellationToken ct,
+        SetSide side = SetSide.Both
     )
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -182,7 +200,7 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
         if (
             log is null
             || !log.Entries.Any(e =>
-                e.ExerciseId == exerciseId && e.Sets.Any(s => s.Order == order)
+                e.ExerciseId == exerciseId && e.Sets.Any(s => s.Order == order && s.Side == side)
             )
         )
             throw new RequestException(ErrorKind.NotFound, "Set not found.");
@@ -191,7 +209,7 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
                 ErrorKind.Conflict,
                 "A completed workout needs at least one set."
             );
-        log.RemoveRecordedSet(exerciseId, order);
+        log.RemoveRecordedSet(exerciseId, order, side);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }

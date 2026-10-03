@@ -30,7 +30,10 @@ public class WorkoutDayExercise : Entity
         Weight? targetWeight = null,
         bool isWarmup = false,
         bool isAmrap = false,
-        int? targetRepsMax = null
+        int? targetRepsMax = null,
+        int? rightTargetRepsMin = null,
+        int? rightTargetRepsMax = null,
+        Weight? rightTargetWeight = null
     )
     {
         var set = new WorkoutDaySet(
@@ -40,7 +43,10 @@ public class WorkoutDayExercise : Entity
             targetWeight: targetWeight,
             isWarmup: isWarmup,
             isAmrap: isAmrap,
-            targetRepsMax: targetRepsMax
+            targetRepsMax: targetRepsMax,
+            rightTargetRepsMin: rightTargetRepsMin,
+            rightTargetRepsMax: rightTargetRepsMax,
+            rightTargetWeight: rightTargetWeight
         );
 
         _plannedSets.Add(set);

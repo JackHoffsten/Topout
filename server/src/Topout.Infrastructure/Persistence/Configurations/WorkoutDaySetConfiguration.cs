@@ -22,5 +22,12 @@ internal sealed class WorkoutDaySetConfiguration : IEntityTypeConfiguration<Work
                 value => value == null ? null : Weight.FromKilograms(value.Value)
             )
             .HasPrecision(8, 3);
+        builder
+            .Property(x => x.RightTargetWeight)
+            .HasConversion(
+                value => value == null ? (decimal?)null : value.Kilograms,
+                value => value == null ? null : Weight.FromKilograms(value.Value)
+            )
+            .HasPrecision(8, 3);
     }
 }

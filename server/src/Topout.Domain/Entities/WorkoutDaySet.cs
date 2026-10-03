@@ -13,6 +13,9 @@ public class WorkoutDaySet : Entity
     public Weight? TargetWeight { get; private set; } // null = not pre-planned
     public bool IsWarmup { get; private set; }
     public bool IsAmrap { get; private set; }
+    public int? RightTargetRepsMin { get; private set; }
+    public int? RightTargetRepsMax { get; private set; }
+    public Weight? RightTargetWeight { get; private set; }
 
     private WorkoutDaySet() { }
 
@@ -23,10 +26,17 @@ public class WorkoutDaySet : Entity
         Weight? targetWeight,
         bool isWarmup,
         bool isAmrap,
-        int? targetRepsMax = null
+        int? targetRepsMax = null,
+        int? rightTargetRepsMin = null,
+        int? rightTargetRepsMax = null,
+        Weight? rightTargetWeight = null
     )
     {
         ValidateRange(targetReps, targetRepsMax);
+        if (rightTargetRepsMin.HasValue)
+            ValidateRange(rightTargetRepsMin.Value, rightTargetRepsMax);
+        else if (rightTargetRepsMax.HasValue || rightTargetWeight is not null)
+            throw new ArgumentException("Right-side reps are required for split sets.");
 
         WorkoutDayExercise = workoutDayExercise;
         Order = order;
@@ -35,6 +45,9 @@ public class WorkoutDaySet : Entity
         TargetWeight = targetWeight;
         IsWarmup = isWarmup;
         IsAmrap = isAmrap;
+        RightTargetRepsMin = rightTargetRepsMin;
+        RightTargetRepsMax = rightTargetRepsMax;
+        RightTargetWeight = rightTargetWeight;
     }
 
     internal void SetOrder(int order) => Order = order;

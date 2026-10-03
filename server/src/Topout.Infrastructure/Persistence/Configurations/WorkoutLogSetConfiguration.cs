@@ -19,6 +19,13 @@ internal sealed class WorkoutLogSetConfiguration : IEntityTypeConfiguration<Work
             .HasConversion(value => value.Kilograms, value => Weight.FromKilograms(value))
             .HasPrecision(8, 3);
         builder.Property(x => x.Notes).HasMaxLength(2000);
-        builder.HasIndex(x => new { x.WorkoutLogEntryId, x.Order }).IsUnique();
+        builder
+            .HasIndex(x => new
+            {
+                x.WorkoutLogEntryId,
+                x.Order,
+                x.Side,
+            })
+            .IsUnique();
     }
 }

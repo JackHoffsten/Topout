@@ -1,4 +1,5 @@
 using Topout.Domain.Abstraction;
+using Topout.Domain.Enums;
 
 namespace Topout.Domain.Entities;
 
@@ -71,7 +72,8 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
         int reps,
         Topout.Domain.ValueObjects.Weight weight,
         bool warmup,
-        string? notes
+        string? notes,
+        SetSide side = SetSide.Both
     )
     {
         ArgumentNullException.ThrowIfNull(exercise);
@@ -96,17 +98,17 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
             );
             _entries.Add(entry);
         }
-        entry.RecordSet(order, reps, weight, warmup, notes);
+        entry.RecordSet(order, reps, weight, warmup, notes, side);
     }
 
-    public void RemoveRecordedSet(int exerciseId, int order)
+    public void RemoveRecordedSet(int exerciseId, int order, SetSide side = SetSide.Both)
     {
         var entry = _entries.FirstOrDefault(e => e.ExerciseId == exerciseId);
-        if (entry is null || !entry.Sets.Any(s => s.Order == order))
+        if (entry is null || !entry.Sets.Any(s => s.Order == order && s.Side == side))
             throw new ArgumentException("Set not found.");
         if (IsCompleted && _entries.Sum(e => e.Sets.Count) == 1)
             throw new InvalidOperationException("A completed workout needs at least one set.");
-        entry.RemoveRecordedSet(order);
+        entry.RemoveRecordedSet(order, side);
         if (entry.Sets.Count == 0)
             _entries.Remove(entry);
     }
@@ -124,8 +126,15 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
         foreach (var entry in source.Entries.OrderBy(e => e.Order))
         {
             var replacement = AddEntry(entry.Exercise);
-            foreach (var set in entry.Sets.OrderBy(s => s.Order))
-                replacement.AddSet(set.Reps, set.Weight, set.IsWarmup, set.Notes);
+            foreach (var set in entry.Sets.OrderBy(s => s.Order).ThenBy(s => s.Side))
+                replacement.RecordSet(
+                    set.Order,
+                    set.Reps,
+                    set.Weight,
+                    set.IsWarmup,
+                    set.Notes,
+                    set.Side
+                );
         }
         CompletedAt = completedAt;
     }

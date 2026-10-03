@@ -15,7 +15,7 @@ public class WorkoutTemplateTests
         var day = new WorkoutDay(1, " Old ");
         var source = new WorkoutDay(1, " New ");
         var row = source.AddExercise(new Exercise(1, "Row", MuscleGroup.Back));
-        row.AddSet(8, Weight.FromKilograms(20), true, true, 12);
+        row.AddSet(8, Weight.FromKilograms(20), true, true, 12, 10, 14, Weight.FromKilograms(22));
         row.AddSet(5);
         source.AddExercise(new Exercise(1, "Curl", MuscleGroup.Biceps));
         day.ReplaceContents(source);
@@ -26,6 +26,12 @@ public class WorkoutTemplateTests
         Assert.Same(day, day.Exercises[0].WorkoutDay);
         Assert.Equal(20, day.Exercises[0].PlannedSets[0].TargetWeight!.Kilograms);
         Assert.True(day.Exercises[0].PlannedSets[0].IsAmrap);
+        Assert.Equal(10, day.Exercises[0].PlannedSets[0].RightTargetRepsMin);
+        Assert.Equal(14, day.Exercises[0].PlannedSets[0].RightTargetRepsMax);
+        Assert.Equal(22, day.Exercises[0].PlannedSets[0].RightTargetWeight!.Kilograms);
+        Assert.Throws<ArgumentException>(() =>
+            row.AddSet(8, rightTargetRepsMin: 10, rightTargetRepsMax: 5)
+        );
         Assert.Throws<ArgumentException>(() => day.ReplaceContents(new WorkoutDay(2, "Other")));
         Assert.Equal("New", day.Name);
         day.ReplaceContents(new WorkoutDay(1, "Empty"));

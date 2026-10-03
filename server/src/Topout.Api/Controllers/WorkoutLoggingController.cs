@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Topout.Application.WorkoutLogging;
+using Topout.Domain.Enums;
 
 namespace Topout.Api.Controllers;
 
@@ -57,6 +58,7 @@ public sealed class WorkoutLoggingController : ControllerBase
         int exerciseId,
         int order,
         [FromServices] WorkoutLoggingHandler handler,
-        CancellationToken ct
-    ) => Ok(await handler.RemoveSetAsync(scheduleId, exerciseId, order, ct));
+        CancellationToken ct,
+        [FromQuery] SetSide side = SetSide.Both
+    ) => Ok(await handler.RemoveSetAsync(scheduleId, exerciseId, order, ct, side));
 }
