@@ -99,6 +99,10 @@ and provide trusted HTTPS.
 
 ## Application structure
 
+Filter categories support multiple selections. Click a value again to deselect it, or
+choose All to clear that category. Results match any selected value within each category,
+and must match all active categories. Apply saves the draft; Close hides it without applying.
+
 - `app` — public and protected Expo Router routes
 - `src/features` — authentication and exercise features
 - `src/lib` — session and query providers
@@ -107,6 +111,11 @@ and provide trusted HTTPS.
 
 TanStack Query manages server state in memory. Exercise mutations invalidate the exercise
 list. Exercise data and pending mutations are not persisted offline.
+
+The exercise library has independent name/muscle-group search, name sorting (A–Z or
+Z–A), and muscle-group filters. Filters and search combine across
+the complete library; resetting filters preserves search. Starter and custom exercises
+remain visually identical.
 
 ## Authentication behavior
 
@@ -120,9 +129,9 @@ Session renewal is single-flight within a client. Browser tabs use Web Locks to 
 refresh-token rotation and BroadcastChannel to propagate logout. A request is replayed at
 most once after successful renewal. Failed renewal clears the local session.
 
-## Home calendar
+## Calendar calendar
 
-Home opens after sign-in and shows a Monday-first month calendar. Select a date and use
+`/calendar` opens after sign-in and shows a Monday-first month calendar. Select a date and use
 Plan workout to search and select a template. Multiple workouts can be planned on a date.
 Add rest day records a rest-day entry. Plans are saved to the API and survive reloads.
 Select an entry's Remove button to remove it after confirmation; the template is kept.
@@ -134,7 +143,7 @@ are removed.
 
 ## Workout logging
 
-Select a planned workout on Home and choose Log workout. The editor shows planned targets
+Select a planned workout on Calendar and choose Log workout. The editor shows planned targets
 as a reference, with blank fields for actual reps and kilograms. Enter 0 kg for bodyweight
 sets. When a matching exercise and set number has a previous saved record, Last logged
 shows its date, reps, kilograms, and warm-up flag instead of planned targets. This uses
@@ -156,7 +165,7 @@ completed workout must retain at least one set. Dates with saved sets show a che
 (“Logged” on desktop), including unfinished workouts. Calendar entries with logs cannot
 be removed until their logs are removed.
 
-On Home, Remove log permanently deletes that workout's sets and notes after confirmation,
+On Calendar, Remove log permanently deletes that workout's sets and notes after confirmation,
 but keeps the template planned on the date. Remove then removes the calendar plan without
 deleting the template. Rest days cannot be added to dates with workout plans; remove all
 plans first. Likewise, remove a rest day before planning workouts on that date.
@@ -167,6 +176,12 @@ workout notes, and pending exercise changes are saved when finishing or saving c
 by the individual set action. This slice does not include timers or offline storage.
 
 ## Workout templates
+
+The template list starts collapsed with names and exercise/set counts. Expand a template
+to see its exercises, planned targets (including left/right split sets), and edit/delete
+controls. The independent search field matches template and exercise names. Sort by name
+in either direction; filters select a muscle group. Filtering and sorting cover the complete template
+list. Resetting filters preserves the search text.
 
 Use **Templates** to create reusable exercise plans. Select **Add exercise** and choose an
 exercise from the searchable dropdown. Edit its sets, then select **Add exercise** to
@@ -185,6 +200,38 @@ an edited draft. Drafts are not persisted across page reloads.
 Template management does not start a workout or schedule a date. Exercises referenced by
 templates cannot be deleted until removed from the templates. Templates referenced by
 scheduled workouts cannot be deleted.
+
+## Climbing
+
+On Calendar, select a calendar date and choose **Log climb** to open the dedicated
+`/climbs/new` screen. The selected date is prefilled and editable. Saving or cancelling
+returns to that calendar date. **Log climb** is also available from climb history,
+defaults to today, and returns to history. Select bouldering, sport, or
+top rope; the grade picker offers the matching grading systems. Search and select a
+grade, choose an environment/outcome, and enter attempts for that day. Wall angle,
+multiple style tags, route name, and location are optional. Save each route/problem
+separately, including unsuccessful attempts. Logs can be edited or deleted from the
+selected date. Square icon badges mark dates with climbing logs on phone and desktop.
+Calendar summaries show name, grade, attempts, and outcome. Select a climb to open `/climbs`
+with that record expanded, or use **All climbs** to browse the full history. History loads
+newest-first pages; the **Climbs** navigation item also opens history directly. Choose
+Newest/Oldest or Hardest/Easiest sorting. Grade sorting follows difficulty within each
+grading system without converting between scales. The always-visible search field searches
+names and locations as you type, independently of the filters panel. **Filters** includes
+type, grade system, exact grade, environment, outcome, wall angle, style, and inclusive date
+ranges. Apply filters to search all records, not only loaded pages; use Reset filters to
+clear them without clearing the search text. Choose a grade system to enable the searchable
+grade picker; changing the system clears the selected grade. Expand a record for its date, climbing type, grade system, environment,
+wall angle, styles, location, and edit/delete controls. Selected records load independently
+of pagination, so older climbs can be opened directly.
+
+Rest days must be removed before adding climbing logs, and climbing logs must be removed
+before adding a rest day. Gym plans can coexist with climbs. Grades are not converted
+between scales; the original grading system is retained.
+
+Apply database migrations with `npm run db:migrate` and restart the API before testing
+this feature. The isolated phone/desktop flow is `npx playwright test e2e/climbing.spec.ts`
+(build the frontend first).
 
 ## Verification
 

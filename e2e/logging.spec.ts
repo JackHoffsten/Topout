@@ -31,9 +31,10 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click();
   await page.getByRole('button', { name: 'Create template', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Pull', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Expand template Pull', exact: true }).click();
   await expect(page.getByText('Left: 8 reps (20 kg)', { exact: true })).toBeVisible();
   await expect(page.getByText('Right: 9 reps (22.5 kg)', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Home', exact: true }).click();
+  await page.getByRole('link', { name: 'Calendar', exact: true }).click();
   await page.getByRole('button', { name: 'Plan workout', exact: true }).click();
   await page.getByRole('button', { name: 'Schedule Pull', exact: true }).click();
   await page.getByRole('link', { name: 'Log workout', exact: true }).click();
@@ -127,7 +128,7 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
   );
   await page.reload();
   await expect(page.getByText('Updated notes', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Back to Home', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to Calendar', exact: true }).click();
   await expect(page.getByText('Completed', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add rest day', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: /workout logged/ })).toBeVisible();
@@ -139,7 +140,7 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
   await expect(page.getByRole('button', { name: 'Remove Pull', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'View workout log', exact: true }).click();
   await expect(page.getByText('Updated notes', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Back to Home', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to Calendar', exact: true }).click();
   await page.getByRole('button', { name: 'Remove log for Pull', exact: true }).click();
   await page.getByRole('button', { name: 'Keep log', exact: true }).click();
   await expect(page.getByText('Completed', { exact: true })).toBeVisible();

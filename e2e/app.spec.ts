@@ -27,7 +27,7 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
     .filter({ visible: true })
     .fill('StrongPassword123!');
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Calendar', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Exercises', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Exercises', exact: true })).toBeVisible();
   await expect(
@@ -76,6 +76,27 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
   ).toBe('1px');
   await expect(page.getByRole('button', { name: 'Refresh exercises' })).toHaveCount(0);
   await expect(page.getByText('Test pull-up', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Name Z–A', exact: true }).click();
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page.getByRole('button', { name: 'Filter muscle group: Chest', exact: true }).click();
+  await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'No exercises found', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Reset filters', exact: true }).click();
+  await expect(page.getByLabel('Search exercises', { exact: true })).toHaveValue('Test pull-up');
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page.getByRole('button', { name: 'Filter muscle group: Back', exact: true }).click();
+  await page.getByRole('button', { name: 'Filter muscle group: Chest', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Filter muscle group: Back', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(
+    page.getByRole('button', { name: 'Filter muscle group: Chest', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+  await expect(page.getByText('Test pull-up', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Reset filters', exact: true }).click();
   await page.getByRole('link', { name: 'Edit Test pull-up' }).click();
   await expect(page.getByRole('checkbox', { name: 'Back', exact: true })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Biceps', exact: true })).toBeChecked();
@@ -111,7 +132,7 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
     .filter({ visible: true })
     .fill('StrongPassword123!');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Calendar', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Exercises', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Exercises', exact: true })).toBeVisible();
   await expect(page.getByText('Updated pull-up', { exact: true })).toHaveCount(0);

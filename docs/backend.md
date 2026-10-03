@@ -237,6 +237,60 @@ The isolated browser test server opts into a larger authentication rate-limit bu
 `Testing:ExpandedAuthRateLimit`. This setting is honored only in the Testing environment;
 production and development retain the normal limit of 60 requests per IP per minute.
 
+## Climbing logs
+
+Authenticated, user-scoped climbing endpoints:
+
+- `GET /api/climb-logs?from=2026-10-01&to=2026-10-31` lists a maximum 63-day range.
+- `GET /api/climb-logs/history?page=1&pageSize=50` returns `{ items, nextPage, totalCount }` across all dates, newest date then newest ID first. `totalCount` counts all the account's climbs, irrespective of filtering or pagination. Page sizes are 1–100; `nextPage` is null at the end.
+  Optional history query parameters: `sort` (`date-desc`, `date-asc`, `grade-desc`, `grade-asc`), `climbingType`, `gradeSystem`, `grade`, `environment`, `outcome`, `wallAngle`, `style`, `search` (name/location), and inclusive `from`/`to` dates. An exact `grade` requires its `gradeSystem`; incompatible grades return 400. Filtering and sorting precede pagination. Grade order uses each system's difficulty ladder, grouped by grading system rather than comparing unrelated scales.
+  Category parameters accept repeated values, for example `environment=Indoor&environment=Outdoor`. Values within a category use OR; categories combine with AND. Style matches any selected tag. Each selected grade must belong to at least one selected grading system. Empty selections do not restrict results.
+- `GET /api/climb-logs/{id}` fetches one owned log; missing and other-user logs return 404.
+- `POST /api/climb-logs` creates a log (201).
+- `PUT /api/climb-logs/{id}` replaces the complete log (200).
+- `DELETE /api/climb-logs/{id}` permanently deletes the log (204).
+
+Example input:
+
+```json
+{
+  "date": "2026-10-03",
+  "climbingType": "Bouldering",
+  "gradeSystem": "Font",
+  "grade": "7A",
+  "environment": "Indoor",
+  "attempts": 3,
+  "outcome": "Redpoint",
+  "wallAngle": "Overhang",
+  "styles": ["Crimpy", "Slopy"],
+  "name": null,
+  "location": null
+}
+```
+
+Responses contain the same fields plus `id`. Each entry represents one route/problem on
+one date; multiple climbs with identical grades are allowed. Attempts count that day's
+tries, not lifetime attempts. `Attempted` records an unsent climb; `Redpoint`, `Flash`, and
+`Onsight` record completed climbs. Flash/onsight require exactly one attempt that day;
+the user remains responsible for indicating whether there were earlier attempts or beta.
+
+`Bouldering` supports `Font` (uppercase, e.g. `7A`) and `V`. `Sport` and `TopRope` support
+`French` (lowercase, e.g. `7a`) and `YDS`. Original grades are stored without conversion.
+Environments are `Indoor`, `Outdoor`, and `Board` (bouldering only). Wall angle may be
+null or `Slab`, `Vertical`, `Overhang`, or `Roof`. Styles are a distinct array selected
+from `Crimpy`, `Slopy`, `Juggy`, `Pinchy`, `Technical`, `Powerful`, `Dynamic`, `Balance`,
+and `Endurance`. Attempts are integers 1–1000. Optional name/location are trimmed, limited
+to 100/200 characters, and stored as null when empty.
+
+Invalid input returns 400 Problem Details. Missing and other-user logs return 404.
+Rest-day dates reject climb creation/moves with 409, and dates with climbing logs reject
+rest-day creation. A shared per-user/date PostgreSQL transaction lock serializes these
+checks. Gym plans and climbing logs may share a date. `AddClimbingLogs` adds an independent
+table without changing existing gym data.
+
+Grading references: [BMC indoor climbing grades](https://thebmc.co.uk/en/indoor-climbing-grades-explained)
+and [UIAA grading scales](https://theuiaa.org/documents/mountaineering/THESCALESOFDIFFICULTYINCLIMBING_p1b.pdf).
+
 ## Migrations and tests
 
 The original migration is preserved. AddExerciseCatalogAndRefreshSessions adds normalized

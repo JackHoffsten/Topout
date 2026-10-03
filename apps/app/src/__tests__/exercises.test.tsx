@@ -74,6 +74,40 @@ test('starter and custom exercises have the same presentation', async () => {
   expect(screen.queryByRole('button', { name: 'Refresh exercises' })).toBeNull();
 });
 
+test('exercise sorting and muscle filters combine with independent search', async () => {
+  mockApi.listExercises.mockResolvedValue([
+    { ...exercise, id: 1, name: 'Row', muscleGroups: ['Back', 'Biceps'] },
+    { ...exercise, id: 2, name: 'Curl', muscleGroups: ['Biceps'] },
+    { ...exercise, id: 3, name: 'Walk', muscleGroups: [] },
+  ]);
+  await mount(<ExerciseList />);
+  await screen.findByText('Row');
+  const names = () =>
+    screen
+      .getAllByRole('button', { name: /^Delete / })
+      .map((node) => node.props.accessibilityLabel);
+  expect(names()).toEqual(['Delete Curl', 'Delete Row', 'Delete Walk']);
+  await fireEvent.press(screen.getByRole('button', { name: 'Name Z–A' }));
+  expect(names()).toEqual(['Delete Walk', 'Delete Row', 'Delete Curl']);
+  expect(screen.queryByRole('button', { name: 'Most muscle groups' })).toBeNull();
+  await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'Biceps');
+  expect(names()).toEqual(['Delete Row', 'Delete Curl']);
+  await fireEvent.press(screen.getByRole('button', { name: 'Filters' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Filter muscle group: Back' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Apply filters' }));
+  expect(names()).toEqual(['Delete Row']);
+  await fireEvent.press(screen.getByRole('button', { name: 'Reset filters' }));
+  expect(screen.getByLabelText('Search exercises').props.value).toBe('Biceps');
+  await fireEvent.changeText(screen.getByLabelText('Search exercises'), '');
+  await fireEvent.press(screen.getByRole('button', { name: 'Filters' }));
+  expect(screen.queryByText('Muscle group count')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Filter muscle group: Other' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Apply filters' }));
+  expect(names()).toEqual(['Delete Walk']);
+  await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'Row');
+  expect(screen.getByText('No exercises found')).toBeTruthy();
+});
+
 test('create validates, then surfaces duplicate names', async () => {
   mockApi.createExercise.mockRejectedValue(
     new ApiError(409, 'An exercise with this name already exists.'),
@@ -85,6 +119,32 @@ test('create validates, then surfaces duplicate names', async () => {
   await fireEvent.changeText(screen.getByLabelText('Exercise name'), 'Pull-up');
   await fireEvent.press(screen.getByRole('button', { name: 'Create exercise' }));
   await screen.findByText('An exercise with this name already exists.');
+});
+
+test('muscle filters allow multiple selections and toggle individual values', async () => {
+  mockApi.listExercises.mockResolvedValue([
+    { ...exercise, id: 1, name: 'Row', muscleGroups: ['Back'] },
+    { ...exercise, id: 2, name: 'Press', muscleGroups: ['Chest'] },
+    { ...exercise, id: 3, name: 'Curl', muscleGroups: ['Biceps'] },
+  ]);
+  await mount(<ExerciseList />);
+  await screen.findByText('Row');
+  await fireEvent.press(screen.getByRole('button', { name: 'Filters' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Filter muscle group: Back' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Filter muscle group: Chest' }));
+  expect(
+    screen.getByRole('button', { name: 'Filter muscle group: Back' }).props.accessibilityState
+      .selected,
+  ).toBe(true);
+  await fireEvent.press(screen.getByRole('button', { name: 'Apply filters' }));
+  expect(screen.getByText('Row')).toBeTruthy();
+  expect(screen.getByText('Press')).toBeTruthy();
+  expect(screen.queryByText('Curl')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Filters' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Filter muscle group: Back' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Apply filters' }));
+  expect(screen.queryByText('Row')).toBeNull();
+  expect(screen.getByText('Press')).toBeTruthy();
 });
 
 test('successful creation returns to library', async () => {

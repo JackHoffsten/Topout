@@ -90,6 +90,56 @@ test('failed list state', async () => {
   await screen.findByText('Could not connect. Check your connection and try again.');
 });
 
+test('template list searches exercises, sorts names and filters muscles without clearing search', async () => {
+  mockApi.listWorkoutTemplates.mockResolvedValue([
+    template,
+    { id: 2, name: 'Empty', exercises: [] },
+    {
+      id: 3,
+      name: 'Arms',
+      exercises: [
+        {
+          exercise: { ...exercise, id: 2, name: 'Curl', muscleGroups: ['Biceps'] },
+          sets: [{ ...set, isAmrap: true }],
+        },
+      ],
+    },
+  ]);
+  await mount(<TemplateList />);
+  await screen.findByRole('button', { name: 'Expand template Pull' });
+  expect(
+    screen
+      .getAllByRole('button', { name: /^Expand template/ })
+      .map((node) => node.props.accessibilityLabel),
+  ).toEqual(['Expand template Arms', 'Expand template Empty', 'Expand template Pull']);
+  expect(screen.queryByRole('button', { name: 'Most sets' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Name Z–A' }));
+  expect(
+    screen
+      .getAllByRole('button', { name: /^Expand template/ })
+      .map((node) => node.props.accessibilityLabel),
+  ).toEqual(['Expand template Pull', 'Expand template Empty', 'Expand template Arms']);
+  await fireEvent.changeText(screen.getByLabelText('Search templates'), 'ROW');
+  expect(screen.getAllByRole('button', { name: /^Expand template/ })).toHaveLength(1);
+  await fireEvent.press(screen.getByRole('button', { name: 'Filters' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Filter muscle group: Biceps' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Apply filters' }));
+  expect(screen.getByText('No templates match these filters.')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Reset filters' }));
+  expect(screen.getByLabelText('Search templates').props.value).toBe('ROW');
+  await fireEvent.changeText(screen.getByLabelText('Search templates'), '');
+  await fireEvent.press(screen.getByRole('button', { name: 'Filters' }));
+  expect(screen.queryByText('Contents')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Filter muscle group: Biceps' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Apply filters' }));
+  expect(screen.getAllByRole('button', { name: /^Expand template/ })).toHaveLength(1);
+  expect(screen.getByRole('button', { name: 'Expand template Arms' })).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Filters' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Filter muscle group: Back' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Apply filters' }));
+  expect(screen.getAllByRole('button', { name: /^Expand template/ })).toHaveLength(2);
+});
+
 test('template list shows distinct left and right targets for split sets', async () => {
   mockApi.listWorkoutTemplates.mockResolvedValue([
     {
@@ -113,6 +163,8 @@ test('template list shows distinct left and right targets for split sets', async
   ]);
   await mount(<TemplateList />);
   await screen.findByText('Pull');
+  expect(screen.queryByText('Left: 8 reps (0 kg)')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Expand template Pull' }));
   expect(screen.getByText('Left: 8 reps (0 kg)')).toBeTruthy();
   expect(screen.getByText('Right: 10–12 reps (14 kg)')).toBeTruthy();
   expect(screen.getByText('Set 1 (Warmup) (Amrap)')).toBeTruthy();
@@ -222,6 +274,7 @@ test('delete conflict remains visible and successful deletion reloads templates'
     )
     .mockResolvedValue(undefined);
   await mount(<TemplateList />);
+  await fireEvent.press(await screen.findByRole('button', { name: 'Expand template Pull' }));
   await fireEvent.press(await screen.findByRole('button', { name: 'Delete Pull' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Delete template' }));
   await screen.findByText('This workout template is used by a scheduled workout.');

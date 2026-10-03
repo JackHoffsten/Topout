@@ -1,26 +1,47 @@
 import React from 'react';
 import { jest, beforeEach, test, expect } from '@jest/globals';
-import { renderAsync, screen, fireEventAsync, waitFor } from '@testing-library/react-native';
+import {
+  renderAsync,
+  screen,
+  fireEventAsync,
+  waitFor,
+  within,
+} from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { HomeScreen } from '../features/home/HomeScreen';
-import { dateKey, monthDays } from '../features/home/calendar';
+import { CalendarScreen } from '../features/calendar/CalendarScreen';
+import { dateKey, monthDays } from '../features/calendar/calendar';
 
 const mockApi = {
   listWorkoutSchedule: jest.fn<() => Promise<any[]>>(),
   listWorkoutTemplates: jest.fn<() => Promise<any[]>>(),
+  listClimbLogs: jest.fn<() => Promise<any[]>>(),
   scheduleWorkout: jest.fn<(...args: any[]) => Promise<any>>(),
   deleteScheduledWorkout: jest.fn<(...args: any[]) => Promise<void>>(),
   deleteWorkoutLog: jest.fn<(...args: any[]) => Promise<void>>(),
 };
+let mockDesktop = false;
+let mockCalendarDate: string | undefined;
+jest.mock('../ui/theme', () => ({
+  ...jest.requireActual<typeof import('../ui/theme')>('../ui/theme'),
+  useDesktop: () => mockDesktop,
+}));
 jest.mock('../lib/providers', () => ({
   useSession: () => ({ api: mockApi, status: 'authenticated' }),
 }));
-jest.mock('expo-router', () => ({ Link: ({ children }: any) => children }));
+jest.mock('expo-router', () => ({
+  Link: ({ children }: any) => children,
+  useLocalSearchParams: () => ({ date: mockCalendarDate }),
+  useRouter: () => ({ push: jest.fn() }),
+}));
 jest.mock('@expo/vector-icons', () => ({ Feather: () => null }));
 
 beforeEach(() => {
   jest.resetAllMocks();
+  mockDesktop = false;
+  mockCalendarDate = undefined;
   mockApi.listWorkoutSchedule.mockResolvedValue([]);
+  mockApi.listClimbLogs.mockResolvedValue([]);
   mockApi.listWorkoutTemplates.mockResolvedValue([{ id: 1, name: 'Push', exercises: [] }]);
   mockApi.scheduleWorkout.mockResolvedValue({});
   mockApi.deleteScheduledWorkout.mockResolvedValue(undefined);
@@ -36,7 +57,7 @@ async function mount() {
   });
   await renderAsync(
     <QueryClientProvider client={client}>
-      <HomeScreen />
+      <CalendarScreen />
     </QueryClientProvider>,
   );
 }
@@ -49,6 +70,95 @@ test('calendar covers leap February in complete Monday-first weeks using local d
   expect(days.map(dateKey)).toContain('2028-02-29');
   expect(dateKey(new Date(2026, 9, 1))).toBe('2026-10-01');
 });
+
+test('calendar restores the date returned from the logging screen', async () => {
+  mockCalendarDate = '2028-02-29';
+  await mount();
+  const label = new Date('2028-02-29T12:00:00').toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  await waitFor(() =>
+    expect(screen.getByRole('button', { selected: true }).props.accessibilityLabel).toContain(
+      label,
+    ),
+  );
+  expect(mockApi.listClimbLogs).toHaveBeenCalledWith('2028-01-31', '2028-03-05');
+});
+
+test.each([false, true])(
+  'calendar uses matching square activity icons (desktop: %s)',
+  async (desktop) => {
+    mockDesktop = desktop;
+    mockApi.listWorkoutSchedule.mockResolvedValue([
+      {
+        id: 2,
+        date: dateKey(new Date()),
+        templateId: 1,
+        templateName: 'Push',
+        isRestDay: false,
+        status: 'Planned',
+      },
+    ]);
+    mockApi.listClimbLogs.mockResolvedValue([
+      {
+        id: 7,
+        date: dateKey(new Date()),
+        climbingType: 'Bouldering',
+        gradeSystem: 'Font',
+        grade: '7A',
+        environment: 'Indoor',
+        attempts: 3,
+        outcome: 'Redpoint',
+        wallAngle: null,
+        styles: [],
+        name: null,
+        location: null,
+      },
+    ]);
+    await mount();
+    await screen.findByRole('link', { name: 'View climb 7A' });
+    expect(screen.getByRole('button', { name: /1 climb logged/ })).toBeTruthy();
+    expect(screen.getByTestId(`climbs-${dateKey(new Date())}`)).toBeTruthy();
+    const badges = screen.getByTestId(`activity-badges-${dateKey(new Date())}`);
+    const workout = within(badges).getByTestId(`plans-${dateKey(new Date())}`);
+    const climb = within(badges).getByTestId(`climbs-${dateKey(new Date())}`);
+    expect(StyleSheet.flatten(badges.props.style)).toMatchObject({
+      flexDirection: 'row',
+      left: desktop ? 5 : 1,
+      bottom: desktop ? 6 : 2,
+    });
+    expect(StyleSheet.flatten(climb.props.style)).toEqual(StyleSheet.flatten(workout.props.style));
+    expect(StyleSheet.flatten(climb.props.style)).toMatchObject({
+      width: desktop ? 24 : 15,
+      height: desktop ? 24 : 15,
+      aspectRatio: 1,
+      minWidth: desktop ? 24 : 15,
+      maxWidth: desktop ? 24 : 15,
+      flexShrink: 0,
+    });
+    expect(StyleSheet.flatten(badges.props.style).right).toBeUndefined();
+    const cellStyle = StyleSheet.flatten(
+      screen.getByRole('button', { name: /1 climb logged/ }).props.style,
+    );
+    expect(cellStyle.aspectRatio).toBe(1);
+    expect(cellStyle.minHeight).toBeUndefined();
+    const headerStyle = StyleSheet.flatten(
+      screen.getByTestId(`date-header-${dateKey(new Date())}`).props.style,
+    );
+    const badgeStyle = StyleSheet.flatten(badges.props.style);
+    expect(headerStyle.left).toBe(badgeStyle.left);
+    expect(headerStyle.right).toBe(badgeStyle.left);
+    expect(headerStyle.top).toBe(badgeStyle.bottom);
+    expect(
+      StyleSheet.flatten(screen.getByTestId(`date-number-${dateKey(new Date())}`).props.style)
+        .fontSize,
+    ).toBe(Math.max(10, Math.round((desktop ? 24 : 15) * 0.68)));
+    expect(screen.getByRole('button', { name: 'Add rest day' })).toBeDisabled();
+  },
+);
 
 test('searches templates, schedules today, and reloads saved plans', async () => {
   await mount();

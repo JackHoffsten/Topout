@@ -46,7 +46,35 @@ test('template CRUD persists targets, supports keyboard reordering and protects 
   );
   await page.getByRole('button', { name: 'Create template', exact: true }).click();
   await expect(page.getByText('2 exercises · 4 sets')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Edit Pull', exact: true })).toHaveCount(0);
+  await page.getByLabel('Search templates', { exact: true }).fill('Barbell Row');
+  await page.getByRole('button', { name: 'Name Z–A', exact: true }).click();
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page.getByRole('button', { name: 'Filter muscle group: Biceps', exact: true }).click();
+  await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+  await expect(page.getByText('No templates match these filters.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page.getByRole('button', { name: 'Filter muscle group: Back', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Filter muscle group: Biceps', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(
+    page.getByRole('button', { name: 'Filter muscle group: Back', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Expand template Pull', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Reset filters', exact: true }).click();
+  await expect(page.getByLabel('Search templates', { exact: true })).toHaveValue('Barbell Row');
+  await expect(
+    page.getByRole('button', { name: 'Expand template Pull', exact: true }),
+  ).toBeVisible();
   await page.reload();
+  await page.getByRole('button', { name: 'Expand template Pull', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Collapse template Pull', exact: true }),
+  ).toHaveAttribute('aria-expanded', 'true');
   await page.getByRole('link', { name: 'Edit Pull', exact: true }).click();
   await page.getByRole('button', { name: 'Expand Barbell Row', exact: true }).click();
   await expect(
@@ -69,6 +97,7 @@ test('template CRUD persists targets, supports keyboard reordering and protects 
   ).toBeVisible();
   await page.getByRole('button', { name: 'Keep exercise', exact: true }).click();
   await page.getByRole('link', { name: 'Templates', exact: true }).click();
+  await page.getByRole('button', { name: 'Expand template Pull updated', exact: true }).click();
   await page.getByRole('button', { name: 'Delete Pull updated', exact: true }).click();
   await page.getByRole('button', { name: 'Delete template', exact: true }).click();
   await expect(page.getByText('No templates', { exact: true })).toBeVisible();
