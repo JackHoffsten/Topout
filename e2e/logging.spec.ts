@@ -20,13 +20,31 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click();
   await page.getByLabel('Search exercises', { exact: true }).fill('Barbell Row');
   await page.getByRole('button', { name: 'Select Barbell Row', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Split Barbell Row set 2 left/right', exact: true })
+    .click();
+  await page.getByLabel('Barbell Row set 2 left weight (kg, optional)', { exact: true }).fill('20');
+  await page.getByLabel('Barbell Row set 2 right reps', { exact: true }).fill('9');
+  await page
+    .getByLabel('Barbell Row set 2 right weight (kg, optional)', { exact: true })
+    .fill('22.5');
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click();
   await page.getByRole('button', { name: 'Create template', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Pull', exact: true })).toBeVisible();
+  await expect(page.getByText('Left: 8 reps (20 kg)', { exact: true })).toBeVisible();
+  await expect(page.getByText('Right: 9 reps (22.5 kg)', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Home', exact: true }).click();
   await page.getByRole('button', { name: 'Plan workout', exact: true }).click();
   await page.getByRole('button', { name: 'Schedule Pull', exact: true }).click();
   await page.getByRole('link', { name: 'Log workout', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Unsplit Barbell Row set 2 left/right', exact: true })
+    .click();
+  await expect(page.getByLabel('Barbell Row set 2 reps', { exact: true })).toHaveValue('');
+  await page
+    .getByRole('button', { name: 'Split Barbell Row set 2 left/right', exact: true })
+    .click();
+  await expect(page.getByLabel('Barbell Row set 2 right reps', { exact: true })).toHaveValue('');
   await expect(page.getByLabel('Barbell Row set 1 reps', { exact: true })).toHaveValue('');
   await page.getByRole('button', { name: 'Finish workout', exact: true }).click();
   await expect(
@@ -37,18 +55,51 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
   await page.getByLabel('Barbell Row set 1 reps', { exact: true }).fill('9');
   await page.getByLabel('Barbell Row set 1 weight (kg)', { exact: true }).fill('40');
   await page.getByRole('button', { name: 'Barbell Row set 1 toggle warm-up', exact: true }).click();
-  await page.getByRole('button', { name: 'Log Barbell Row set 1', exact: true }).click();
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/log/sets') &&
+        response.request().method() === 'PUT' &&
+        response.status() === 200,
+    ),
+    page.getByRole('button', { name: 'Log Barbell Row set 1', exact: true }).click(),
+  ]);
   await expect(
     page.getByRole('button', { name: 'Log Barbell Row set 1', exact: true }),
   ).toBeDisabled();
   await page.reload();
   await expect(page.getByLabel('Barbell Row set 1 reps', { exact: true })).toHaveValue('9');
-  await expect(page.getByLabel('Barbell Row set 2 reps', { exact: true })).toHaveValue('');
-  await page.getByLabel('Barbell Row set 2 reps', { exact: true }).fill('7');
-  await page.getByLabel('Barbell Row set 2 weight (kg)', { exact: true }).fill('42.5');
-  await page.getByRole('button', { name: 'Log Barbell Row set 2', exact: true }).click();
+  await expect(page.getByLabel('Barbell Row set 2 left reps', { exact: true })).toHaveValue('');
+  await page.getByLabel('Barbell Row set 2 left reps', { exact: true }).fill('7');
+  await page.getByLabel('Barbell Row set 2 left weight (kg)', { exact: true }).fill('20');
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/log/sets') &&
+        response.request().method() === 'PUT' &&
+        response.status() === 200,
+    ),
+    page.getByRole('button', { name: 'Log Barbell Row set 2 left', exact: true }).click(),
+  ]);
   await expect(
-    page.getByRole('button', { name: 'Log Barbell Row set 2', exact: true }),
+    page.getByRole('button', { name: 'Log Barbell Row set 2 left', exact: true }),
+  ).toBeDisabled();
+  await page.reload();
+  await expect(page.getByLabel('Barbell Row set 2 left reps', { exact: true })).toHaveValue('7');
+  await expect(page.getByLabel('Barbell Row set 2 right reps', { exact: true })).toHaveValue('');
+  await page.getByLabel('Barbell Row set 2 right reps', { exact: true }).fill('9');
+  await page.getByLabel('Barbell Row set 2 right weight (kg)', { exact: true }).fill('22.5');
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/log/sets') &&
+        response.request().method() === 'PUT' &&
+        response.status() === 200,
+    ),
+    page.getByRole('button', { name: 'Log Barbell Row set 2 right', exact: true }).click(),
+  ]);
+  await expect(
+    page.getByRole('button', { name: 'Log Barbell Row set 2 right', exact: true }),
   ).toBeDisabled();
   await page.getByLabel('Workout notes (optional)', { exact: true }).fill('Training notes');
   await page.getByRole('button', { name: 'Finish workout', exact: true }).focus();
@@ -56,6 +107,9 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
   await expect(page.getByRole('heading', { name: 'Workout log', exact: true })).toBeVisible();
   await expect(page.getByText('Training notes', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Edit workout', exact: true }).click();
+  await expect(page.getByLabel('Barbell Row set 2 left reps', { exact: true })).toHaveValue('7');
+  await expect(page.getByLabel('Barbell Row set 2 right reps', { exact: true })).toHaveValue('9');
+  await page.getByLabel('Barbell Row set 2 right reps', { exact: true }).fill('10');
   await page.getByLabel('Barbell Row set 1 reps', { exact: true }).fill('11');
   await page.getByLabel('Workout notes (optional)', { exact: true }).fill('Updated notes');
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
@@ -64,6 +118,7 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
   await expect(page.getByText('Updated notes', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Edit workout', exact: true }).click();
   await expect(page.getByLabel('Barbell Row set 1 reps', { exact: true })).toHaveValue('11');
+  await expect(page.getByLabel('Barbell Row set 2 right reps', { exact: true })).toHaveValue('10');
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page.getByLabel('Barbell Row set 1 reps', { exact: true })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('workout-log.png'), fullPage: true });

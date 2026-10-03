@@ -140,6 +140,14 @@ Create and update accept `name` and an ordered `exercises` array. Each entry con
 `id`, `name`, and ordered entries with the full `exercise` DTO and `sets`. Array position
 defines order; clients do not submit database ordering values or child IDs.
 
+Split sets additionally contain `rightTarget` with its own `targetRepsMin`, optional
+`targetRepsMax`, and optional `targetWeightKg`. The top-level targets then describe the
+left side. Omit `rightTarget` or set it to null for a normal set. Warm-up and AMRAP apply
+to both sides. Split weights are per side, not combined. A split set remains one logical
+set when copied or reordered. The logger opens it as separate left/right results without
+pre-filling actual values. The `AddSplitTemplateTargets` migration leaves existing sets
+normal and preserves their targets; downgrades are rejected while split targets exist.
+
 Names are trimmed, limited to 100 characters, and unique per account without regard to
 case. Templates may be empty, and exercises may have no sets. An exercise can appear only
 once per template. Reps must be 1–1000, maximum reps cannot be below minimum reps, and
@@ -178,7 +186,7 @@ needed for calendar planning.
 
 - `GET /api/workout-schedule/{id}/log` returns the scheduled date, current template, and
   saved log (unfinished or completed) if one exists.
-  `previousSets` contains the latest saved result per exercise and set order from other
+  `previousSets` contains the latest saved result per exercise, set order, and side from other
   workouts belonging to the current user. Workouts after the selected date are excluded;
   same-date records use the newest log ID. Unfinished logs are included, and deleting a
   log removes it from future reference results.
@@ -201,7 +209,7 @@ needed for calendar planning.
 - `PUT /api/workout-schedule/{id}/log/sets` records or updates one set with `exerciseId`,
   `order` (1–100), `reps`, `weightKg`, `isWarmup`, and nullable `notes`. It creates an
   unfinished log on first use and works for completed logs as well.
-- `DELETE /api/workout-schedule/{id}/log/sets/{exerciseId}/{order}` removes a saved set.
+- `DELETE /api/workout-schedule/{id}/log/sets/{exerciseId}/{order}?side=Left` removes one side of a saved set. Omit `side` for a normal set.
 - `DELETE /api/workout-schedule/{id}/log` permanently removes the entire owned log and its
   sets and notes, returning 204. The plan is retained and reset to Planned. Missing logs
   and other-user schedules return 404.
@@ -212,7 +220,11 @@ their calendar status is InProgress. Empty planned slots are not stored as actua
 
 At least one exercise and one set per exercise are required. Reps must be integers from
 1–1000; weight must be 0–2000 kg. Notes allow up to 2000 characters. Limits are 100 exercises
-and 100 sets per exercise. Array positions determine ordering. Duplicate exercises return
+and 100 logical sets per exercise (up to 200 side results). Set inputs accept `side` (`Both`, `Left`, or `Right`, default `Both`) and an optional `order` (1–100). Without an explicit order, array positions determine ordering. A split set has left/right results sharing one order; their weights are per side, not combined. Duplicate sides or a normal result mixed with side results at the same order return 400. To change the split mode of an already saved set through the individual-set endpoint, remove the old result first (409 otherwise); completed-log replacement can change the mode atomically.
+
+`AddLoggedSetSides` preserves existing sets as `Both`. Downgrading is rejected while side results exist, to prevent accidental loss of unilateral data.
+
+Duplicate exercises return
 409; unavailable or other-user exercises and schedules return 404. Rest days and completed
 workouts cannot be completed again via POST; corrections use PUT. All operations require authentication.
 
