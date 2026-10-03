@@ -65,6 +65,7 @@ test('navigation adapts from phone tabs to desktop sidebar', async () => {
     </Shell>,
   );
   expect(screen.getByTestId('phone-navigation')).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Progress' })).toBeTruthy();
   mockDesktop = true;
   await rendered.rerenderAsync(
     <Shell>
@@ -72,4 +73,5 @@ test('navigation adapts from phone tabs to desktop sidebar', async () => {
     </Shell>,
   );
   expect(screen.getByTestId('desktop-navigation')).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Progress' })).toBeTruthy();
 });

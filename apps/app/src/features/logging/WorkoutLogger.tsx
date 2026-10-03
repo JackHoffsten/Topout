@@ -160,6 +160,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
       cache.setQueryData(key(workout.scheduleId), response);
       setEditing(false);
       setDirty(false);
+      await cache.invalidateQueries({ queryKey: ['progress'] });
       await cache.invalidateQueries({ queryKey: ['workout-schedule'] });
     },
   });
@@ -182,6 +183,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
         ),
       );
       cache.setQueryData(key(workout.scheduleId), response);
+      await cache.invalidateQueries({ queryKey: ['progress'] });
       await cache.invalidateQueries({ queryKey: ['workout-schedule'] });
     },
   });
@@ -209,6 +211,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
         ),
       );
       cache.setQueryData(key(workout.scheduleId), response);
+      await cache.invalidateQueries({ queryKey: ['progress'] });
       await cache.invalidateQueries({ queryKey: ['workout-schedule'] });
     },
   });

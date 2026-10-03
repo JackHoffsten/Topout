@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Link, usePathname } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -8,10 +8,13 @@ import { tokens, useDesktop, useTheme } from './theme';
 
 export function Shell({ children }: React.PropsWithChildren) {
   const wide = useDesktop();
+  const { width } = useWindowDimensions();
+  const showLabels = wide || width >= 360;
   const c = useTheme();
   const path = usePathname();
   const links = [
     { href: '/calendar' as const, label: 'Calendar', icon: 'calendar' as const },
+    { href: '/progress' as const, label: 'Progress', icon: 'trending-up' as const },
     { href: '/climbs' as const, label: 'Climbs', icon: 'map' as const },
     { href: '/templates' as const, label: 'Templates', icon: 'list' as const },
     { href: '/exercises' as const, label: 'Exercises', icon: 'grid' as const },
@@ -67,16 +70,18 @@ export function Shell({ children }: React.PropsWithChildren) {
             ) : (
               <Feather name={item.icon} size={20} color={c.ink} />
             )}
-            <Text
-              style={{
-                color: c.ink,
-                fontSize: wide ? 14 : 11,
-                fontWeight: '500',
-                fontFamily: tokens.font,
-              }}
-            >
-              {item.label}
-            </Text>
+            {showLabels && (
+              <Text
+                style={{
+                  color: c.ink,
+                  fontSize: wide ? 14 : 10,
+                  fontWeight: '500',
+                  fontFamily: tokens.font,
+                }}
+              >
+                {item.label}
+              </Text>
+            )}
           </Pressable>
         </Link>
       ))}

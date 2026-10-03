@@ -84,6 +84,7 @@ export function ExerciseForm({
       exercise ? api.updateExercise(exercise.id, input) : api.createExercise(input),
     onSuccess: async (created) => {
       await cache.invalidateQueries({ queryKey: exercisesKey });
+      await cache.invalidateQueries({ queryKey: ['progress'] });
       if (onCreated) onCreated(created);
       else router.replace('/exercises');
     },

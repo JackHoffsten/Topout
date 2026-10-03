@@ -143,6 +143,7 @@ export function ClimbEditor({
     mutationFn: (input: ClimbLogInput) =>
       log ? api.updateClimbLog(log.id, input) : api.createClimbLog(input),
     onSuccess: async (_, input) => {
+      await cache.invalidateQueries({ queryKey: ['progress'] });
       await cache.invalidateQueries({ queryKey: ['climb-logs'] });
       onClose(input.date);
     },

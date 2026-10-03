@@ -89,6 +89,7 @@ export function CalendarScreen() {
     onSuccess: async (_, id) => {
       setRemovingLog(undefined);
       cache.removeQueries({ queryKey: ['workout-logging', id] });
+      await cache.invalidateQueries({ queryKey: ['progress'] });
       await cache.invalidateQueries({ queryKey: scheduleKey });
     },
   });
