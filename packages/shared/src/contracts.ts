@@ -49,18 +49,22 @@ export const exerciseInputSchema = z.object({
 
 export type ExerciseInput = z.infer<typeof exerciseInputSchema>;
 
-export const plannedSetSchema = z
+const plannedSideSchema = z
   .object({
     targetRepsMin: z.number().int().min(1).max(1000),
     targetRepsMax: z.number().int().min(1).max(1000).nullish(),
     targetWeightKg: z.number().min(0).max(2000).nullish(),
-    isWarmup: z.boolean(),
-    isAmrap: z.boolean(),
   })
   .refine((s) => s.targetRepsMax == null || s.targetRepsMax >= s.targetRepsMin, {
     message: 'Maximum reps must be at least minimum reps.',
     path: ['targetRepsMax'],
   });
+
+export const plannedSetSchema = plannedSideSchema.safeExtend({
+  isWarmup: z.boolean(),
+  isAmrap: z.boolean(),
+  rightTarget: plannedSideSchema.nullish(),
+});
 
 export type PlannedSet = z.infer<typeof plannedSetSchema>;
 
@@ -109,6 +113,7 @@ export const workoutScheduleSchema = z.array(scheduledWorkoutSchema);
 export type ScheduledWorkout = z.infer<typeof scheduledWorkoutSchema>;
 
 export const loggedSetSchema = z.object({
+  side: z.enum(['Both', 'Left', 'Right']).default('Both'),
   reps: z.number().int().min(1, 'Enter 1–1000 reps.').max(1000, 'Enter 1–1000 reps.'),
   weightKg: z.number().min(0, 'Enter 0–2000 kg.').max(2000, 'Enter 0–2000 kg.'),
   isWarmup: z.boolean(),
@@ -121,7 +126,22 @@ export const completeWorkoutInputSchema = z
       .array(
         z.object({
           exerciseId: z.number().int().positive(),
-          sets: z.array(loggedSetSchema).min(1, 'Add at least one set.').max(100),
+          sets: z
+            .array(loggedSetSchema.extend({ order: z.number().int().min(1).max(100).optional() }))
+            .min(1, 'Add at least one set.')
+            .max(200)
+            .refine((sets) => {
+              const groups = new Map<number, string[]>();
+              sets.forEach((set, index) => {
+                const order = set.order ?? index + 1;
+                groups.set(order, [...(groups.get(order) ?? []), set.side]);
+              });
+              return [...groups.values()].every(
+                (sides) =>
+                  new Set(sides).size === sides.length &&
+                  !(sides.length > 1 && sides.includes('Both')),
+              );
+            }, 'Each set may contain either one normal result or separate left/right results.'),
         }),
       )
       .min(1, 'Add at least one exercise.')
@@ -131,7 +151,7 @@ export const completeWorkoutInputSchema = z
     (input) => new Set(input.exercises.map((e) => e.exerciseId)).size === input.exercises.length,
     { message: 'An exercise can appear only once in a workout.', path: ['exercises'] },
   );
-export type CompleteWorkoutInput = z.infer<typeof completeWorkoutInputSchema>;
+export type CompleteWorkoutInput = z.input<typeof completeWorkoutInputSchema>;
 export const workoutLogSchema = z.object({
   id: z.number().int().positive(),
   date: z.iso.date(),
@@ -159,6 +179,7 @@ export const workoutLoggingSchema = z.object({
         reps: z.number().int().min(1).max(1000),
         weightKg: z.number().min(0).max(2000),
         isWarmup: z.boolean(),
+        side: z.enum(['Both', 'Left', 'Right']).default('Both'),
       }),
     )
     .default([]),
@@ -168,7 +189,7 @@ export const recordWorkoutSetSchema = loggedSetSchema.extend({
   exerciseId: z.number().int().positive(),
   order: z.number().int().min(1).max(100),
 });
-export type RecordWorkoutSet = z.infer<typeof recordWorkoutSetSchema>;
+export type RecordWorkoutSet = z.input<typeof recordWorkoutSetSchema>;
 
 export const loginSchema = z.object({
   email: z.email('Enter a valid email address.').max(256),

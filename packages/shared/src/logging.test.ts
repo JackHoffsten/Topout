@@ -2,7 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { ApiClient, type SessionTransport } from './client';
 import { completeWorkoutInputSchema, workoutLoggingSchema } from './contracts';
 
-const set = { reps: 8, weightKg: 20.5, isWarmup: false, notes: null };
+const set = { reps: 8, weightKg: 20.5, isWarmup: false, notes: null, side: 'Both' as const };
 const input = { notes: null, exercises: [{ exerciseId: 1, sets: [set] }] };
 const response = {
   scheduleId: 2,
@@ -23,6 +23,26 @@ const response = {
     ],
   },
 };
+
+it('keeps left/right results at the same logical order and rejects conflicting sides', () => {
+  const left = { ...set, side: 'Left', order: 1 };
+  const right = { ...set, side: 'Right', order: 1, reps: 10 };
+  const plan = (sets: unknown[]) => ({ notes: null, exercises: [{ exerciseId: 1, sets }] });
+  expect(completeWorkoutInputSchema.safeParse(plan([left, right])).success).toBe(true);
+  for (const sets of [[left, left], [left, { ...set, order: 1 }], [{ ...left, side: 'Invalid' }]])
+    expect(completeWorkoutInputSchema.safeParse(plan(sets)).success).toBe(false);
+  expect(
+    workoutLoggingSchema
+      .parse({
+        ...response,
+        log: {
+          ...response.log,
+          exercises: [{ ...response.log.exercises[0], sets: [left, right] }],
+        },
+      })
+      .log!.exercises[0]!.sets.map((s) => s.side),
+  ).toEqual(['Left', 'Right']);
+});
 
 it('rejects incomplete, invalid, and duplicate actual sets and validates logs', () => {
   expect(completeWorkoutInputSchema.safeParse({ notes: null, exercises: [] }).success).toBe(false);
@@ -85,4 +105,19 @@ it('records an individual set and updates completed workouts using PUT', async (
   await api.deleteWorkoutLog(2);
   expect(fetcher.mock.calls[3]![0]).toBe('https://example.com/api/workout-schedule/2/log');
   expect(fetcher.mock.calls[3]![1].method).toBe('DELETE');
+});
+
+it('addresses the selected side when removing a result', async () => {
+  const transport = {
+    refresh: vi
+      .fn()
+      .mockResolvedValue({ accessToken: 'test', accessTokenExpiresAt: '2030-01-01T00:00:00Z' }),
+  } as unknown as SessionTransport;
+  const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(response)));
+  const api = new ApiClient('https://example.com', transport, fetcher);
+  await api.initialize();
+  await api.removeWorkoutSet(2, 1, 1, 'Left');
+  expect(fetcher.mock.calls[0]![0]).toBe(
+    'https://example.com/api/workout-schedule/2/log/sets/1/1?side=Left',
+  );
 });

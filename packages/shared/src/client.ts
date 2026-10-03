@@ -257,9 +257,14 @@ export class ApiClient {
     );
   }
 
-  removeWorkoutSet(scheduleId: number, exerciseId: number, order: number) {
+  removeWorkoutSet(
+    scheduleId: number,
+    exerciseId: number,
+    order: number,
+    side: 'Both' | 'Left' | 'Right' = 'Both',
+  ) {
     return this.request(
-      `/api/workout-schedule/${scheduleId}/log/sets/${exerciseId}/${order}`,
+      `/api/workout-schedule/${scheduleId}/log/sets/${exerciseId}/${order}${side === 'Both' ? '' : `?side=${side}`}`,
       workoutLoggingSchema,
       'DELETE',
     );

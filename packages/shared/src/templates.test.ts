@@ -33,6 +33,27 @@ const template = {
 };
 
 it('validates templates, empty plans, ranges, duplicates and weight bounds', () => {
+  const split = {
+    ...set,
+    rightTarget: { targetRepsMin: 10, targetRepsMax: 12, targetWeightKg: 14 },
+  };
+  expect(
+    workoutTemplateInputSchema.safeParse({
+      name: 'Split',
+      exercises: [{ exerciseId: 1, sets: [split] }],
+    }).success,
+  ).toBe(true);
+  expect(
+    workoutTemplateInputSchema.safeParse({
+      name: 'Split',
+      exercises: [
+        {
+          exerciseId: 1,
+          sets: [{ ...split, rightTarget: { ...split.rightTarget, targetRepsMax: 5 } }],
+        },
+      ],
+    }).success,
+  ).toBe(false);
   expect(workoutTemplateInputSchema.parse({ name: ' Empty ', exercises: [] }).name).toBe('Empty');
   expect(workoutTemplateInputSchema.safeParse(input).success).toBe(true);
   expect(
