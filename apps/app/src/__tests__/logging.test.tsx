@@ -3,6 +3,8 @@ import { jest, beforeEach, test, expect } from '@jest/globals';
 import { renderAsync, screen, fireEventAsync, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WorkoutLogger } from '../features/logging/WorkoutLogger';
+import { templateFromLog, templateFromLoggedSet } from '../features/logging/templateFromLog';
+import type { WorkoutLogging } from '@topout/shared';
 
 const exercise = { id: 1, name: 'Row', muscleGroups: ['Back'], isCustom: false };
 const workout = {
@@ -35,6 +37,7 @@ const mockApi = {
   updateWorkout: jest.fn<(...args: any[]) => Promise<any>>(),
   recordWorkoutSet: jest.fn<(...args: any[]) => Promise<any>>(),
   removeWorkoutSet: jest.fn<(...args: any[]) => Promise<any>>(),
+  updateWorkoutTemplate: jest.fn<(...args: any[]) => Promise<any>>(),
   listExercises: jest.fn<() => Promise<any[]>>(),
 };
 const mockReplace = jest.fn();
@@ -61,6 +64,200 @@ async function mount(label = 'Row set 1 reps') {
   );
   await screen.findByLabelText(label);
 }
+
+const matchingWorkout = () =>
+  ({
+    ...JSON.parse(JSON.stringify(workout)),
+    previousSets: [],
+    log: {
+      id: 3,
+      date: workout.date,
+      notes: null,
+      completedAt: '2026-10-01T12:00:00Z',
+      exercises: [
+        {
+          exercise,
+          sets: [{ order: 1, side: 'Both', reps: 10, weightKg: 25, isWarmup: false, notes: null }],
+        },
+      ],
+    },
+  }) as WorkoutLogging;
+
+test('updates matching template targets only after confirmation using saved results', async () => {
+  mockApi.getWorkoutLogging.mockResolvedValue(matchingWorkout());
+  mockApi.updateWorkoutTemplate.mockResolvedValue(workout.template);
+  await mount('Update template');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Update template' }));
+  expect(mockApi.updateWorkoutTemplate).not.toHaveBeenCalled();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Confirm update' }));
+  await waitFor(() =>
+    expect(mockApi.updateWorkoutTemplate).toHaveBeenCalledWith(1, {
+      name: 'Pull',
+      exercises: [
+        {
+          exerciseId: 1,
+          sets: [
+            {
+              targetRepsMin: 10,
+              targetRepsMax: null,
+              targetWeightKg: 25,
+              isWarmup: true,
+              isAmrap: false,
+              rightTarget: null,
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  await screen.findByText('Template updated.');
+});
+
+test('rechecks matching structure before updating and preserves the template on mismatch', async () => {
+  const current = matchingWorkout();
+  mockApi.getWorkoutLogging.mockResolvedValueOnce(current).mockResolvedValue({
+    ...current,
+    template: { ...current.template!, exercises: [] },
+  });
+  await mount('Update template');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Update template' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Confirm update' }));
+  await screen.findByText('The saved workout no longer matches the template.');
+  expect(mockApi.updateWorkoutTemplate).not.toHaveBeenCalled();
+});
+
+test('cancelling a template update does not save and failed updates remain retryable', async () => {
+  mockApi.getWorkoutLogging.mockResolvedValue(matchingWorkout());
+  mockApi.updateWorkoutTemplate.mockRejectedValue(new Error('Could not save template.'));
+  await mount('Update template');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Update template' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Cancel' }));
+  expect(mockApi.updateWorkoutTemplate).not.toHaveBeenCalled();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Update template' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Confirm update' }));
+  await screen.findByText('Could not save template.');
+  mockApi.updateWorkoutTemplate.mockResolvedValue(workout.template);
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Confirm update' }));
+  await screen.findByText('Template updated.');
+});
+
+test('mismatching completed workouts disable template updates', async () => {
+  const current = matchingWorkout();
+  current.log!.exercises[0]!.sets = [];
+  mockApi.getWorkoutLogging.mockResolvedValue(current);
+  await mount('Update template');
+  expect(screen.getByRole('button', { name: 'Update template' })).toBeDisabled();
+});
+
+test('template matching rejects unfinished logs, changed exercises, missing and extra sets', () => {
+  const current = matchingWorkout();
+  expect(templateFromLog({ ...current, log: { ...current.log!, completedAt: null } })).toBeNull();
+  expect(templateFromLog({ ...current, template: null })).toBeNull();
+  for (const sets of [
+    [],
+    [...current.log!.exercises[0]!.sets, { ...current.log!.exercises[0]!.sets[0]!, order: 2 }],
+  ]) {
+    expect(
+      templateFromLog({
+        ...current,
+        log: {
+          ...current.log!,
+          exercises: [{ exercise: current.log!.exercises[0]!.exercise, sets }],
+        },
+      }),
+    ).toBeNull();
+  }
+  current.log!.exercises[0]!.exercise = { ...current.log!.exercises[0]!.exercise, id: 99 };
+  expect(templateFromLog(current)).toBeNull();
+});
+
+test('updates one saved set in an unfinished workout while retaining other targets', async () => {
+  const current = matchingWorkout();
+  current.log!.completedAt = null;
+  const otherTarget = {
+    ...current.template!.exercises[0]!.sets[0]!,
+    targetRepsMin: 6,
+    targetRepsMax: 8,
+  };
+  current.template!.exercises[0]!.sets.push(otherTarget);
+  mockApi.getWorkoutLogging.mockResolvedValue(current);
+  mockApi.updateWorkoutTemplate.mockResolvedValue(current.template);
+  await mount();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Update template Row set 1' }));
+  expect(mockApi.updateWorkoutTemplate).not.toHaveBeenCalled();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Confirm set update' }));
+  await screen.findByText('Template set updated.');
+  expect(mockApi.updateWorkoutTemplate).toHaveBeenCalledWith(1, {
+    name: 'Pull',
+    exercises: [
+      {
+        exerciseId: 1,
+        sets: [
+          {
+            ...current.template!.exercises[0]!.sets[0]!,
+            targetRepsMin: 10,
+            targetRepsMax: null,
+            targetWeightKg: 25,
+          },
+          otherTarget,
+        ],
+      },
+    ],
+  });
+});
+
+test('per-set updates are available on completed logs but disabled for unsaved changes', async () => {
+  mockApi.getWorkoutLogging.mockResolvedValue(matchingWorkout());
+  await mount('Update template');
+  expect(screen.getByRole('button', { name: 'Update template Row set 1' })).toBeEnabled();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Edit workout' }));
+  await fireEventAsync.changeText(screen.getByLabelText('Row set 1 reps'), '11');
+  expect(screen.getByRole('button', { name: 'Update template Row set 1' })).toBeDisabled();
+});
+
+test('single-side update preserves the other side and rejects incompatible or missing targets', () => {
+  const current = matchingWorkout();
+  const selection = { exerciseId: 1, order: 1, side: 'Right' as const };
+  expect(templateFromLoggedSet(current, selection)).toBeNull();
+  const left = { ...current.template!.exercises[0]!.sets[0]! };
+  current.template!.exercises[0]!.sets[0]!.rightTarget = {
+    targetRepsMin: 8,
+    targetRepsMax: 10,
+    targetWeightKg: 20,
+  };
+  current.log!.exercises[0]!.sets = [
+    { ...current.log!.exercises[0]!.sets[0]!, side: 'Right', reps: 12, weightKg: 30 },
+  ];
+  expect(templateFromLoggedSet(current, selection)?.exercises[0]!.sets[0]).toEqual({
+    ...left,
+    rightTarget: { targetRepsMin: 12, targetRepsMax: null, targetWeightKg: 30 },
+  });
+  expect(templateFromLoggedSet(current, { ...selection, order: 2 })).toBeNull();
+  expect(templateFromLoggedSet(current, { ...selection, exerciseId: 99 })).toBeNull();
+  expect(templateFromLoggedSet(current, { ...selection, side: 'Left' })).toBeNull();
+});
+
+test('split template targets require both sides and keep their independent values', () => {
+  const current = matchingWorkout();
+  current.template!.exercises[0]!.sets[0]!.rightTarget = {
+    targetRepsMin: 8,
+    targetRepsMax: null,
+    targetWeightKg: 20,
+  };
+  expect(templateFromLog(current)).toBeNull();
+  const set = current.log!.exercises[0]!.sets[0]!;
+  current.log!.exercises[0]!.sets = [
+    { ...set, side: 'Right', reps: 12, weightKg: 30 },
+    { ...set, side: 'Left' },
+  ];
+  expect(templateFromLog(current)?.exercises[0]!.sets[0]).toMatchObject({
+    targetRepsMin: 10,
+    targetWeightKg: 25,
+    rightTarget: { targetRepsMin: 12, targetRepsMax: null, targetWeightKg: 30 },
+  });
+  current.log!.exercises[0]!.sets.pop();
+  expect(templateFromLog(current)).toBeNull();
+});
 test('requires actual reps and weight, saves entered sets, and shows completed results', async () => {
   await mount();
   expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('');
