@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import { climbHistorySchema } from './climbing';
+import {
+  climbLogInputSchema,
+  climbLogSchema,
+  climbLogsSchema,
+  type ClimbLogInput,
+} from './climbing';
 import {
   type AccessSession,
   type ExerciseInput,
@@ -196,6 +203,47 @@ export class ApiClient {
 
   listExercises() {
     return this.request('/api/exercises', exercisesSchema);
+  }
+
+  listClimbLogs(from: string, to: string) {
+    return this.request(
+      `/api/climb-logs?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      climbLogsSchema,
+    );
+  }
+
+  createClimbLog(input: ClimbLogInput) {
+    return this.request(
+      '/api/climb-logs',
+      climbLogSchema,
+      'POST',
+      climbLogInputSchema.parse(input),
+    );
+  }
+
+  getClimbLog(id: number) {
+    return this.request('/api/climb-logs/' + id, climbLogSchema);
+  }
+  listClimbHistory(page = 1, filters: import('./climbing').ClimbHistoryFilters = {}) {
+    const params = new URLSearchParams({ page: String(page) });
+    Object.entries(filters).forEach(([key, value]) => {
+      if (Array.isArray(value)) value.forEach((item) => params.append(key, item));
+      else if (value) params.set(key, value);
+    });
+    return this.request('/api/climb-logs/history?' + params, climbHistorySchema);
+  }
+
+  updateClimbLog(id: number, input: ClimbLogInput) {
+    return this.request(
+      '/api/climb-logs/' + id,
+      climbLogSchema,
+      'PUT',
+      climbLogInputSchema.parse(input),
+    );
+  }
+
+  deleteClimbLog(id: number) {
+    return this.request('/api/climb-logs/' + id, z.undefined(), 'DELETE');
   }
 
   listWorkoutTemplates() {
