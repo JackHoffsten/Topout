@@ -90,6 +90,35 @@ test('failed list state', async () => {
   await screen.findByText('Could not connect. Check your connection and try again.');
 });
 
+test('template list shows distinct left and right targets for split sets', async () => {
+  mockApi.listWorkoutTemplates.mockResolvedValue([
+    {
+      ...template,
+      exercises: [
+        {
+          exercise,
+          sets: [
+            {
+              ...set,
+              targetWeightKg: 0,
+              isWarmup: true,
+              isAmrap: true,
+              rightTarget: { targetRepsMin: 10, targetRepsMax: 12, targetWeightKg: 14 },
+            },
+            { ...set, targetRepsMin: 1 },
+          ],
+        },
+      ],
+    },
+  ]);
+  await mount(<TemplateList />);
+  await screen.findByText('Pull');
+  expect(screen.getByText('Left: 8 reps (0 kg)')).toBeTruthy();
+  expect(screen.getByText('Right: 10–12 reps (14 kg)')).toBeTruthy();
+  expect(screen.getByText('Set 1 (Warmup) (Amrap)')).toBeTruthy();
+  expect(screen.getByText('Set 2: 1 rep')).toBeTruthy();
+});
+
 test('creates a complete ordered draft with two default sets and copied additional sets', async () => {
   await mount(<TemplateEditor />);
   await fireEvent.press(screen.getByRole('button', { name: 'Create template' }));
@@ -261,4 +290,75 @@ test('inline creation errors and cancellation preserve the search and template n
   expect(screen.getByLabelText('Search exercises').props.value).toBe('Cable row');
   expect(screen.getByLabelText('Template name').props.value).toBe('Pull');
   expect(mockReplace).not.toHaveBeenCalled();
+});
+
+test('plans different left/right targets, validates ranges and copies split sets', async () => {
+  await mount(<TemplateEditor />);
+  await fireEvent.changeText(screen.getByLabelText('Template name'), 'Split');
+  await fireEvent.press(screen.getByRole('button', { name: 'Add exercise' }));
+  await fireEvent.press(await screen.findByRole('button', { name: 'Select Row' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Remove Row set 2' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Split Row set 1 left/right' }));
+  await fireEvent.changeText(screen.getByLabelText('Row set 1 left weight (kg, optional)'), '12');
+  await fireEvent.changeText(screen.getByLabelText('Row set 1 right reps'), '10');
+  await fireEvent.changeText(screen.getByLabelText('Row set 1 right max reps (optional)'), '3');
+  await fireEvent.changeText(screen.getByLabelText('Row set 1 right weight (kg, optional)'), '14');
+  await fireEvent.press(screen.getByRole('button', { name: 'Add exercise' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Create template' }));
+  await screen.findByText('Maximum reps must be at least minimum reps.');
+  expect(mockApi.createWorkoutTemplate).not.toHaveBeenCalled();
+  await fireEvent.changeText(screen.getByLabelText('Row set 1 right max reps (optional)'), '12');
+  await fireEvent.press(screen.getByRole('button', { name: 'Add set to Row' }));
+  expect(screen.getByLabelText('Row set 2 right reps').props.value).toBe('10');
+  await fireEvent.changeText(screen.getByLabelText('Row set 2 right reps'), '11');
+  await fireEvent.press(screen.getByRole('button', { name: 'Move Row set 2 up' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Create template' }));
+  await waitFor(() =>
+    expect(mockApi.createWorkoutTemplate).toHaveBeenCalledWith({
+      name: 'Split',
+      exercises: [
+        {
+          exerciseId: 1,
+          sets: [
+            {
+              ...set,
+              targetWeightKg: 12,
+              rightTarget: { targetRepsMin: 11, targetRepsMax: 12, targetWeightKg: 14 },
+            },
+            {
+              ...set,
+              targetWeightKg: 12,
+              rightTarget: { targetRepsMin: 10, targetRepsMax: 12, targetWeightKg: 14 },
+            },
+          ],
+        },
+      ],
+    }),
+  );
+});
+
+test('restores split template targets and can change a set back to normal', async () => {
+  mockApi.getWorkoutTemplate.mockResolvedValue({
+    ...template,
+    exercises: [
+      {
+        exercise,
+        sets: [
+          { ...set, rightTarget: { targetRepsMin: 10, targetRepsMax: null, targetWeightKg: 14 } },
+        ],
+      },
+    ],
+  });
+  await mount(<TemplateEditor id={1} />);
+  await fireEvent.press(await screen.findByRole('button', { name: 'Expand Row' }));
+  expect(screen.getByLabelText('Row set 1 right reps').props.value).toBe('10');
+  await fireEvent.press(screen.getByRole('button', { name: 'Unsplit Row set 1 left/right' }));
+  expect(screen.queryByLabelText('Row set 1 right reps')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() =>
+    expect(mockApi.updateWorkoutTemplate).toHaveBeenCalledWith(1, {
+      name: 'Pull',
+      exercises: [{ exerciseId: 1, sets: [set] }],
+    }),
+  );
 });

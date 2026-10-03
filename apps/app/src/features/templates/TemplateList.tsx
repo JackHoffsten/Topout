@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Pressable, Text } from 'react-native';
 import { Link } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { type WorkoutTemplate, errorMessage } from '@topout/shared';
+import { type PlannedSet, type WorkoutTemplate, errorMessage } from '@topout/shared';
 import { useSession } from '../../lib/providers';
 import { Page } from '../../ui/components/Page';
 import { Heading } from '../../ui/components/Heading';
@@ -14,6 +14,32 @@ import { Label } from '../../ui/components/Label';
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog';
 import { tokens, useTheme } from '../../ui/theme';
 import { templatesKey, useTemplates } from './queries';
+
+function TargetValues({
+  target,
+}: {
+  target: Pick<PlannedSet, 'targetRepsMin' | 'targetRepsMax' | 'targetWeightKg'>;
+}) {
+  return (
+    <>
+      <Label syntax="number">
+        {target.targetRepsMin}
+        {target.targetRepsMax != null && `–${target.targetRepsMax}`}
+      </Label>{' '}
+      <Label syntax="string">
+        {target.targetRepsMin === 1 && target.targetRepsMax == null ? 'rep' : 'reps'}
+      </Label>
+      {target.targetWeightKg != null && (
+        <>
+          {' ('}
+          <Label syntax="number">{target.targetWeightKg}</Label>
+          <Label syntax="string"> kg</Label>
+          {')'}
+        </>
+      )}
+    </>
+  );
+}
 
 export function TemplateList() {
   const c = useTheme();
@@ -91,28 +117,32 @@ export function TemplateList() {
                   <Label muted>No sets</Label>
                 ) : (
                   exercise.sets.map((set, index) => (
-                    <Label key={index} muted>
-                      <Label syntax="property">Set </Label>
-                      <Label syntax="number">{index + 1}</Label>
-                      {set.isWarmup && <Label syntax="keyword"> (Warmup)</Label>}
-                      {set.isAmrap && <Label syntax="keyword"> (Amrap)</Label>}
-                      {': '}
-                      <Label syntax="number">
-                        {set.targetRepsMin ?? '—'}
-                        {set.targetRepsMax != null && `–${set.targetRepsMax}`}
-                      </Label>{' '}
-                      <Label syntax="string">
-                        {set.targetRepsMin === 1 && set.targetRepsMax == null ? 'rep' : 'reps'}
+                    <View key={index} style={{ gap: 4 }}>
+                      <Label muted>
+                        <Label syntax="property">Set </Label>
+                        <Label syntax="number">{index + 1}</Label>
+                        {set.isWarmup && <Label syntax="keyword"> (Warmup)</Label>}
+                        {set.isAmrap && <Label syntax="keyword"> (Amrap)</Label>}
+                        {!set.rightTarget && (
+                          <>
+                            {': '}
+                            <TargetValues target={set} />
+                          </>
+                        )}
                       </Label>
-                      {set.targetWeightKg != null && (
-                        <>
-                          {' ('}
-                          <Label syntax="number">{set.targetWeightKg}</Label>
-                          <Label syntax="string"> kg</Label>
-                          {')'}
-                        </>
+                      {set.rightTarget && (
+                        <View style={{ paddingLeft: 12, gap: 4 }}>
+                          <Label muted>
+                            <Label syntax="property">Left: </Label>
+                            <TargetValues target={set} />
+                          </Label>
+                          <Label muted>
+                            <Label syntax="property">Right: </Label>
+                            <TargetValues target={set.rightTarget} />
+                          </Label>
+                        </View>
                       )}
-                    </Label>
+                    </View>
                   ))
                 )}
               </View>

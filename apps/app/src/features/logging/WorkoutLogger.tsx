@@ -24,6 +24,7 @@ import { useDesktop } from '../../ui/theme';
 import { useExercises } from '../exercises/queries';
 
 type DraftSet = {
+  side: 'Both' | 'Left' | 'Right';
   reps: string;
   weight: string;
   warmup: boolean;
@@ -34,6 +35,7 @@ type DraftSet = {
 };
 type DraftExercise = { exercise: Exercise; sets: DraftSet[] };
 const blankSet = (target?: PlannedSet, order = 1): DraftSet => ({
+  side: 'Both',
   reps: '',
   weight: '',
   warmup: target?.isWarmup ?? false,
@@ -41,7 +43,8 @@ const blankSet = (target?: PlannedSet, order = 1): DraftSet => ({
   target,
   order,
 });
-const signature = (set: DraftSet) => JSON.stringify([set.reps, set.weight, set.warmup, set.notes]);
+const signature = (set: DraftSet) =>
+  JSON.stringify([set.reps, set.weight, set.warmup, set.notes, set.side]);
 function initialItems(workout: WorkoutLogging): DraftExercise[] {
   const recorded = workout.log?.exercises ?? [];
   const sources = workout.log?.completedAt
@@ -58,26 +61,42 @@ function initialItems(workout: WorkoutLogging): DraftExercise[] {
       ? []
       : (workout.template?.exercises.find((e) => e.exercise.id === item.exercise.id)?.sets ?? []);
     const orders = workout.log?.completedAt
-      ? actual.map((s) => s.order)
+      ? [...new Set(actual.map((s) => s.order))]
       : Array.from(
           { length: Math.max(targets.length, ...actual.map((s) => s.order), 1) },
           (_, i) => i + 1,
         );
     return {
       exercise: item.exercise,
-      sets: orders.map((order) => {
-        const set = actual.find((s) => s.order === order);
-        const draft = set
-          ? {
-              reps: String(set.reps),
-              weight: String(set.weightKg),
-              warmup: set.isWarmup,
-              notes: set.notes ?? '',
-              order,
-              target: targets[order - 1],
-            }
-          : blankSet(targets[order - 1], order);
-        return set ? { ...draft, saved: signature(draft) } : draft;
+      sets: orders.flatMap((order) => {
+        const results = actual.filter((s) => s.order === order);
+        const planned = targets[order - 1];
+        const sides: DraftSet['side'][] =
+          results.some((s) => (s.side ?? 'Both') !== 'Both') ||
+          (!results.length && !!planned?.rightTarget)
+            ? workout.log?.completedAt
+              ? results.map((s) => s.side)
+              : ['Left', 'Right']
+            : ['Both'];
+        return sides.map((side) => {
+          const target =
+            side === 'Right' && planned?.rightTarget
+              ? { ...planned, ...planned.rightTarget }
+              : planned;
+          const set = actual.find((s) => s.order === order && (s.side ?? 'Both') === side);
+          const draft = set
+            ? {
+                reps: String(set.reps),
+                side,
+                weight: String(set.weightKg),
+                warmup: set.isWarmup,
+                notes: set.notes ?? '',
+                order,
+                target,
+              }
+            : { ...blankSet(target, order), side };
+          return set ? { ...draft, saved: signature(draft) } : draft;
+        });
       }),
     };
   });
@@ -128,6 +147,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
   const [discard, setDiscard] = useState(false);
+  const [normalSet, setNormalSet] = useState<{ exerciseId: number; order: number }>();
   const [picker, setPicker] = useState(false);
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
@@ -153,7 +173,9 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
             ? {
                 ...item,
                 sets: item.sets.map((set) =>
-                  set.order === input.order ? { ...set, saved: signature(set) } : set,
+                  set.order === input.order && set.side === input.side
+                    ? { ...set, saved: signature(set) }
+                    : set,
                 ),
               }
             : item,
@@ -164,13 +186,25 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     },
   });
   const remove = useMutation({
-    mutationFn: ({ exerciseId, order }: { exerciseId: number; order: number }) =>
-      api.removeWorkoutSet(workout.scheduleId, exerciseId, order),
+    mutationFn: ({
+      exerciseId,
+      order,
+      side,
+    }: {
+      exerciseId: number;
+      order: number;
+      side: DraftSet['side'];
+    }) => api.removeWorkoutSet(workout.scheduleId, exerciseId, order, side),
     onSuccess: async (response, input) => {
       setItems((current) =>
         current.map((item) =>
           item.exercise.id === input.exerciseId
-            ? { ...item, sets: item.sets.filter((set) => set.order !== input.order) }
+            ? {
+                ...item,
+                sets: item.sets.filter(
+                  (set) => set.order !== input.order || set.side !== input.side,
+                ),
+              }
             : item,
         ),
       );
@@ -184,6 +218,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     const parsed = recordWorkoutSetSchema.safeParse({
       exerciseId: items[i]!.exercise.id,
       order: set.order,
+      side: set.side,
       reps: set.reps.trim() ? Number(set.reps.replace(',', '.')) : NaN,
       weightKg: set.weight.trim() ? Number(set.weight.replace(',', '.')) : NaN,
       isWarmup: set.warmup,
@@ -220,6 +255,36 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     );
     changed();
   };
+  const useNormalSet = (exerciseId: number, order: number) => {
+    setItems((current) =>
+      current.map((item) => {
+        if (item.exercise.id !== exerciseId) return item;
+        const group = item.sets.filter((set) => set.order === order);
+        const kept = group.find((set) => set.side === 'Left') ?? group[0];
+        if (!kept) return item;
+        const first = item.sets.findIndex((set) => set.order === order);
+        return {
+          ...item,
+          sets: item.sets.flatMap((set, index) =>
+            set.order !== order
+              ? [set]
+              : index === first
+                ? [
+                    {
+                      ...kept,
+                      side: 'Both' as const,
+                      saved: undefined,
+                      target: kept.target ? { ...kept.target, rightTarget: null } : undefined,
+                    },
+                  ]
+                : [],
+          ),
+        };
+      }),
+    );
+    setNormalSet(undefined);
+    changed();
+  };
   const finish = () => {
     const number = (value: string) => (value.trim() ? Number(value.replace(',', '.')) : NaN);
     const parsed = completeWorkoutInputSchema.safeParse({
@@ -231,6 +296,8 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
             .filter((set) => set.saved || set.reps.trim())
             .map((set) => ({
               reps: number(set.reps),
+              order: set.order,
+              side: set.side,
               weightKg: number(set.weight),
               isWarmup: set.warmup,
               notes: set.notes.trim() || null,
@@ -273,7 +340,8 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                 <View key={index} style={{ gap: 4 }}>
                   <Label>
                     <Label syntax="property">Set </Label>
-                    <Label syntax="number">{index + 1}</Label>
+                    <Label syntax="number">{set.order}</Label>
+                    {set.side !== 'Both' && ` · ${set.side}`}
                     {': '}
                     <Label syntax="number">{set.reps}</Label>
                     <Label syntax="string"> reps</Label>
@@ -328,7 +396,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                 <Heading name>{item.exercise.name}</Heading>
                 <Label small muted>
                   <Label syntax="number" small>
-                    {item.sets.length}
+                    {new Set(item.sets.map((set) => set.order)).size}
                   </Label>{' '}
                   sets {collapsed.has(item.exercise.id) ? '▾' : '▴'}
                 </Label>
@@ -336,15 +404,87 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
               {!collapsed.has(item.exercise.id) && (
                 <>
                   {item.sets.map((set, j) => {
-                    const prefix = `${item.exercise.name} set ${j + 1}`;
+                    const group = item.sets.filter((s) => s.order === set.order);
+                    const firstSide = item.sets.findIndex((s) => s.order === set.order) === j;
+                    const basePrefix = `${item.exercise.name} set ${set.order}`;
+                    const recorded =
+                      workout.log?.exercises
+                        .find((e) => e.exercise.id === item.exercise.id)
+                        ?.sets.filter((s) => s.order === set.order) ?? [];
+                    const modeChanged =
+                      !!recorded.length &&
+                      recorded.some(
+                        (s) => ((s.side ?? 'Both') === 'Both') !== (set.side === 'Both'),
+                      );
+                    const prefix = `${item.exercise.name} set ${set.order}${set.side === 'Both' ? '' : ` ${set.side.toLowerCase()}`}`;
                     const previous = workout.previousSets?.find(
-                      (s) => s.exerciseId === item.exercise.id && s.order === set.order,
+                      (s) =>
+                        s.exerciseId === item.exercise.id &&
+                        s.order === set.order &&
+                        (s.side ?? 'Both') === set.side,
                     );
                     return (
-                      <View key={set.order} style={{ gap: 10, paddingVertical: 10 }}>
+                      <View
+                        key={`${set.order}-${set.side}`}
+                        style={{ gap: 10, paddingVertical: 10 }}
+                      >
                         <Label syntax="property">
-                          Set <Label syntax="number">{j + 1}</Label>
+                          Set <Label syntax="number">{set.order}</Label>
+                          {set.side !== 'Both' && ` · ${set.side}`}
                         </Label>
+                        {firstSide && (
+                          <Button
+                            title={set.side === 'Both' ? 'Split left/right' : 'Use normal set'}
+                            accessibilityLabel={`${set.side === 'Both' ? 'Split' : 'Unsplit'} ${basePrefix} left/right`}
+                            variant="secondary"
+                            disabled={
+                              busy || (group.some((s) => !!s.saved) && !workout.log?.completedAt)
+                            }
+                            onPress={() => {
+                              if (set.side !== 'Both') {
+                                const left = group.find((s) => s.side === 'Left') ?? group[0]!;
+                                const right = group.find((s) => s.side === 'Right');
+                                if (
+                                  right &&
+                                  signature({ ...right, side: 'Both' }) !==
+                                    signature({ ...left, side: 'Both' }) &&
+                                  (right.reps || right.weight || right.notes)
+                                ) {
+                                  setNormalSet({ exerciseId: item.exercise.id, order: set.order });
+                                } else useNormalSet(item.exercise.id, set.order);
+                                return;
+                              }
+                              setItems(
+                                items.map((entry, n) =>
+                                  n === i
+                                    ? {
+                                        ...entry,
+                                        sets: entry.sets.flatMap((s, k) =>
+                                          k === j
+                                            ? [
+                                                { ...s, side: 'Left' as const, saved: undefined },
+                                                { ...s, side: 'Right' as const, saved: undefined },
+                                              ]
+                                            : [s],
+                                        ),
+                                      }
+                                    : entry,
+                                ),
+                              );
+                              changed();
+                            }}
+                          />
+                        )}
+                        {firstSide && group.some((s) => !!s.saved) && !workout.log?.completedAt && (
+                          <Label small muted>
+                            Remove logged results before changing the set type.
+                          </Label>
+                        )}
+                        {firstSide && modeChanged && workout.log?.completedAt && (
+                          <Label small muted>
+                            Save changes to apply the set type.
+                          </Label>
+                        )}
                         {previous ? (
                           <Label small muted>
                             Last logged ({previous.date}):{' '}
@@ -393,7 +533,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                           </View>
                           <View style={{ flex: 1 }}>
                             <Field
-                              label="Weight (kg)"
+                              label={set.side === 'Both' ? 'Weight (kg)' : 'Weight per side (kg)'}
                               accessibilityLabel={`${prefix} weight (kg)`}
                               value={set.weight}
                               onChangeText={(weight) => changeSet(i, j, { weight })}
@@ -422,7 +562,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                                   : 'Log set'
                             }
                             accessibilityLabel={`Log ${prefix}`}
-                            disabled={busy || set.saved === signature(set)}
+                            disabled={busy || set.saved === signature(set) || modeChanged}
                             onPress={() => logSet(i, j)}
                           />
                           <Button
@@ -439,7 +579,11 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                             disabled={busy}
                             onPress={() => {
                               if (set.saved) {
-                                remove.mutate({ exerciseId: item.exercise.id, order: set.order });
+                                remove.mutate({
+                                  exerciseId: item.exercise.id,
+                                  order: set.order,
+                                  side: set.side,
+                                });
                                 return;
                               }
                               setItems(
@@ -625,6 +769,18 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
             busy={false}
             onCancel={() => setDiscard(false)}
             onConfirm={() => router.replace('/home')}
+          />
+          <ConfirmDialog
+            visible={!!normalSet}
+            title="Use a normal set?"
+            description="Left-side values will be kept. Right-side values will be removed from this draft."
+            confirmLabel="Confirm normal set"
+            cancelLabel="Keep split set"
+            busy={busy}
+            onCancel={() => setNormalSet(undefined)}
+            onConfirm={() => {
+              if (normalSet) useNormalSet(normalSet.exerciseId, normalSet.order);
+            }}
           />
         </>
       )}

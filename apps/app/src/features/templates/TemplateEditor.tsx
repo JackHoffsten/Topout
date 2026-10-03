@@ -33,6 +33,7 @@ type DraftSet = {
   weight: string;
   warmup: boolean;
   amrap: boolean;
+  right?: { min: string; max: string; weight: string };
 };
 
 type DraftExercise = { exercise: Exercise; sets: DraftSet[] };
@@ -101,6 +102,14 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
     weight: set?.targetWeightKg == null ? '' : String(set.targetWeightKg),
     warmup: set?.isWarmup ?? false,
     amrap: set?.isAmrap ?? false,
+    right: set?.rightTarget
+      ? {
+          min: String(set.rightTarget.targetRepsMin),
+          max: set.rightTarget.targetRepsMax == null ? '' : String(set.rightTarget.targetRepsMax),
+          weight:
+            set.rightTarget.targetWeightKg == null ? '' : String(set.rightTarget.targetWeightKg),
+        }
+      : undefined,
   });
   const [name, setName] = useState(template?.name ?? '');
   const [savedItems, setItems] = useState<DraftExercise[]>(
@@ -163,6 +172,15 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
           targetWeightKg: s.weight.trim() === '' ? null : number(s.weight),
           isWarmup: s.warmup,
           isAmrap: s.amrap,
+          ...(s.right
+            ? {
+                rightTarget: {
+                  targetRepsMin: number(s.right.min),
+                  targetRepsMax: s.right.max.trim() === '' ? null : number(s.right.max),
+                  targetWeightKg: s.right.weight.trim() === '' ? null : number(s.right.weight),
+                },
+              }
+            : {}),
         })),
       })),
     });
@@ -379,41 +397,78 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
                       <Label syntax="property">
                         Set <Label syntax="number">{j + 1}</Label>
                       </Label>
-                      <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
-                        <View style={{ flex: 1 }}>
-                          <Field
-                            label="Reps"
-                            accessibilityLabel={`${prefix} reps`}
-                            value={set.min}
-                            editable={!busy}
-                            keyboardType="number-pad"
-                            error={errors[`exercises.${i}.sets.${j}.targetRepsMin`]}
-                            onChangeText={(min) => changeSet(i, j, { min })}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Field
-                            label="Max reps (optional)"
-                            accessibilityLabel={`${prefix} max reps (optional)`}
-                            value={set.max}
-                            editable={!busy}
-                            keyboardType="number-pad"
-                            error={errors[`exercises.${i}.sets.${j}.targetRepsMax`]}
-                            onChangeText={(max) => changeSet(i, j, { max })}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Field
-                            label="Weight (kg, optional)"
-                            accessibilityLabel={`${prefix} weight (kg, optional)`}
-                            value={set.weight}
-                            editable={!busy}
-                            keyboardType="decimal-pad"
-                            error={errors[`exercises.${i}.sets.${j}.targetWeightKg`]}
-                            onChangeText={(weight) => changeSet(i, j, { weight })}
-                          />
-                        </View>
-                      </View>
+                      <Button
+                        title={set.right ? 'Use normal set' : 'Split left/right'}
+                        accessibilityLabel={`${set.right ? 'Unsplit' : 'Split'} ${prefix} left/right`}
+                        variant="secondary"
+                        disabled={busy}
+                        onPress={() =>
+                          changeSet(i, j, {
+                            right: set.right
+                              ? undefined
+                              : { min: set.min, max: set.max, weight: set.weight },
+                          })
+                        }
+                      />
+                      {(set.right ? (['Left', 'Right'] as const) : (['Both'] as const)).map(
+                        (side) => {
+                          const values = side === 'Right' ? set.right! : set;
+                          const labelPrefix = `${prefix}${side === 'Both' ? '' : ` ${side.toLowerCase()}`}`;
+                          const errorPrefix = `exercises.${i}.sets.${j}${side === 'Right' ? '.rightTarget' : ''}`;
+                          const change = (
+                            patch: Partial<{ min: string; max: string; weight: string }>,
+                          ) =>
+                            changeSet(
+                              i,
+                              j,
+                              side === 'Right' ? { right: { ...set.right!, ...patch } } : patch,
+                            );
+                          return (
+                            <View key={side} style={{ gap: 8 }}>
+                              {side !== 'Both' && <Label syntax="property">{side}</Label>}
+                              <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
+                                <View style={{ flex: 1 }}>
+                                  <Field
+                                    label="Reps"
+                                    accessibilityLabel={`${labelPrefix} reps`}
+                                    value={values.min}
+                                    editable={!busy}
+                                    keyboardType="number-pad"
+                                    error={errors[`${errorPrefix}.targetRepsMin`]}
+                                    onChangeText={(min) => change({ min })}
+                                  />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Field
+                                    label="Max reps (optional)"
+                                    accessibilityLabel={`${labelPrefix} max reps (optional)`}
+                                    value={values.max}
+                                    editable={!busy}
+                                    keyboardType="number-pad"
+                                    error={errors[`${errorPrefix}.targetRepsMax`]}
+                                    onChangeText={(max) => change({ max })}
+                                  />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Field
+                                    label={
+                                      side === 'Both'
+                                        ? 'Weight (kg, optional)'
+                                        : 'Weight per side (kg, optional)'
+                                    }
+                                    accessibilityLabel={`${labelPrefix} weight (kg, optional)`}
+                                    value={values.weight}
+                                    editable={!busy}
+                                    keyboardType="decimal-pad"
+                                    error={errors[`${errorPrefix}.targetWeightKg`]}
+                                    onChangeText={(weight) => change({ weight })}
+                                  />
+                                </View>
+                              </View>
+                            </View>
+                          );
+                        },
+                      )}
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 20 }}>
                         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                           <Switch
