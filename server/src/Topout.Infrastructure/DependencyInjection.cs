@@ -23,6 +23,7 @@ public static class DependencyInjection
 
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<IExerciseRepository, ExerciseRepository>();
+        services.AddScoped<IProgressRepository, ProgressRepository>();
         services.AddScoped<IClimbLogRepository, ClimbLogRepository>();
         services.AddScoped<IWorkoutScheduleRepository, WorkoutScheduleRepository>();
         services.AddScoped<IWorkoutLogRepository, WorkoutLogRepository>();

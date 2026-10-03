@@ -291,6 +291,19 @@ table without changing existing gym data.
 Grading references: [BMC indoor climbing grades](https://thebmc.co.uk/en/indoor-climbing-grades-explained)
 and [UIAA grading scales](https://theuiaa.org/documents/mountaineering/THESCALESOFDIFFICULTYINCLIMBING_p1b.pdf).
 
+## Progress API
+
+`GET /api/progress?from=YYYY-MM-DD&to=YYYY-MM-DD` is authenticated and scoped to the
+current account. Both inclusive date bounds are optional; reversed or invalid bounds return
+400 Problem Details. The response contains `exercises` and `climbing` daily summaries,
+never other accounts' data. Empty history returns two empty arrays.
+
+Exercise rows contain date, exercise ID/name, side, working-set count, total reps,
+maximum weight in kilograms, and total weight × reps. Warm-ups are excluded; incomplete
+workouts are included. Climbing rows are grouped by date/type/system/grade/environment,
+with climb, send, flash, and attempt totals. Unsent climbs contribute to climb/attempt
+counts but not send/flash counts. Aggregation runs in PostgreSQL and requires no migration.
+
 ## Migrations and tests
 
 The original migration is preserved. AddExerciseCatalogAndRefreshSessions adds normalized

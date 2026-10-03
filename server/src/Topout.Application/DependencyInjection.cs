@@ -10,6 +10,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<ListExercisesHandler>();
+        services.AddScoped<Topout.Application.Progress.ProgressHandler>();
         services.AddScoped<Topout.Application.Climbing.ClimbLogHandler>();
         services.AddScoped<Topout.Application.WorkoutSchedule.WorkoutScheduleHandler>();
         services.AddScoped<Topout.Application.WorkoutLogging.WorkoutLoggingHandler>();

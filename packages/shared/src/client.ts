@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { climbHistorySchema } from './climbing';
+import { progressSchema } from './progress';
 import {
   climbLogInputSchema,
   climbLogSchema,
@@ -203,6 +204,13 @@ export class ApiClient {
 
   listExercises() {
     return this.request('/api/exercises', exercisesSchema);
+  }
+
+  getProgress(from?: string, to?: string) {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    return this.request('/api/progress' + (params.size ? '?' + params : ''), progressSchema);
   }
 
   listClimbLogs(from: string, to: string) {
