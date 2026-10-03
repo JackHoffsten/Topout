@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
+import { z } from 'zod';
 import { Feather } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { errorMessage, type ScheduledWorkout } from '@topout/shared';
@@ -17,15 +18,41 @@ import { Page } from '../../ui/components/Page';
 import { tokens, useDesktop, useTheme } from '../../ui/theme';
 import { useTemplates } from '../templates/queries';
 import { dateKey, monthDays } from './calendar';
+import { ClimbingDay } from '../climbing/ClimbingDay';
 
 const scheduleKey = ['workout-schedule'];
-export function HomeScreen() {
+export function CalendarScreen() {
   const c = useTheme();
   const wide = useDesktop();
+  const [contentWidth, setContentWidth] = useState(0);
+  const [gridWidth, setGridWidth] = useState(0);
+  const sideBySide = contentWidth >= 950;
+  const cellWidth = gridWidth ? gridWidth / 7 : wide ? 80 : 54;
+  const badgeInset = cellWidth >= 64 ? 5 : 1;
+  const badgeGap = cellWidth >= 64 ? 4 : 2;
+  const badgeSize = Math.max(
+    12,
+    Math.min(
+      28,
+      Math.max(cellWidth <= 56 ? 14 : 16, Math.round(cellWidth * (cellWidth <= 56 ? 0.28 : 0.3))),
+      Math.floor((cellWidth - badgeInset * 2 - badgeGap - 2) / 2),
+    ),
+  );
+  const dayFontSize = Math.max(10, Math.round(badgeSize * 0.68));
+  const calendarFontSize = Math.max(11, Math.round(badgeSize * 0.55));
+  const loggedSize = Math.max(10, Math.round(badgeSize * 0.72));
+  const checkSize = Math.round(loggedSize * 0.7);
   const { api } = useSession();
   const cache = useQueryClient();
   const [month, setMonth] = useState(() => new Date());
   const [selected, setSelected] = useState(() => dateKey(new Date()));
+  const { date } = useLocalSearchParams<{ date?: string }>();
+  useEffect(() => {
+    if (date && z.iso.date().safeParse(date).success && date >= '0001-01-01') {
+      setSelected(date);
+      setMonth(new Date(`${date}T12:00:00`));
+    }
+  }, [date]);
   const [picker, setPicker] = useState(false);
   const [search, setSearch] = useState('');
   const [removing, setRemoving] = useState<ScheduledWorkout>();
@@ -38,6 +65,10 @@ export function HomeScreen() {
     queryFn: () => api.listWorkoutSchedule(from, to),
   });
   const templates = useTemplates();
+  const climbs = useQuery({
+    queryKey: ['climb-logs', from, to],
+    queryFn: () => api.listClimbLogs(from, to),
+  });
   const create = useMutation({
     mutationFn: (templateId: number | null) => api.scheduleWorkout({ date: selected, templateId }),
     onSuccess: async () => {
@@ -71,9 +102,13 @@ export function HomeScreen() {
   const plans = schedule.data?.filter((plan) => plan.date === selected) ?? [];
   return (
     <Page>
-      <Heading large>Home</Heading>
-      <View style={{ flexDirection: wide ? 'row' : 'column', gap: 20, alignItems: 'stretch' }}>
-        <Card style={{ flex: wide ? 3 : undefined, padding: wide ? 20 : 12 }}>
+      <Heading large>Calendar</Heading>
+      <View
+        testID="calendar-content"
+        onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
+        style={{ flexDirection: sideBySide ? 'row' : 'column', gap: 20, alignItems: 'stretch' }}
+      >
+        <Card style={{ flex: sideBySide ? 3 : undefined, minWidth: 0, padding: wide ? 20 : 12 }}>
           <View
             style={{
               flexDirection: 'row',
@@ -89,9 +124,15 @@ export function HomeScreen() {
               disabled={create.isPending}
               onPress={() => selectDate(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
             />
-            <Label syntax="name">
+            <Text
+              style={{
+                fontFamily: tokens.font,
+                fontSize: Math.max(16, dayFontSize + 2),
+                color: c.syntax.name,
+              }}
+            >
               {month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-            </Label>
+            </Text>
             <Button
               title="›"
               accessibilityLabel="Next month"
@@ -117,7 +158,7 @@ export function HomeScreen() {
                   textAlign: 'center',
                   color: c.syntax.property,
                   fontFamily: tokens.font,
-                  fontSize: 12,
+                  fontSize: calendarFontSize,
                 }}
               >
                 {day}
@@ -125,10 +166,18 @@ export function HomeScreen() {
             ))}
           </View>
           {Array.from({ length: days.length / 7 }, (_, week) => (
-            <View key={week} style={{ flexDirection: 'row' }}>
+            <View
+              key={week}
+              testID={week === 0 ? 'calendar-grid' : undefined}
+              onLayout={
+                week === 0 ? (event) => setGridWidth(event.nativeEvent.layout.width) : undefined
+              }
+              style={{ flexDirection: 'row' }}
+            >
               {days.slice(week * 7, week * 7 + 7).map((date) => {
                 const key = dateKey(date);
                 const entries = schedule.data?.filter((plan) => plan.date === key) ?? [];
+                const climbCount = climbs.data?.filter((log) => log.date === key).length ?? 0;
                 const logged = entries.some(
                   (plan) => plan.status === 'InProgress' || plan.status === 'Completed',
                 );
@@ -137,14 +186,13 @@ export function HomeScreen() {
                   <Pressable
                     key={key}
                     accessibilityRole="button"
-                    accessibilityLabel={`${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}${today ? ', today' : ''}, ${entries.length} planned entries${logged ? ', workout logged' : ''}`}
+                    accessibilityLabel={`${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}${today ? ', today' : ''}, ${entries.length} planned entries${logged ? ', workout logged' : ''}${climbCount ? `, ${climbCount} ${climbCount === 1 ? 'climb' : 'climbs'} logged` : ''}`}
                     accessibilityState={{ selected: key === selected, disabled: create.isPending }}
                     disabled={create.isPending}
                     onPress={() => selectDate(date)}
                     style={{
                       width: `${100 / 7}%`,
-                      minHeight: wide ? 96 : 72,
-                      padding: wide ? 5 : 2,
+                      aspectRatio: 1,
                       borderWidth: 1,
                       borderColor: key === selected ? c.focus : c.line,
                       backgroundColor: key === selected ? c.soft : c.surface,
@@ -152,7 +200,12 @@ export function HomeScreen() {
                     }}
                   >
                     <View
+                      testID={`date-header-${key}`}
                       style={{
+                        position: 'absolute',
+                        left: badgeInset,
+                        right: badgeInset,
+                        top: badgeInset + 1,
                         flexDirection: 'row',
                         alignItems: 'center',
                         justifyContent: 'space-between',
@@ -160,119 +213,100 @@ export function HomeScreen() {
                       }}
                     >
                       <Text
+                        testID={`date-number-${key}`}
                         style={{
                           fontFamily: tokens.font,
-                          fontSize: wide ? 14 : 12,
+                          fontSize: dayFontSize,
+                          lineHeight: Math.round(dayFontSize * 1.15),
                           fontWeight: today ? '700' : '400',
                           color: date.getMonth() === month.getMonth() ? c.syntax.number : c.muted,
                         }}
                       >
                         {date.getDate()}
                       </Text>
-                      {!wide && logged && (
+                      {logged && (
                         <View
                           testID={`logged-${key}`}
                           style={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: 6,
+                            width: loggedSize,
+                            height: loggedSize,
+                            borderRadius: loggedSize / 2,
                             flexShrink: 0,
                             backgroundColor: c.syntax.number,
                             alignItems: 'center',
                             justifyContent: 'center',
                           }}
                         >
-                          <Feather name="check" size={9} color={c.bg} />
+                          <Feather
+                            name="check"
+                            size={checkSize}
+                            color={c.bg}
+                            style={{
+                              width: checkSize,
+                              height: checkSize,
+                              lineHeight: checkSize,
+                              textAlign: 'center',
+                            }}
+                          />
                         </View>
                       )}
                     </View>
-                    {wide
-                      ? entries.slice(0, 2).map((plan) => (
-                          <Text
-                            key={plan.id}
-                            numberOfLines={1}
-                            style={{
-                              fontFamily: tokens.font,
-                              fontSize: 11,
-                              color: plan.isRestDay ? c.syntax.keyword : c.syntax.name,
-                            }}
-                          >
-                            {plan.isRestDay ? 'Rest' : plan.templateName}
-                          </Text>
-                        ))
-                      : entries.length > 0 && (
-                          <View
-                            testID={`plans-${key}`}
-                            style={{
-                              position: 'absolute',
-                              left: 2,
-                              bottom: 4,
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              gap: 2,
-                              paddingHorizontal: 3,
-                              paddingVertical: 4,
-                              borderRadius: tokens.radius.md,
-                              backgroundColor: c.input,
-                              borderWidth: 1,
-                              borderColor: c.line,
-                            }}
-                          >
-                            <Feather
-                              name={entries[0]!.isRestDay ? 'moon' : 'layers'}
-                              size={11}
-                              color={entries[0]!.isRestDay ? c.syntax.keyword : c.syntax.name}
-                            />
-                            {entries.length > 1 && (
-                              <Text
-                                style={{
-                                  fontFamily: tokens.font,
-                                  fontSize: 10,
-                                  color: c.syntax.name,
-                                }}
-                              >
-                                {entries.length}
-                              </Text>
-                            )}
-                          </View>
-                        )}
-                    {wide && entries.length > 2 && (
-                      <Text style={{ fontFamily: tokens.font, fontSize: 11, color: c.muted }}>
-                        +{entries.length - 2}
-                      </Text>
-                    )}
-                    {wide && logged && (
-                      <Text
-                        style={{ fontFamily: tokens.font, fontSize: 11, color: c.syntax.number }}
+                    {(entries.length > 0 || climbCount > 0) && (
+                      <View
+                        testID={`activity-badges-${key}`}
+                        style={{
+                          position: 'absolute',
+                          left: badgeInset,
+                          bottom: badgeInset + 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: badgeGap,
+                        }}
                       >
-                        {wide ? '✓ Logged' : '✓'}
-                      </Text>
+                        {entries.length > 0 && (
+                          <CalendarBadge
+                            size={badgeSize}
+                            testID={`plans-${key}`}
+                            icon={entries[0]!.isRestDay ? 'moon' : 'layers'}
+                            color={entries[0]!.isRestDay ? c.syntax.keyword : c.syntax.name}
+                          />
+                        )}
+                        {climbCount > 0 && (
+                          <CalendarBadge
+                            size={badgeSize}
+                            testID={`climbs-${key}`}
+                            icon="triangle"
+                            color={c.syntax.string}
+                          />
+                        )}
+                      </View>
                     )}
                   </Pressable>
                 );
               })}
             </View>
           ))}
-          {!wide && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, paddingTop: 4 }}>
-              {(
-                [
-                  ['layers', 'Workout', c.syntax.name],
-                  ['check', 'Logged', c.syntax.number],
-                  ['moon', 'Rest', c.syntax.keyword],
-                ] as const
-              ).map(([icon, label, color]) => (
-                <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Feather name={icon} size={12} color={color} />
-                  <Text style={{ fontFamily: tokens.font, fontSize: 11, color: c.muted }}>
-                    {label}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, paddingTop: 4 }}>
+            {(
+              [
+                ['layers', 'Workout', c.syntax.name],
+                ['check', 'Logged', c.syntax.number],
+                ['moon', 'Rest', c.syntax.keyword],
+                ['triangle', 'Climbs', c.syntax.string],
+              ] as const
+            ).map(([icon, label, color]) => (
+              <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <Feather name={icon} size={calendarFontSize} color={color} />
+                <Text
+                  style={{ fontFamily: tokens.font, fontSize: calendarFontSize, color: c.muted }}
+                >
+                  {label}
+                </Text>
+              </View>
+            ))}
+          </View>
         </Card>
-        <Card style={{ flex: wide ? 2 : undefined }}>
+        <Card style={{ flex: sideBySide ? 2 : undefined, minWidth: 0 }}>
           <Heading>
             {selectedDate.toLocaleDateString(undefined, {
               weekday: 'long',
@@ -280,6 +314,22 @@ export function HomeScreen() {
               day: 'numeric',
             })}
           </Heading>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <Heading>Workout</Heading>
+            <Link
+              href="/templates"
+              style={{ color: c.syntax.property, fontFamily: tokens.font, fontSize: 13 }}
+            >
+              All templates
+            </Link>
+          </View>
           {schedule.isPending ? (
             <Loading text="Loading plans…" />
           ) : schedule.isError ? (
@@ -366,7 +416,12 @@ export function HomeScreen() {
                   <Button
                     title="Add rest day"
                     variant="secondary"
-                    disabled={plans.length > 0}
+                    disabled={
+                      plans.length > 0 ||
+                      climbs.isPending ||
+                      climbs.isError ||
+                      !!climbs.data?.some((log) => log.date === selected)
+                    }
                     busy={create.isPending}
                     onPress={() => create.mutate(null)}
                   />
@@ -446,6 +501,17 @@ export function HomeScreen() {
               )}
             </>
           )}
+          <ClimbingDay
+            key={selected}
+            date={selected}
+            logs={climbs.data?.filter((log) => log.date === selected) ?? []}
+            loading={climbs.isPending}
+            error={climbs.isError ? climbs.error : undefined}
+            onRetry={() => {
+              void climbs.refetch();
+            }}
+            restDay={plans.some((plan) => plan.isRestDay)}
+          />
         </Card>
       </View>
       {removingLog && (
@@ -481,5 +547,54 @@ export function HomeScreen() {
         }}
       />
     </Page>
+  );
+}
+
+function CalendarBadge({
+  size,
+  testID,
+  icon,
+  color,
+}: {
+  size: number;
+  testID: string;
+  icon: 'layers' | 'moon' | 'triangle';
+  color: string;
+}) {
+  const c = useTheme();
+  const iconSize = Math.round(size * 0.68);
+  return (
+    <View
+      testID={testID}
+      style={{
+        width: size,
+        height: size,
+        aspectRatio: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: size,
+        maxWidth: size,
+        minHeight: size,
+        maxHeight: size,
+        flexShrink: 0,
+        borderRadius: tokens.radius.md,
+        backgroundColor: c.input,
+        borderWidth: 1,
+        borderColor: c.line,
+      }}
+    >
+      <Feather
+        name={icon}
+        size={iconSize}
+        color={color}
+        style={{
+          width: iconSize,
+          height: iconSize,
+          lineHeight: iconSize,
+          textAlign: 'center',
+          flexShrink: 0,
+        }}
+      />
+    </View>
   );
 }

@@ -2,12 +2,21 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { type Exercise, errorMessage, muscleLabel } from '@topout/shared';
+import {
+  type Exercise,
+  type MuscleGroup,
+  errorMessage,
+  muscleLabel,
+  toggleFilter,
+  muscleGroups,
+} from '@topout/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useSession } from '../../lib/providers';
 import { Page } from '../../ui/components/Page';
 import { Heading } from '../../ui/components/Heading';
+import { ListHeader } from '../../ui/components/ListHeader';
+import { TotalCard } from '../../ui/components/TotalCard';
 import { Label } from '../../ui/components/Label';
 import { Card } from '../../ui/components/Card';
 import { Field } from '../../ui/components/Field';
@@ -26,6 +35,10 @@ export function ExerciseList() {
   const cache = useQueryClient();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Exercise>();
+  const [sort, setSort] = useState('name-asc');
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<{ muscle?: MuscleGroup[] }>({});
+  const [draft, setDraft] = useState<typeof filters>({});
   const remove = useMutation({
     mutationFn: (id: number) => api.deleteExercise(id),
     onSuccess: async () => {
@@ -34,83 +47,119 @@ export function ExerciseList() {
     },
   });
   const data = query.data ?? [];
-  const visible = data.filter((x) =>
-    (x.name + ' ' + x.muscleGroups.map(muscleLabel).join(', '))
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+  const visible = data
+    .filter(
+      (x) =>
+        (x.name + ' ' + x.muscleGroups.map(muscleLabel).join(', '))
+          .toLowerCase()
+          .includes(search.trim().toLowerCase()) &&
+        (!filters.muscle?.length ||
+          filters.muscle.some((muscle) =>
+            muscle === 'None'
+              ? x.muscleGroups.length === 0
+              : x.muscleGroups.some((group) => group === muscle),
+          )),
+    )
+    .sort((a, b) => {
+      const byName = a.name.localeCompare(b.name, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+      if (sort === 'name-desc') return -byName || a.id - b.id;
+      return byName || a.id - b.id;
+    });
 
   return (
     <Page>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-        }}
-      >
-        <Heading large>Exercises</Heading>
-        {wide && (
-          <Link href="/exercises/new" asChild>
-            <Pressable
-              accessibilityRole="link"
-              style={{ backgroundColor: c.primary, borderRadius: tokens.radius.sm, padding: 16 }}
-            >
-              <Text style={{ color: c.onPrimary, fontWeight: '600', fontFamily: tokens.font }}>
-                ＋ New exercise
-              </Text>
-            </Pressable>
-          </Link>
-        )}
-      </View>
-      <Label muted>Search, add, edit, or delete exercises.</Label>
-      <Card style={{ padding: 20, gap: 8 }}>
-        <Text
-          style={{
-            color: c.muted,
-            fontSize: 10,
-            letterSpacing: 1.5,
-            fontWeight: '700',
-            fontFamily: tokens.font,
-          }}
-        >
-          TOTAL EXERCISES
-        </Text>
-        <Text
-          style={{
-            color: c.syntax.number,
-            fontSize: 28,
-            fontWeight: '600',
-            fontFamily: tokens.font,
-          }}
-        >
-          {data.length}
-        </Text>
-      </Card>
-      {!wide && (
-        <Link href="/exercises/new" asChild>
-          <Pressable
-            accessibilityRole="link"
-            style={{
-              backgroundColor: c.primary,
-              borderRadius: tokens.radius.sm,
-              padding: 16,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ color: c.onPrimary, fontWeight: '600', fontFamily: tokens.font }}>
-              ＋ New exercise
-            </Text>
-          </Pressable>
-        </Link>
-      )}
+      <ListHeader title="Exercises" action="New exercise" href="/exercises/new" />
+      <TotalCard label="TOTAL EXERCISES" count={query.data?.length} />
       <Field
         label="Search exercises"
         placeholder="Search by name or muscle group"
         value={search}
         onChangeText={setSearch}
       />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        {(
+          [
+            ['name-asc', 'Name A–Z'],
+            ['name-desc', 'Name Z–A'],
+          ] as const
+        ).map(([value, title]) => (
+          <Button
+            key={value}
+            title={title}
+            variant={sort === value ? 'primary' : 'secondary'}
+            onPress={() => setSort(value)}
+          />
+        ))}
+        <Button
+          title={showFilters ? 'Hide filters' : 'Filters'}
+          variant="secondary"
+          onPress={() => setShowFilters(!showFilters)}
+        />
+      </View>
+      {!!filters.muscle?.length && (
+        <View style={{ gap: 6 }}>
+          <Label small muted>
+            {filters.muscle!.map(muscleLabel).join(', ')}
+          </Label>
+          <Button
+            title="Reset filters"
+            variant="secondary"
+            onPress={() => {
+              setFilters({});
+              setDraft({});
+            }}
+          />
+        </View>
+      )}
+      {showFilters && (
+        <Card>
+          <Label small>Muscle group</Label>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {[undefined, ...muscleGroups].map((muscle) => (
+              <Button
+                key={muscle ?? 'all'}
+                title={muscle ? muscleLabel(muscle) : 'All'}
+                accessibilityLabel={`Filter muscle group: ${muscle ? muscleLabel(muscle) : 'All'}`}
+                selected={muscle ? (draft.muscle ?? []).includes(muscle) : !draft.muscle?.length}
+                variant={
+                  (muscle ? (draft.muscle ?? []).includes(muscle) : !draft.muscle?.length)
+                    ? 'primary'
+                    : 'secondary'
+                }
+                onPress={() =>
+                  setDraft({
+                    ...draft,
+                    muscle: muscle ? toggleFilter(draft.muscle ?? [], muscle) : undefined,
+                  })
+                }
+              />
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <Button
+              title="Apply filters"
+              onPress={() => {
+                setFilters(draft);
+                setShowFilters(false);
+              }}
+            />
+            <Button
+              title="Clear filters"
+              variant="secondary"
+              onPress={() => {
+                setFilters({});
+                setDraft({});
+              }}
+            />
+            <View style={{ marginLeft: 'auto' }}>
+              <Button title="Close" variant="secondary" onPress={() => setShowFilters(false)} />
+            </View>
+          </View>
+        </Card>
+      )}
       {query.isPending ? (
         <Loading text="Loading exercises…" />
       ) : query.isError ? (
@@ -130,7 +179,7 @@ export function ExerciseList() {
           <Label muted>
             {data.length === 0
               ? 'Add an exercise to get started.'
-              : 'Try a different name or muscle group.'}
+              : 'Try a different search or clear the filters.'}
           </Label>
         </Card>
       ) : (

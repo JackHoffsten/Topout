@@ -11,7 +11,8 @@ export function Shell({ children }: React.PropsWithChildren) {
   const c = useTheme();
   const path = usePathname();
   const links = [
-    { href: '/home' as const, label: 'Home', icon: 'calendar' as const },
+    { href: '/calendar' as const, label: 'Calendar', icon: 'calendar' as const },
+    { href: '/climbs' as const, label: 'Climbs', icon: 'map' as const },
     { href: '/templates' as const, label: 'Templates', icon: 'list' as const },
     { href: '/exercises' as const, label: 'Exercises', icon: 'grid' as const },
     { href: '/account' as const, label: 'Account', icon: 'user' as const },
@@ -22,7 +23,7 @@ export function Shell({ children }: React.PropsWithChildren) {
       style={{
         flexDirection: wide ? 'column' : 'row',
         padding: wide ? 16 : 8,
-        gap: 8,
+        gap: wide ? 8 : 2,
         backgroundColor: c.chrome,
         borderColor: c.line,
         borderTopWidth: wide ? 0 : 1,
@@ -36,17 +37,36 @@ export function Shell({ children }: React.PropsWithChildren) {
             accessibilityState={{ selected: path.startsWith(item.href) }}
             style={{
               flex: wide ? undefined : 1,
+              minWidth: 0,
               minHeight: 52,
               flexDirection: wide ? 'row' : 'column',
               alignItems: 'center',
               justifyContent: wide ? 'flex-start' : 'center',
               gap: 8,
-              padding: 12,
+              padding: wide ? 12 : 4,
               borderRadius: tokens.radius.sm,
               backgroundColor: path.startsWith(item.href) ? c.soft : 'transparent',
             }}
           >
-            <Feather name={item.icon} size={20} color={c.ink} />
+            {item.href === '/templates' ? (
+              <View
+                accessible={false}
+                style={{ width: 20, height: 20, justifyContent: 'center', gap: 4 }}
+              >
+                {[0, 1, 2].map((row) => (
+                  <View key={row} style={{ flexDirection: 'row', gap: 4 }}>
+                    <View
+                      style={{ width: 2, height: 2, borderRadius: 1, backgroundColor: c.ink }}
+                    />
+                    <View
+                      style={{ width: 14, height: 2, borderRadius: 1, backgroundColor: c.ink }}
+                    />
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Feather name={item.icon} size={20} color={c.ink} />
+            )}
             <Text
               style={{
                 color: c.ink,

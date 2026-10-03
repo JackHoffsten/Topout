@@ -15,7 +15,7 @@ export default function Account() {
 
   return (
     <Page>
-      <Heading>Your account</Heading>
+      <Heading large>Your account</Heading>
       <Card>
         <Heading>Sign out</Heading>
         <Label muted>Sign out of your account on this device.</Label>

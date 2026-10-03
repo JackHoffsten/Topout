@@ -115,7 +115,7 @@ export function WorkoutLogger({ scheduleId }: { scheduleId: number }) {
     return (
       <Page>
         <Heading>Workout not found</Heading>
-        <Button title="Back to Home" onPress={() => router.replace('/home')} />
+        <Button title="Back to Calendar" onPress={() => router.replace('/calendar')} />
       </Page>
     );
   if (query.isPending) return <Loading text="Loading workout…" />;
@@ -129,7 +129,7 @@ export function WorkoutLogger({ scheduleId }: { scheduleId: number }) {
             void query.refetch();
           }}
         />
-        <Button title="Back to Home" onPress={() => router.replace('/home')} />
+        <Button title="Back to Calendar" onPress={() => router.replace('/calendar')} />
       </Page>
     );
   return <LoggingForm key={scheduleId} workout={query.data} />;
@@ -373,7 +373,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
               setEditing(true);
             }}
           />
-          <Button title="Back to Home" onPress={() => router.replace('/home')} />
+          <Button title="Back to Calendar" onPress={() => router.replace('/calendar')} />
         </>
       ) : (
         <>
@@ -758,7 +758,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
             title="Cancel"
             variant="secondary"
             disabled={busy}
-            onPress={() => (dirty ? setDiscard(true) : router.replace('/home'))}
+            onPress={() => (dirty ? setDiscard(true) : router.replace('/calendar'))}
           />
           <ConfirmDialog
             visible={discard}
@@ -768,7 +768,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
             cancelLabel="Keep logging"
             busy={false}
             onCancel={() => setDiscard(false)}
-            onConfirm={() => router.replace('/home')}
+            onConfirm={() => router.replace('/calendar')}
           />
           <ConfirmDialog
             visible={!!normalSet}

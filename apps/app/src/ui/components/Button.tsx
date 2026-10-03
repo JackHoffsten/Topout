@@ -10,6 +10,7 @@ export function Button({
   disabled = false,
   testID,
   accessibilityLabel,
+  selected,
 }: {
   title: string;
   onPress: () => void;
@@ -18,6 +19,7 @@ export function Button({
   disabled?: boolean;
   testID?: string;
   accessibilityLabel?: string;
+  selected?: boolean;
 }) {
   const c = useTheme();
   const [focused, setFocused] = useState(false);
@@ -26,7 +28,8 @@ export function Button({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
-      accessibilityState={{ disabled: disabled || busy, busy }}
+      accessibilityState={{ disabled: disabled || busy, busy, selected }}
+      aria-pressed={selected}
       disabled={disabled || busy}
       onPress={onPress}
       onFocus={() => setFocused(true)}
