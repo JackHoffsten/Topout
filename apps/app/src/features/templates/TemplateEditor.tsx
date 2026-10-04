@@ -22,6 +22,7 @@ import { Label } from '../../ui/components/Label';
 import { Field } from '../../ui/components/Field';
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog';
 import { tokens, useDesktop, useTheme } from '../../ui/theme';
+import { useAutoScroll } from '../../ui/useAutoScroll';
 import { useExercises } from '../exercises/queries';
 import { ExerciseForm } from '../exercises/ExerciseEditor';
 import { templatesKey } from './queries';
@@ -118,6 +119,7 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [picker, setPicker] = useState(false);
+  const autoScroll = useAutoScroll();
   const [pending, setPending] = useState<DraftExercise>();
   const [dropdown, setDropdown] = useState(false);
   const [creatingExercise, setCreatingExercise] = useState(false);
@@ -311,7 +313,7 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
     </Card>
   );
   return (
-    <Page>
+    <Page scrollRef={autoScroll.scrollRef} onContentSizeChange={autoScroll.onContentSizeChange}>
       <Heading large>{template ? 'Edit workout template' : 'New workout template'}</Heading>
       <Field
         label="Template name"
@@ -330,20 +332,26 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
       {items.map((item, i) => (
         <React.Fragment key={item.exercise.id}>
           {pending === item && exercisePicker}
-          <Card style={{ padding: wide ? 24 : 16 }}>
+          <Card
+            style={{ padding: wide ? 24 : 16 }}
+            onLayout={(event) =>
+              autoScroll.register(String(item.exercise.id), event.nativeEvent.layout.y)
+            }
+          >
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${expanded.has(item.exercise.id) || pending === item ? 'Collapse' : 'Expand'} ${item.exercise.name}`}
               accessibilityState={{ expanded: expanded.has(item.exercise.id) || pending === item }}
               disabled={pending === item}
-              onPress={() =>
+              onPress={() => {
+                if (!expanded.has(item.exercise.id)) autoScroll.reveal(String(item.exercise.id));
                 setExpanded((current) => {
                   const next = new Set(current);
                   if (next.has(item.exercise.id)) next.delete(item.exercise.id);
                   else next.add(item.exercise.id);
                   return next;
-                })
-              }
+                });
+              }}
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -553,13 +561,18 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
           </Card>
         </React.Fragment>
       ))}
-      {picker && !pending && exercisePicker}
+      {picker && !pending && (
+        <View onLayout={(event) => autoScroll.register('picker', event.nativeEvent.layout.y)}>
+          {exercisePicker}
+        </View>
+      )}
       {!picker && (
         <Button
           title="Add exercise"
           variant="secondary"
           disabled={busy}
           onPress={() => {
+            autoScroll.reveal('picker');
             setPicker(true);
             setDropdown(true);
             setSearch('');

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { z } from 'zod';
-import { Feather } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { errorMessage, type ScheduledWorkout } from '@topout/shared';
 import { useSession } from '../../lib/providers';
@@ -19,9 +19,14 @@ import { tokens, useDesktop, useTheme } from '../../ui/theme';
 import { useTemplates } from '../templates/queries';
 import { dateKey, monthDays } from './calendar';
 import { ClimbingDay } from '../climbing/ClimbingDay';
+import { useAutoScroll } from '../../ui/useAutoScroll';
 
 const scheduleKey = ['workout-schedule'];
 export function CalendarScreen() {
+  const router = useRouter();
+  const autoScroll = useAutoScroll();
+  const contentY = useRef(0);
+  const dayY = useRef(0);
   const c = useTheme();
   const wide = useDesktop();
   const [contentWidth, setContentWidth] = useState(0);
@@ -40,8 +45,6 @@ export function CalendarScreen() {
   );
   const dayFontSize = Math.max(10, Math.round(badgeSize * 0.68));
   const calendarFontSize = Math.max(11, Math.round(badgeSize * 0.55));
-  const loggedSize = Math.max(10, Math.round(badgeSize * 0.72));
-  const checkSize = Math.round(loggedSize * 0.7);
   const { api } = useSession();
   const cache = useQueryClient();
   const [month, setMonth] = useState(() => new Date());
@@ -94,6 +97,7 @@ export function CalendarScreen() {
     },
   });
   const selectDate = (date: Date) => {
+    autoScroll.reveal('day', !sideBySide);
     setSelected(dateKey(date));
     setMonth(new Date(date.getFullYear(), date.getMonth(), 1));
     setPicker(false);
@@ -102,11 +106,15 @@ export function CalendarScreen() {
   const selectedDate = new Date(`${selected}T12:00:00`);
   const plans = schedule.data?.filter((plan) => plan.date === selected) ?? [];
   return (
-    <Page>
+    <Page scrollRef={autoScroll.scrollRef} onContentSizeChange={autoScroll.onContentSizeChange}>
       <Heading large>Calendar</Heading>
       <View
         testID="calendar-content"
-        onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
+        onLayout={(event) => {
+          contentY.current = event.nativeEvent.layout.y;
+          autoScroll.register('day', contentY.current + dayY.current);
+          setContentWidth(event.nativeEvent.layout.width);
+        }}
         style={{ flexDirection: sideBySide ? 'row' : 'column', gap: 20, alignItems: 'stretch' }}
       >
         <Card style={{ flex: sideBySide ? 3 : undefined, minWidth: 0, padding: wide ? 20 : 12 }}>
@@ -182,6 +190,14 @@ export function CalendarScreen() {
                 const logged = entries.some(
                   (plan) => plan.status === 'InProgress' || plan.status === 'Completed',
                 );
+                const workouts = entries.filter((plan) => !plan.isRestDay);
+                const workoutStatus = workouts.some((plan) => plan.status === 'InProgress')
+                  ? 'InProgress'
+                  : workouts.length > 0 && workouts.every((plan) => plan.status === 'Completed')
+                    ? 'Completed'
+                    : 'Planned';
+                const statusLabel = workoutStatus === 'InProgress' ? 'In progress' : workoutStatus;
+                const statusColors = c.workoutStatus[workoutStatus];
                 const today = key === dateKey(new Date());
                 return (
                   <Pressable
@@ -189,6 +205,7 @@ export function CalendarScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={`${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}${today ? ', today' : ''}, ${entries.length} planned entries${logged ? ', workout logged' : ''}${climbCount ? `, ${climbCount} ${climbCount === 1 ? 'climb' : 'climbs'} logged` : ''}`}
                     accessibilityState={{ selected: key === selected, disabled: create.isPending }}
+                    accessibilityHint={workouts.length ? `Workout: ${statusLabel}` : undefined}
                     disabled={create.isPending}
                     onPress={() => selectDate(date)}
                     style={{
@@ -225,32 +242,6 @@ export function CalendarScreen() {
                       >
                         {date.getDate()}
                       </Text>
-                      {logged && (
-                        <View
-                          testID={`logged-${key}`}
-                          style={{
-                            width: loggedSize,
-                            height: loggedSize,
-                            borderRadius: loggedSize / 2,
-                            flexShrink: 0,
-                            backgroundColor: c.syntax.number,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <Feather
-                            name="check"
-                            size={checkSize}
-                            color={c.bg}
-                            style={{
-                              width: checkSize,
-                              height: checkSize,
-                              lineHeight: checkSize,
-                              textAlign: 'center',
-                            }}
-                          />
-                        </View>
-                      )}
                     </View>
                     {(entries.length > 0 || climbCount > 0) && (
                       <View
@@ -268,16 +259,22 @@ export function CalendarScreen() {
                           <CalendarBadge
                             size={badgeSize}
                             testID={`plans-${key}`}
-                            icon={entries[0]!.isRestDay ? 'moon' : 'layers'}
-                            color={entries[0]!.isRestDay ? c.syntax.keyword : c.syntax.name}
+                            icon={entries[0]!.isRestDay ? 'moon' : 'dumbbell'}
+                            color={entries[0]!.isRestDay ? c.syntax.keyword : statusColors.color}
+                            backgroundColor={
+                              entries[0]!.isRestDay ? undefined : statusColors.background
+                            }
+                            label={entries[0]!.isRestDay ? 'Rest day' : `Workout: ${statusLabel}`}
+                            count={entries[0]!.isRestDay ? undefined : workouts.length}
                           />
                         )}
                         {climbCount > 0 && (
                           <CalendarBadge
                             size={badgeSize}
                             testID={`climbs-${key}`}
-                            icon="triangle"
+                            icon="terrain"
                             color={c.syntax.string}
+                            count={climbCount}
                           />
                         )}
                       </View>
@@ -290,14 +287,15 @@ export function CalendarScreen() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, paddingTop: 4 }}>
             {(
               [
-                ['layers', 'Workout', c.syntax.name],
-                ['check', 'Logged', c.syntax.number],
+                ['dumbbell', 'Planned', c.workoutStatus.Planned.color],
+                ['dumbbell', 'In progress', c.workoutStatus.InProgress.color],
+                ['dumbbell', 'Completed', c.workoutStatus.Completed.color],
                 ['moon', 'Rest', c.syntax.keyword],
-                ['triangle', 'Climbs', c.syntax.string],
+                ['terrain', 'Climbs', c.syntax.string],
               ] as const
             ).map(([icon, label, color]) => (
               <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                <Feather name={icon} size={calendarFontSize} color={color} />
+                <CalendarIcon icon={icon} size={calendarFontSize} color={color} />
                 <Text
                   style={{ fontFamily: tokens.font, fontSize: calendarFontSize, color: c.muted }}
                 >
@@ -307,7 +305,13 @@ export function CalendarScreen() {
             ))}
           </View>
         </Card>
-        <Card style={{ flex: sideBySide ? 2 : undefined, minWidth: 0 }}>
+        <Card
+          style={{ flex: sideBySide ? 2 : undefined, minWidth: 0 }}
+          onLayout={(event) => {
+            dayY.current = event.nativeEvent.layout.y;
+            autoScroll.register('day', contentY.current + dayY.current);
+          }}
+        >
           <Heading>
             {selectedDate.toLocaleDateString(undefined, {
               weekday: 'long',
@@ -351,56 +355,76 @@ export function CalendarScreen() {
                   key={plan.id}
                   style={{ gap: 8, paddingVertical: 12, borderBottomWidth: 1, borderColor: c.line }}
                 >
-                  <Label syntax={plan.isRestDay ? 'keyword' : 'name'}>
-                    {plan.isRestDay ? 'Rest day' : plan.templateName}
-                  </Label>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Label syntax={plan.isRestDay ? 'keyword' : 'name'}>
+                        {plan.isRestDay ? 'Rest day' : plan.templateName}
+                      </Label>
+                    </View>
+                    {!plan.isRestDay && plan.templateId && (
+                      <Link
+                        href={{ pathname: '/templates/[id]/edit', params: { id: plan.templateId } }}
+                        style={{
+                          color: c.syntax.property,
+                          fontFamily: tokens.font,
+                          fontSize: 13,
+                          flexShrink: 0,
+                        }}
+                      >
+                        View template
+                      </Link>
+                    )}
+                  </View>
                   <Label muted small>
                     {plan.status === 'InProgress' ? 'In progress' : plan.status}
                   </Label>
-                  {!plan.isRestDay &&
-                    (plan.status === 'Planned' ||
-                      plan.status === 'InProgress' ||
-                      plan.status === 'Completed') && (
-                      <Link
-                        href={{ pathname: '/workouts/[id]', params: { id: plan.id } }}
-                        style={{ color: c.syntax.property, fontFamily: tokens.font }}
-                      >
-                        {plan.status === 'Completed'
-                          ? 'View workout log'
-                          : plan.status === 'InProgress'
-                            ? 'Resume workout'
-                            : 'Log workout'}
-                      </Link>
+                  <View style={{ gap: 14 }}>
+                    {!plan.isRestDay &&
+                      (plan.status === 'Planned' ||
+                        plan.status === 'InProgress' ||
+                        plan.status === 'Completed') && (
+                        <Button
+                          onPress={() =>
+                            router.push({ pathname: '/workouts/[id]', params: { id: plan.id } })
+                          }
+                          title={
+                            plan.status === 'Completed'
+                              ? 'View workout log'
+                              : plan.status === 'InProgress'
+                                ? 'Resume workout'
+                                : 'Log workout'
+                          }
+                        />
+                      )}
+                    {plan.status === 'InProgress' || plan.status === 'Completed' ? (
+                      <Button
+                        title="Remove log"
+                        accessibilityLabel={`Remove log for ${plan.templateName}`}
+                        variant="secondary"
+                        onPress={() => {
+                          removeLog.reset();
+                          setRemovingLog(plan);
+                        }}
+                      />
+                    ) : (
+                      <Button
+                        title="Remove"
+                        accessibilityLabel={`Remove ${plan.isRestDay ? 'rest day' : plan.templateName}`}
+                        variant="secondary"
+                        onPress={() => {
+                          remove.reset();
+                          setRemoving(plan);
+                        }}
+                      />
                     )}
-                  {!plan.isRestDay && plan.templateId && (
-                    <Link
-                      href={{ pathname: '/templates/[id]/edit', params: { id: plan.templateId } }}
-                      style={{ color: c.syntax.property, fontFamily: tokens.font }}
-                    >
-                      View template
-                    </Link>
-                  )}
-                  {plan.status === 'InProgress' || plan.status === 'Completed' ? (
-                    <Button
-                      title="Remove log"
-                      accessibilityLabel={`Remove log for ${plan.templateName}`}
-                      variant="secondary"
-                      onPress={() => {
-                        removeLog.reset();
-                        setRemovingLog(plan);
-                      }}
-                    />
-                  ) : (
-                    <Button
-                      title="Remove"
-                      accessibilityLabel={`Remove ${plan.isRestDay ? 'rest day' : plan.templateName}`}
-                      variant="secondary"
-                      onPress={() => {
-                        remove.reset();
-                        setRemoving(plan);
-                      }}
-                    />
-                  )}
+                  </View>
                 </View>
               ))}
               <ErrorNotice message={create.isError ? errorMessage(create.error) : undefined} />
@@ -556,17 +580,25 @@ function CalendarBadge({
   testID,
   icon,
   color,
+  backgroundColor,
+  label,
+  count,
 }: {
   size: number;
   testID: string;
-  icon: 'layers' | 'moon' | 'triangle';
+  icon: 'dumbbell' | 'moon' | 'terrain';
   color: string;
+  backgroundColor?: string;
+  label?: string;
+  count?: number;
 }) {
   const c = useTheme();
   const iconSize = Math.round(size * 0.68);
+  const countSize = Math.max(11, Math.round(size * 0.55));
   return (
     <View
       testID={testID}
+      accessibilityLabel={label}
       style={{
         width: size,
         height: size,
@@ -579,13 +611,13 @@ function CalendarBadge({
         maxHeight: size,
         flexShrink: 0,
         borderRadius: tokens.radius.md,
-        backgroundColor: c.input,
+        backgroundColor: backgroundColor ?? c.input,
         borderWidth: 1,
         borderColor: c.line,
       }}
     >
-      <Feather
-        name={icon}
+      <CalendarIcon
+        icon={icon}
         size={iconSize}
         color={color}
         style={{
@@ -596,6 +628,54 @@ function CalendarBadge({
           flexShrink: 0,
         }}
       />
+      {count !== undefined && count > 1 && (
+        <View
+          testID={`${testID}-count`}
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: -3,
+            right: -1,
+            width: countSize,
+            height: countSize,
+            borderRadius: countSize / 2,
+            backgroundColor: c.primary,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Text
+            style={{
+              color: c.onPrimary,
+              fontFamily: tokens.font,
+              fontSize: Math.max(6, Math.round(countSize * (count > 9 ? 0.48 : 0.65))),
+              lineHeight: countSize - 2,
+              fontWeight: '700',
+            }}
+          >
+            {count > 99 ? '99+' : count}
+          </Text>
+        </View>
+      )}
     </View>
+  );
+}
+
+function CalendarIcon({
+  icon,
+  ...props
+}: {
+  icon: 'dumbbell' | 'moon' | 'terrain';
+  size: number;
+  color: string;
+  style?: import('react-native').TextStyle;
+}) {
+  if (icon === 'moon') return <Ionicons name="moon" {...props} />;
+  return (
+    <MaterialCommunityIcons
+      name={icon}
+      {...props}
+      style={[props.style, icon === 'terrain' ? { transform: [{ scaleY: 1.2 }] } : undefined]}
+    />
   );
 }

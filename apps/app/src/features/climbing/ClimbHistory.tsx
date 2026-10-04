@@ -30,10 +30,8 @@ import { ClimbEditor } from './ClimbEditor';
 import { ClimbSummary } from './ClimbSummary';
 import { Field } from '../../ui/components/Field';
 import { TotalCard } from '../../ui/components/TotalCard';
-import { useDesktop } from '../../ui/theme';
 
 export function ClimbHistory() {
-  const wide = useDesktop();
   const { api } = useSession();
   const cache = useQueryClient();
   const router = useRouter();
@@ -199,8 +197,9 @@ export function ClimbHistory() {
           />
         ))}
         <Button
-          title={showFilters ? 'Hide filters' : 'Filters'}
-          variant="secondary"
+          title="Filters"
+          variant={showFilters ? 'primary' : 'secondary'}
+          selected={showFilters}
           onPress={() => setShowFilters(!showFilters)}
         />
       </View>
@@ -223,7 +222,8 @@ export function ClimbHistory() {
               .join(' · ')}
           </Label>
           <Button
-            title="Reset filters"
+            title="Clear"
+            accessibilityLabel="Reset filters"
             variant="secondary"
             onPress={() => {
               setFilters({ sort: filters.sort, search: filters.search });
@@ -368,7 +368,7 @@ export function ClimbHistory() {
             style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}
           >
             <Button
-              title={wide ? 'Apply filters' : 'Apply'}
+              title="Apply"
               accessibilityLabel="Apply filters"
               onPress={() => {
                 const validDate = (value?: string) =>
@@ -393,7 +393,7 @@ export function ClimbHistory() {
               }}
             />
             <Button
-              title={wide ? 'Clear filters' : 'Clear'}
+              title="Clear"
               accessibilityLabel="Clear filters"
               variant="secondary"
               onPress={() => {
@@ -463,7 +463,10 @@ export function ClimbHistory() {
                 }}
                 aria-expanded={expanded === log.id}
                 disabled={editing !== undefined}
-                onPress={() => setExpanded(expanded === log.id ? undefined : log.id)}
+                onPress={() => {
+                  if (expanded !== log.id) pendingScroll.current = log.id;
+                  setExpanded(expanded === log.id ? undefined : log.id);
+                }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
               >
                 <View style={{ flex: 1, minWidth: 0, gap: 8 }}>

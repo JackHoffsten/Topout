@@ -34,7 +34,11 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ date: mockCalendarDate }),
   useRouter: () => ({ push: jest.fn() }),
 }));
-jest.mock('@expo/vector-icons', () => ({ Feather: () => null }));
+jest.mock('@expo/vector-icons', () => ({
+  Feather: () => null,
+  MaterialCommunityIcons: () => null,
+  Ionicons: () => null,
+}));
 
 beforeEach(() => {
   jest.resetAllMocks();
@@ -125,12 +129,21 @@ test.each([false, true])(
     const badges = screen.getByTestId(`activity-badges-${dateKey(new Date())}`);
     const workout = within(badges).getByTestId(`plans-${dateKey(new Date())}`);
     const climb = within(badges).getByTestId(`climbs-${dateKey(new Date())}`);
+    expect(within(workout).queryByTestId(`plans-${dateKey(new Date())}-count`)).toBeNull();
+    expect(within(climb).queryByTestId(`climbs-${dateKey(new Date())}-count`)).toBeNull();
     expect(StyleSheet.flatten(badges.props.style)).toMatchObject({
       flexDirection: 'row',
       left: desktop ? 5 : 1,
       bottom: desktop ? 6 : 2,
     });
-    expect(StyleSheet.flatten(climb.props.style)).toEqual(StyleSheet.flatten(workout.props.style));
+    const { backgroundColor: climbBackground, ...climbLayout } = StyleSheet.flatten(
+      climb.props.style,
+    );
+    const { backgroundColor: workoutBackground, ...workoutLayout } = StyleSheet.flatten(
+      workout.props.style,
+    );
+    expect(climbLayout).toEqual(workoutLayout);
+    expect(workoutBackground).not.toBe(climbBackground);
     expect(StyleSheet.flatten(climb.props.style)).toMatchObject({
       width: desktop ? 24 : 15,
       height: desktop ? 24 : 15,
@@ -222,6 +235,10 @@ test.each(['InProgress', 'Completed'])(
     expect(screen.queryByRole('button', { name: 'Remove Push' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Add rest day' })).toBeDisabled();
     expect(screen.getByRole('button', { name: /workout logged/ })).toBeTruthy();
+    expect(screen.getByTestId(`plans-${plan.date}`).props.accessibilityLabel).toBe(
+      `Workout: ${status === 'InProgress' ? 'In progress' : 'Completed'}`,
+    );
+    expect(screen.queryByTestId(`logged-${plan.date}`)).toBeNull();
     await fireEventAsync.press(screen.getByRole('button', { name: 'Remove log for Push' }));
     await fireEventAsync.press(screen.getByRole('button', { name: 'Keep log' }));
     expect(mockApi.deleteWorkoutLog).not.toHaveBeenCalled();
@@ -231,6 +248,9 @@ test.each(['InProgress', 'Completed'])(
     await waitFor(() => expect(mockApi.deleteWorkoutLog).toHaveBeenCalledWith(2));
     await screen.findByRole('button', { name: 'Remove Push' });
     expect(screen.queryByRole('button', { name: /workout logged/ })).toBeNull();
+    expect(screen.getByTestId(`plans-${plan.date}`).props.accessibilityLabel).toBe(
+      'Workout: Planned',
+    );
     expect(mockApi.deleteScheduledWorkout).not.toHaveBeenCalled();
   },
 );

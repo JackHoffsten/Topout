@@ -94,8 +94,9 @@ export function ExerciseList() {
           />
         ))}
         <Button
-          title={showFilters ? 'Hide filters' : 'Filters'}
-          variant="secondary"
+          title="Filters"
+          variant={showFilters ? 'primary' : 'secondary'}
+          selected={showFilters}
           onPress={() => setShowFilters(!showFilters)}
         />
       </View>
@@ -105,7 +106,8 @@ export function ExerciseList() {
             {filters.muscle!.map(muscleLabel).join(', ')}
           </Label>
           <Button
-            title="Reset filters"
+            title="Clear"
+            accessibilityLabel="Reset filters"
             variant="secondary"
             onPress={() => {
               setFilters({});
@@ -140,14 +142,16 @@ export function ExerciseList() {
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             <Button
-              title="Apply filters"
+              title="Apply"
+              accessibilityLabel="Apply filters"
               onPress={() => {
                 setFilters(draft);
                 setShowFilters(false);
               }}
             />
             <Button
-              title="Clear filters"
+              title="Clear"
+              accessibilityLabel="Clear filters"
               variant="secondary"
               onPress={() => {
                 setFilters({});

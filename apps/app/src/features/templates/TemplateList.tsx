@@ -25,6 +25,7 @@ import { ListHeader } from '../../ui/components/ListHeader';
 import { TotalCard } from '../../ui/components/TotalCard';
 import { tokens, useTheme } from '../../ui/theme';
 import { templatesKey, useTemplates } from './queries';
+import { useAutoScroll } from '../../ui/useAutoScroll';
 
 function TargetValues({
   target,
@@ -53,6 +54,7 @@ function TargetValues({
 }
 
 export function TemplateList() {
+  const autoScroll = useAutoScroll();
   const c = useTheme();
   const query = useTemplates();
   const { api } = useSession();
@@ -106,7 +108,7 @@ export function TemplateList() {
   });
 
   return (
-    <Page>
+    <Page scrollRef={autoScroll.scrollRef} onContentSizeChange={autoScroll.onContentSizeChange}>
       <ListHeader title="Workout templates" action="New template" href="/templates/new" />
       <TotalCard label="TOTAL TEMPLATES" count={query.data?.length} />
       <Field
@@ -130,8 +132,9 @@ export function TemplateList() {
           />
         ))}
         <Button
-          title={showFilters ? 'Hide filters' : 'Filters'}
-          variant="secondary"
+          title="Filters"
+          variant={showFilters ? 'primary' : 'secondary'}
+          selected={showFilters}
           onPress={() => setShowFilters(!showFilters)}
         />
       </View>
@@ -141,7 +144,8 @@ export function TemplateList() {
             {filters.muscle!.map(muscleLabel).join(', ')}
           </Label>
           <Button
-            title="Reset filters"
+            title="Clear"
+            accessibilityLabel="Reset filters"
             variant="secondary"
             onPress={() => {
               setFilters({});
@@ -176,14 +180,16 @@ export function TemplateList() {
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             <Button
-              title="Apply filters"
+              title="Apply"
+              accessibilityLabel="Apply filters"
               onPress={() => {
                 setFilters(draft);
                 setShowFilters(false);
               }}
             />
             <Button
-              title="Clear filters"
+              title="Clear"
+              accessibilityLabel="Clear filters"
               variant="secondary"
               onPress={() => {
                 setFilters({});
@@ -217,13 +223,21 @@ export function TemplateList() {
         <>
           {!results.length && <Label muted>No templates match these filters.</Label>}
           {results.map((template) => (
-            <Card key={template.id}>
+            <Card
+              key={template.id}
+              onLayout={(event) =>
+                autoScroll.register(String(template.id), event.nativeEvent.layout.y)
+              }
+            >
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${expanded === template.id ? 'Collapse' : 'Expand'} template ${template.name}`}
                 accessibilityState={{ expanded: expanded === template.id }}
                 aria-expanded={expanded === template.id}
-                onPress={() => setExpanded(expanded === template.id ? undefined : template.id)}
+                onPress={() => {
+                  if (expanded !== template.id) autoScroll.reveal(String(template.id));
+                  setExpanded(expanded === template.id ? undefined : template.id);
+                }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
               >
                 <View style={{ flex: 1, minWidth: 0, gap: 8 }}>

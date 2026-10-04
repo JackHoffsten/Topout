@@ -40,6 +40,11 @@ export const light = {
   error: '#AD0707',
   errorBg: '#FDEDED',
   focus: '#0069CC',
+  workoutStatus: {
+    Planned: { color: '#0069CC', background: '#E7F2FF' },
+    InProgress: { color: '#8A5700', background: '#FFF2D5' },
+    Completed: { color: '#16733C', background: '#E4F5EA' },
+  },
   syntax: {
     name: '#795E26',
     number: '#098658',
@@ -64,6 +69,11 @@ export const dark = {
   error: '#F48771',
   errorBg: '#3A1D1D',
   focus: '#3994BC',
+  workoutStatus: {
+    Planned: { color: '#6CB6FF', background: '#182D42' },
+    InProgress: { color: '#E9B949', background: '#382D18' },
+    Completed: { color: '#73C991', background: '#193426' },
+  },
   syntax: {
     name: '#DCDCAA',
     number: '#B5CEA8',
