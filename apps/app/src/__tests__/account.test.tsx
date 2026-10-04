@@ -48,6 +48,8 @@ test('a rejected deletion shows the error and allows another attempt', async () 
 test('public privacy and support pages can render without a session', async () => {
   const result = await render(<PublicInfo privacy />);
   expect(screen.getByRole('header', { name: 'Privacy policy' })).toBeTruthy();
+  expect(screen.getByText(/configured retention period of 14\s+days/)).toBeTruthy();
+  expect(screen.queryByText(/no configured database backup job/)).toBeNull();
   expect(screen.getByText(/jack.hoffsten@hotmail.se/)).toBeTruthy();
   await result.rerenderAsync(<PublicInfo />);
   expect(screen.getByRole('button', { name: 'Email support' })).toBeTruthy();

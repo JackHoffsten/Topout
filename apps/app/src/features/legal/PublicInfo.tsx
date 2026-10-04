@@ -43,9 +43,15 @@ export function PublicInfo({ privacy = false }: { privacy?: boolean }) {
           <Label>
             Your account and training records are kept while your account exists. You can delete
             them in Account → Delete account after confirming your password. This removes your
-            active database records and invalidates your sessions. Topout currently has no
-            configured database backup job. If recovery copies are introduced, this policy will be
-            updated with their retention and deletion handling.
+            active database records and invalidates your sessions.
+          </Label>
+          <Label>
+            Encrypted database backups are created daily and stored on the same server with
+            root-only access. Backups have a configured retention period of 14 days. Older copies
+            are removed after a successful backup; a backup failure may delay their removal. Deleted
+            records may remain in these isolated recovery copies until they expire. Backups are used
+            for recovery, not routine access. Restoring a backup requires reapplying account
+            deletions before recovered data is returned to service.
           </Label>
           <Heading>Sessions</Heading>
           <Label>
