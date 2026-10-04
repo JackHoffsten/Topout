@@ -20,7 +20,7 @@ import { Button } from '../../ui/components/Button';
 import { Card } from '../../ui/components/Card';
 import { Label } from '../../ui/components/Label';
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog';
-import { Field } from '../../ui/components/Field';
+import { SearchField } from '../../ui/components/SearchField';
 import { ListHeader } from '../../ui/components/ListHeader';
 import { TotalCard } from '../../ui/components/TotalCard';
 import { tokens, useTheme } from '../../ui/theme';
@@ -111,7 +111,8 @@ export function TemplateList() {
     <Page scrollRef={autoScroll.scrollRef} onContentSizeChange={autoScroll.onContentSizeChange}>
       <ListHeader title="Workout templates" action="New template" href="/templates/new" />
       <TotalCard label="TOTAL TEMPLATES" count={query.data?.length} />
-      <Field
+      <SearchField
+        scrollRef={autoScroll.scrollRef}
         label="Search templates"
         placeholder="Search by template or exercise name"
         value={search}

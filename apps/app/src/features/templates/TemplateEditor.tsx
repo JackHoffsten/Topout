@@ -23,6 +23,7 @@ import { Field } from '../../ui/components/Field';
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog';
 import { tokens, useDesktop, useTheme } from '../../ui/theme';
 import { useAutoScroll } from '../../ui/useAutoScroll';
+import { SearchField } from '../../ui/components/SearchField';
 import { useExercises } from '../exercises/queries';
 import { ExerciseForm } from '../exercises/ExerciseEditor';
 import { templatesKey } from './queries';
@@ -236,7 +237,8 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
       )}
       {dropdown && !creatingExercise && (
         <View style={{ gap: 12 }}>
-          <Field
+          <SearchField
+            scrollRef={autoScroll.scrollRef}
             label="Search exercises"
             placeholder="Name or muscle group"
             value={search}
@@ -257,7 +259,11 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
             </>
           ) : (
             <>
-              <ScrollView style={{ maxHeight: 240 }} keyboardShouldPersistTaps="handled">
+              <ScrollView
+                style={{ maxHeight: 240 }}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
                 {exercises.data
                   .filter(
                     (e) =>

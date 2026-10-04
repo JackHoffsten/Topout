@@ -10,7 +10,6 @@ import { Button } from '../../ui/components/Button';
 import { Card } from '../../ui/components/Card';
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog';
 import { ErrorNotice } from '../../ui/components/ErrorNotice';
-import { Field } from '../../ui/components/Field';
 import { Heading } from '../../ui/components/Heading';
 import { Label } from '../../ui/components/Label';
 import { Loading } from '../../ui/components/Loading';
@@ -20,6 +19,7 @@ import { useTemplates } from '../templates/queries';
 import { dateKey, monthDays } from './calendar';
 import { ClimbingDay } from '../climbing/ClimbingDay';
 import { useAutoScroll } from '../../ui/useAutoScroll';
+import { SearchField } from '../../ui/components/SearchField';
 
 const scheduleKey = ['workout-schedule'];
 export function CalendarScreen() {
@@ -457,7 +457,8 @@ export function CalendarScreen() {
                 </>
               ) : (
                 <>
-                  <Field
+                  <SearchField
+                    scrollRef={autoScroll.scrollRef}
                     label="Search templates"
                     value={search}
                     onChangeText={setSearch}

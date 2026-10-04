@@ -41,7 +41,10 @@ export function Field({
           secureTextEntry={password && !visible}
           placeholderTextColor={c.muted}
           selectionColor={c.focus}
-          onFocus={() => setFocused(true)}
+          onFocus={(event) => {
+            setFocused(true);
+            props.onFocus?.(event);
+          }}
           onBlur={(e) => {
             setFocused(false);
             props.onBlur?.(e);

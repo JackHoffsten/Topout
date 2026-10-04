@@ -19,7 +19,8 @@ import { ListHeader } from '../../ui/components/ListHeader';
 import { TotalCard } from '../../ui/components/TotalCard';
 import { Label } from '../../ui/components/Label';
 import { Card } from '../../ui/components/Card';
-import { Field } from '../../ui/components/Field';
+import { SearchField } from '../../ui/components/SearchField';
+import { useAutoScroll } from '../../ui/useAutoScroll';
 import { Loading } from '../../ui/components/Loading';
 import { ErrorNotice } from '../../ui/components/ErrorNotice';
 import { Button } from '../../ui/components/Button';
@@ -28,6 +29,7 @@ import { tokens, useDesktop, useTheme } from '../../ui/theme';
 import { exercisesKey, useExercises } from './queries';
 
 export function ExerciseList() {
+  const autoScroll = useAutoScroll();
   const c = useTheme();
   const wide = useDesktop();
   const { api } = useSession();
@@ -70,10 +72,11 @@ export function ExerciseList() {
     });
 
   return (
-    <Page>
+    <Page scrollRef={autoScroll.scrollRef} onContentSizeChange={autoScroll.onContentSizeChange}>
       <ListHeader title="Exercises" action="New exercise" href="/exercises/new" />
       <TotalCard label="TOTAL EXERCISES" count={query.data?.length} />
-      <Field
+      <SearchField
+        scrollRef={autoScroll.scrollRef}
         label="Search exercises"
         placeholder="Search by name or muscle group"
         value={search}
