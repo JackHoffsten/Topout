@@ -1,17 +1,21 @@
-import React from 'react';
-import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, usePathname } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Brand } from './components/Brand';
+import { NavigationContent } from './NavigationContent';
+import { useNavigationDismiss } from './useNavigationDismiss';
 import { tokens, useDesktop, useTheme } from './theme';
 
 export function Shell({ children }: React.PropsWithChildren) {
   const wide = useDesktop();
-  const { width } = useWindowDimensions();
-  const showLabels = wide || width >= 360;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = () => setMenuOpen(false);
+  useNavigationDismiss(menuOpen && !wide, closeMenu);
   const c = useTheme();
   const path = usePathname();
+  useEffect(() => setMenuOpen(false), [path, wide]);
   const links = [
     { href: '/calendar' as const, label: 'Calendar', icon: 'calendar' as const },
     { href: '/progress' as const, label: 'Progress', icon: 'trending-up' as const },
@@ -24,12 +28,11 @@ export function Shell({ children }: React.PropsWithChildren) {
     <View
       testID={wide ? 'desktop-navigation' : 'phone-navigation'}
       style={{
-        flexDirection: wide ? 'column' : 'row',
-        padding: wide ? 16 : 8,
-        gap: wide ? 8 : 2,
+        flexDirection: 'column',
+        padding: 16,
+        gap: 8,
         backgroundColor: c.chrome,
         borderColor: c.line,
-        borderTopWidth: wide ? 0 : 1,
       }}
     >
       {links.map((item) => (
@@ -38,15 +41,15 @@ export function Shell({ children }: React.PropsWithChildren) {
             accessibilityRole="link"
             accessibilityLabel={item.label}
             accessibilityState={{ selected: path.startsWith(item.href) }}
+            onPress={closeMenu}
             style={{
-              flex: wide ? undefined : 1,
               minWidth: 0,
               minHeight: 52,
-              flexDirection: wide ? 'row' : 'column',
+              flexDirection: 'row',
               alignItems: 'center',
-              justifyContent: wide ? 'flex-start' : 'center',
+              justifyContent: 'flex-start',
               gap: 8,
-              padding: wide ? 12 : 4,
+              padding: 12,
               borderRadius: tokens.radius.sm,
               backgroundColor: path.startsWith(item.href) ? c.soft : 'transparent',
             }}
@@ -62,37 +65,24 @@ export function Shell({ children }: React.PropsWithChildren) {
               }}
             >
               {item.href === '/templates' ? (
-                <View
-                  accessible={false}
-                  style={{ width: 20, height: 20, justifyContent: 'center', gap: 4 }}
-                >
-                  {[0, 1, 2].map((row) => (
-                    <View key={row} style={{ flexDirection: 'row', gap: 4 }}>
-                      <View
-                        style={{ width: 2, height: 2, borderRadius: 1, backgroundColor: c.ink }}
-                      />
-                      <View
-                        style={{ width: 14, height: 2, borderRadius: 1, backgroundColor: c.ink }}
-                      />
-                    </View>
-                  ))}
-                </View>
+                <Feather name="list" size={20} color={c.ink} />
+              ) : item.href === '/climbs' ? (
+                <MaterialCommunityIcons name="terrain" size={22} color={c.ink} />
               ) : (
                 <Feather name={item.icon} size={20} color={c.ink} />
               )}
             </View>
-            {showLabels && (
-              <Text
-                style={{
-                  color: c.ink,
-                  fontSize: wide ? 14 : 10,
-                  fontWeight: '500',
-                  fontFamily: tokens.font,
-                }}
-              >
-                {item.label}
-              </Text>
-            )}
+            <Text
+              numberOfLines={1}
+              style={{
+                color: c.ink,
+                fontSize: 14,
+                fontWeight: '500',
+                fontFamily: tokens.font,
+              }}
+            >
+              {item.label}
+            </Text>
           </Pressable>
         </Link>
       ))}
@@ -111,18 +101,66 @@ export function Shell({ children }: React.PropsWithChildren) {
           </View>
         ) : (
           <View
+            testID="phone-navigation-header"
             style={{
               paddingHorizontal: 24,
               paddingVertical: 14,
               borderBottomWidth: 1,
               borderColor: c.line,
+              backgroundColor: c.chrome,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+              justifyContent: 'space-between',
             }}
           >
             <Brand />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={menuOpen ? 'Close navigation' : 'Open navigation'}
+              accessibilityState={{ expanded: menuOpen }}
+              onPress={() => setMenuOpen((open) => !open)}
+              style={({ pressed }) => ({
+                width: 44,
+                height: 44,
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderRadius: tokens.radius.sm,
+                backgroundColor: pressed ? c.soft : 'transparent',
+              })}
+            >
+              <Feather name={menuOpen ? 'x' : 'menu'} size={24} color={c.ink} />
+            </Pressable>
           </View>
         )}
-        <View style={{ flex: 1, minWidth: 0 }}>{children}</View>
-        {!wide && navigation}
+        <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+          <NavigationContent blocked={menuOpen && !wide}>{children}</NavigationContent>
+          {!wide && menuOpen && (
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                { flexDirection: 'row', backgroundColor: '#00000066' },
+              ]}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss navigation"
+                style={{ flex: 1 }}
+                onPress={closeMenu}
+              />
+              <View
+                onAccessibilityEscape={closeMenu}
+                style={{
+                  width: '85%',
+                  maxWidth: 320,
+                  backgroundColor: c.chrome,
+                }}
+              >
+                <ScrollView>{navigation}</ScrollView>
+              </View>
+            </View>
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );

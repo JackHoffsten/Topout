@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { navigate } from './navigation';
 
 test('template CRUD persists targets, supports keyboard reordering and protects referenced exercises', async ({
   page,
@@ -15,7 +16,7 @@ test('template CRUD persists targets, supports keyboard reordering and protects 
     .filter({ visible: true })
     .fill('StrongPassword123!');
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
-  await page.getByRole('link', { name: 'Templates', exact: true }).click();
+  await navigate(page, 'Templates');
   await expect(page.getByText('No templates', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'New template' }).click();
   await page.getByLabel('Template name', { exact: true }).fill('Pull');
@@ -89,14 +90,14 @@ test('template CRUD persists targets, supports keyboard reordering and protects 
   await page.getByLabel('Template name', { exact: true }).fill('Pull updated');
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Pull updated', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Exercises', exact: true }).click();
+  await navigate(page, 'Exercises');
   await page.getByRole('button', { name: 'Delete Barbell Row', exact: true }).click();
   await page.getByRole('button', { name: 'Delete exercise', exact: true }).click();
   await expect(
     page.getByText('This exercise is used by a workout template or log.', { exact: true }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Keep exercise', exact: true }).click();
-  await page.getByRole('link', { name: 'Templates', exact: true }).click();
+  await navigate(page, 'Templates');
   await page.getByRole('button', { name: 'Expand template Pull updated', exact: true }).click();
   await page.getByRole('button', { name: 'Delete Pull updated', exact: true }).click();
   await page.getByRole('button', { name: 'Delete template', exact: true }).click();

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { navigate } from './navigation';
 
 test('logs actual sets, completes the calendar plan, and restores the workout record', async ({
   page,
@@ -14,7 +15,7 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
     .filter({ visible: true })
     .fill('StrongPassword123!');
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
-  await page.getByRole('link', { name: 'Templates', exact: true }).click();
+  await navigate(page, 'Templates');
   await page.getByRole('link', { name: 'New template', exact: true }).click();
   await page.getByLabel('Template name', { exact: true }).fill('Pull');
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click();
@@ -34,7 +35,7 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
   await page.getByRole('button', { name: 'Expand template Pull', exact: true }).click();
   await expect(page.getByText('Left: 8 reps (20 kg)', { exact: true })).toBeVisible();
   await expect(page.getByText('Right: 9 reps (22.5 kg)', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Calendar', exact: true }).click();
+  await navigate(page, 'Calendar');
   await page.getByRole('button', { name: 'Plan workout', exact: true }).click();
   await page.getByRole('button', { name: 'Schedule Pull', exact: true }).click();
   await page.getByRole('link', { name: 'Log workout', exact: true }).click();

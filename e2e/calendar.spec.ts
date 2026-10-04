@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { navigate } from './navigation';
 
 test('square cells and activity badges fit phone, tablet, and desktop widths', async ({
   page,
@@ -119,12 +120,12 @@ test('calendar schedules templates and rest days, restores and removes plans', a
     .fill('StrongPassword123!');
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Calendar', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Templates', exact: true }).click();
+  await navigate(page, 'Templates');
   await page.getByRole('link', { name: 'New template', exact: true }).click();
   await page.getByLabel('Template name', { exact: true }).fill('Push');
   await page.getByRole('button', { name: 'Create template', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Push', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Calendar', exact: true }).click();
+  await navigate(page, 'Calendar');
   await expect(page.getByText('No workouts planned.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Plan workout', exact: true }).click();
   await page.getByLabel('Search templates', { exact: true }).fill('Push');

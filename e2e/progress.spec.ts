@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { navigate } from './navigation';
 
 test('progress overview and exercise/climbing graphs work on phone and desktop', async ({
   page,
@@ -23,7 +24,7 @@ test('progress overview and exercise/climbing graphs work on phone and desktop',
   ]);
   const { accessToken } = await registration.json();
   const headers = { Authorization: `Bearer ${accessToken}` };
-  await page.getByRole('link', { name: 'Progress', exact: true }).click();
+  await navigate(page, 'Progress');
   await expect(page.getByText('No logged activity in this period.', { exact: true })).toBeVisible();
   const exerciseResponse = await page.request.post('/api/exercises', {
     headers,
@@ -152,7 +153,9 @@ test('progress overview and exercise/climbing graphs work on phone and desktop',
   await page.screenshot({ path: info.outputPath('progress-dark.png') });
   if (info.project.name === 'phone') {
     await page.setViewportSize({ width: 320, height: 844 });
+    await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
     await expect(page.getByRole('link', { name: 'Progress', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Close navigation', exact: true }).click();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
     ).toBe(false);

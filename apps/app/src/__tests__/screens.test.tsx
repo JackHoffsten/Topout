@@ -30,11 +30,15 @@ jest.mock('expo-router', () => ({
   usePathname: () => '/exercises',
 }));
 
-jest.mock('@expo/vector-icons', () => ({ Feather: () => null }));
+jest.mock('@expo/vector-icons', () => ({
+  Feather: () => null,
+  MaterialCommunityIcons: () => null,
+}));
 
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: require('react-native').View }));
 
 beforeEach(() => {
+  jest.restoreAllMocks();
   jest.clearAllMocks();
   mockDesktop = false;
 });
@@ -58,12 +62,14 @@ test('login submits valid credentials and shows server failure', async () => {
   await screen.findByText('Could not connect. Check your connection and try again.');
 });
 
-test('navigation adapts from phone tabs to desktop sidebar', async () => {
+test('phone navigation opens from a hamburger, closes after selection, and adapts to desktop', async () => {
   const rendered = await render(
     <Shell>
       <Text>Content</Text>
     </Shell>,
   );
+  expect(screen.queryByTestId('phone-navigation')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Open navigation' }));
   expect(screen.getByTestId('phone-navigation')).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Progress' })).toBeTruthy();
   for (const label of ['calendar', 'progress', 'climbs', 'templates', 'exercises', 'account']) {
@@ -73,6 +79,21 @@ test('navigation adapts from phone tabs to desktop sidebar', async () => {
       flexShrink: 0,
     });
   }
+  await fireEvent.press(screen.getByRole('link', { name: 'Templates' }));
+  expect(screen.queryByTestId('phone-navigation')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Open navigation' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Close navigation' }));
+  expect(screen.queryByTestId('phone-navigation')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Open navigation' }));
+  expect(screen.getByTestId('phone-navigation')).toBeTruthy();
+  for (let i = 0; i < 5; i++) {
+    await fireEvent.press(screen.getByRole('button', { name: 'Close navigation' }));
+    expect(screen.queryByTestId('phone-navigation')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Open navigation' }));
+    expect(screen.getByTestId('phone-navigation')).toBeTruthy();
+  }
+  await fireEvent.press(screen.getByRole('button', { name: 'Dismiss navigation' }));
+  expect(screen.queryByTestId('phone-navigation')).toBeNull();
   mockDesktop = true;
   await rendered.rerenderAsync(
     <Shell>
@@ -81,4 +102,5 @@ test('navigation adapts from phone tabs to desktop sidebar', async () => {
   );
   expect(screen.getByTestId('desktop-navigation')).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Progress' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull();
 });

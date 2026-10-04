@@ -16,7 +16,8 @@ export function Page({
       ref={scrollRef}
       onContentSizeChange={onContentSizeChange}
       keyboardShouldPersistTaps="handled"
-      style={{ flex: 1, backgroundColor: c.bg }}
+      showsVerticalScrollIndicator
+      style={{ flex: 1, minHeight: 0, backgroundColor: c.bg }}
       contentContainerStyle={{
         padding: 24,
         paddingBottom: 40,

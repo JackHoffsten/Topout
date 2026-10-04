@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { navigate } from './navigation';
 test('registration, restoration, exercise CRUD, keyboard access, and logout', async ({
   page,
   context,
@@ -28,11 +29,24 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
     .fill('StrongPassword123!');
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Calendar', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Exercises', exact: true }).click();
+  await navigate(page, 'Exercises');
   await expect(page.getByRole('heading', { name: 'Exercises', exact: true })).toBeVisible();
   await expect(
-    page.getByTestId(info.project.name === 'phone' ? 'phone-navigation' : 'desktop-navigation'),
+    page.getByTestId(
+      info.project.name === 'phone' ? 'phone-navigation-header' : 'desktop-navigation',
+    ),
   ).toBeVisible();
+  if (info.project.name === 'phone') {
+    for (let i = 0; i < 5; i++) {
+      await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
+      await expect(page.getByTestId('phone-navigation')).toBeVisible();
+      await page.getByRole('button', { name: 'Close navigation', exact: true }).click();
+      await expect(page.getByTestId('phone-navigation')).toBeHidden();
+    }
+    await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('phone-navigation')).toBeHidden();
+  }
   const refresh = (await context.cookies()).find((c) => c.name === '__Secure-topout-refresh');
   expect(refresh).toMatchObject({
     httpOnly: true,
@@ -110,7 +124,9 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
   await page.bringToFront();
   await page.emulateMedia({ colorScheme: 'dark' });
   await expect(
-    page.getByTestId(info.project.name === 'phone' ? 'phone-navigation' : 'desktop-navigation'),
+    page.getByTestId(
+      info.project.name === 'phone' ? 'phone-navigation-header' : 'desktop-navigation',
+    ),
   ).toHaveCSS('background-color', 'rgb(25, 26, 27)');
   await page.screenshot({
     path: test.info().outputPath('exercise-library-dark.png'),
@@ -120,7 +136,7 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
   await page.getByRole('button', { name: 'Delete Updated pull-up' }).click();
   await page.getByRole('button', { name: 'Delete exercise', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'No exercises found' })).toBeVisible();
-  await page.getByRole('link', { name: 'Account', exact: true }).click();
+  await navigate(page, 'Account');
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/login/);
   await expect(otherTab).toHaveURL(/login/);
@@ -133,7 +149,7 @@ test('registration, restoration, exercise CRUD, keyboard access, and logout', as
     .fill('StrongPassword123!');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Calendar', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Exercises', exact: true }).click();
+  await navigate(page, 'Exercises');
   await expect(page.getByRole('heading', { name: 'Exercises', exact: true })).toBeVisible();
   await expect(page.getByText('Updated pull-up', { exact: true })).toHaveCount(0);
 });

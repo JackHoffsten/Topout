@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { navigate } from './navigation';
 
 test('calendar links load older history pages and scroll to the climb without moving it', async ({
   page,
@@ -54,7 +55,7 @@ test('calendar links load older history pages and scroll to the climb without mo
   await expect(rows.last()).toHaveAccessibleName('Collapse climb Older target');
   await expect(rows.first()).not.toBeInViewport();
   await rows.first().scrollIntoViewIfNeeded();
-  await page.getByRole('link', { name: 'Calendar', exact: true }).click();
+  await navigate(page, 'Calendar');
   await page.getByRole('button', { name: /, 1 climb logged$/ }).click();
   await page.getByRole('link', { name: 'View climb Older target', exact: true }).click();
   await expect(target).toBeInViewport();
@@ -74,9 +75,9 @@ test('logs multiple climbs, restores, edits and deletes them from the calendar',
     .filter({ visible: true })
     .fill('StrongPassword123!');
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
-  await page.getByRole('link', { name: 'Calendar', exact: true }).click();
+  await navigate(page, 'Calendar');
   await expect(page.getByText('No climbs logged.', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Climbs', exact: true }).click();
+  await navigate(page, 'Climbs');
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   const actions = page.getByTestId('climb-filter-actions');
   const originalViewport = page.viewportSize()!;
@@ -95,7 +96,7 @@ test('logs multiple climbs, restores, edits and deletes them from the calendar',
   await page.setViewportSize(originalViewport);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(actions).toHaveCount(0);
-  await page.getByRole('link', { name: 'Calendar', exact: true }).click();
+  await navigate(page, 'Calendar');
   for (const grade of ['7A', '7B']) {
     await page.getByRole('button', { name: 'Log climb', exact: true }).click();
     await expect(page).toHaveURL(/\/climbs\/new\?date=/);
@@ -128,7 +129,7 @@ test('logs multiple climbs, restores, edits and deletes them from the calendar',
   await expect(page.getByRole('button', { name: /2 climbs logged/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add rest day', exact: true })).toBeDisabled();
   await page.reload();
-  await page.getByRole('link', { name: 'Climbs', exact: true }).click();
+  await navigate(page, 'Climbs');
   await expect(page.getByRole('heading', { name: 'Climbs', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Log climb', exact: true }).click();
   await expect(page).toHaveURL(/\/climbs\/new\?returnTo=climbs/);
@@ -168,7 +169,7 @@ test('logs multiple climbs, restores, edits and deletes them from the calendar',
   await expect(page.getByRole('button', { name: /^Expand climb/ })).toHaveCount(1);
   await page.getByLabel('Search name or location', { exact: true }).fill('');
   await expect(page.getByRole('button', { name: /^Expand climb/ })).toHaveCount(2);
-  await page.getByRole('link', { name: 'Calendar', exact: true }).click();
+  await navigate(page, 'Calendar');
   await page.getByRole('link', { name: 'View climb Problem 7A', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Climbs', exact: true })).toBeVisible();
   await expect(
@@ -225,7 +226,7 @@ test('logs multiple climbs, restores, edits and deletes them from the calendar',
     ).toHaveCount(0);
   }
   await expect(page.getByText('No climbs logged.', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Calendar', exact: true }).click();
+  await navigate(page, 'Calendar');
   await page.getByRole('button', { name: 'Add rest day', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Log climb', exact: true })).toBeDisabled();
   await expect(
