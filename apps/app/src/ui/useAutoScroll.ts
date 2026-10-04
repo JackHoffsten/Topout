@@ -36,7 +36,11 @@ export function useAutoScroll() {
       flush();
     },
     reveal: (key: string, enabled = !wide) => {
-      if (enabled) pending.current = key;
+      pending.current = enabled ? key : undefined;
+      if (!enabled && frame.current !== undefined) {
+        cancelAnimationFrame(frame.current);
+        frame.current = undefined;
+      }
     },
   };
 }

@@ -96,8 +96,8 @@ export function CalendarScreen() {
       await cache.invalidateQueries({ queryKey: scheduleKey });
     },
   });
-  const selectDate = (date: Date) => {
-    autoScroll.reveal('day', !sideBySide);
+  const selectDate = (date: Date, revealDetails = true) => {
+    autoScroll.reveal('day', revealDetails && !sideBySide);
     setSelected(dateKey(date));
     setMonth(new Date(date.getFullYear(), date.getMonth(), 1));
     setPicker(false);
@@ -131,7 +131,9 @@ export function CalendarScreen() {
               accessibilityLabel="Previous month"
               variant="secondary"
               disabled={create.isPending}
-              onPress={() => selectDate(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+              onPress={() =>
+                selectDate(new Date(month.getFullYear(), month.getMonth() - 1, 1), false)
+              }
             />
             <Text
               style={{
@@ -147,7 +149,9 @@ export function CalendarScreen() {
               accessibilityLabel="Next month"
               variant="secondary"
               disabled={create.isPending}
-              onPress={() => selectDate(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+              onPress={() =>
+                selectDate(new Date(month.getFullYear(), month.getMonth() + 1, 1), false)
+              }
             />
           </View>
           <View style={{ alignSelf: 'flex-start' }}>
