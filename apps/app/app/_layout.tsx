@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { useFonts, FontDisplay } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,12 +9,15 @@ export const unstable_settings = { initialRouteName: 'index' };
 
 function Routes() {
   const { status } = useSession();
-  if (status === 'restoring') return <Loading />;
+  const path = usePathname();
+  if (status === 'restoring' && path !== '/privacy' && path !== '/support') return <Loading />;
   return (
     <>
       <StatusBar style="auto" />
       <Stack initialRouteName="index" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="privacy" />
+        <Stack.Screen name="support" />
         <Stack.Protected guard={status === 'anonymous'}>
           <Stack.Screen name="(auth)" />
         </Stack.Protected>

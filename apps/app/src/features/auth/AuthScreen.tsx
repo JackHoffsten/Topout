@@ -191,6 +191,16 @@ export function AuthScreen({ register = false }: { register?: boolean }) {
                   </Link>
                 </View>
               </Card>
+              <View
+                style={{ flexDirection: 'row', justifyContent: 'center', gap: 20, paddingTop: 16 }}
+              >
+                <Link href="/privacy" style={{ color: c.primary, fontFamily: tokens.font }}>
+                  Privacy policy
+                </Link>
+                <Link href="/support" style={{ color: c.primary, fontFamily: tokens.font }}>
+                  Support
+                </Link>
+              </View>
             </View>
           </View>
         </ScrollView>

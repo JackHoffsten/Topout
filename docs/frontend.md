@@ -58,6 +58,13 @@ deletion, store listing, and App Review requirements. TestFlight setup is not a 
 
 See the [Expo iOS submission guide](https://docs.expo.dev/submit/ios/).
 
+The public pages are `/privacy` and `/support`; after web deployment use
+`https://topout.jackhoffsten.se/privacy` and `https://topout.jackhoffsten.se/support`
+in App Store Connect. Confirm the policy matches production operations before submitting.
+Account deletion is under Account, requires the current password, and permanently removes
+the account and its training records. Test with a disposable account, not a real one.
+Backend changes must be deployed before uploading the new app build.
+
 ## API connection
 
 Override the API origin with `EXPO_PUBLIC_API_URL` in `apps/app/.env.local`:

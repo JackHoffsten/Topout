@@ -2,7 +2,12 @@ import React, { createContext, useContext, useEffect, useState, useSyncExternalS
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { api, listenForLogout, broadcastLogout } from './session';
 import { ApiError } from '@topout/shared';
-const SessionContext = createContext({ api, status: api.getStatus(), logout: async () => {} });
+const SessionContext = createContext({
+  api,
+  status: api.getStatus(),
+  logout: async () => {},
+  deleteAccount: async (_password: string) => {},
+});
 export function Providers({ children }: React.PropsWithChildren) {
   const [query] = useState(
     () =>
@@ -35,7 +40,20 @@ export function Providers({ children }: React.PropsWithChildren) {
   };
   return (
     <QueryClientProvider client={query}>
-      <SessionContext.Provider value={{ api, status, logout }}>{children}</SessionContext.Provider>
+      <SessionContext.Provider
+        value={{
+          api,
+          status,
+          logout,
+          deleteAccount: async (password: string) => {
+            await api.deleteAccount(password);
+            query.clear();
+            broadcastLogout();
+          },
+        }}
+      >
+        {children}
+      </SessionContext.Provider>
     </QueryClientProvider>
   );
 }
