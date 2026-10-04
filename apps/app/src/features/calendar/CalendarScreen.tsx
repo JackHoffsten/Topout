@@ -598,7 +598,16 @@ function CalendarBadge({
 }) {
   const c = useTheme();
   const iconSize = Math.round(size * 0.68);
-  const countSize = Math.max(11, Math.round(size * 0.55));
+  const compactCount = size < 24;
+  const countSize = compactCount
+    ? Math.max(8, Math.round(size * 0.42))
+    : Math.max(11, Math.round(size * 0.55));
+  const countLabel =
+    compactCount && count !== undefined && count > 9
+      ? '9+'
+      : count !== undefined && count > 99
+        ? '99+'
+        : count;
   return (
     <View
       testID={testID}
@@ -638,8 +647,8 @@ function CalendarBadge({
           pointerEvents="none"
           style={{
             position: 'absolute',
-            top: -3,
-            right: -1,
+            top: compactCount ? -4 : -3,
+            right: compactCount ? -3 : -1,
             width: countSize,
             height: countSize,
             borderRadius: countSize / 2,
@@ -657,7 +666,7 @@ function CalendarBadge({
               fontWeight: '700',
             }}
           >
-            {count > 99 ? '99+' : count}
+            {countLabel}
           </Text>
         </View>
       )}

@@ -173,6 +173,48 @@ test.each([false, true])(
   },
 );
 
+test('mobile count badges stay compact and offset from the activity icon', async () => {
+  const date = dateKey(new Date());
+  mockApi.listWorkoutSchedule.mockResolvedValue(
+    [1, 2].map((id) => ({
+      id,
+      date,
+      templateId: 1,
+      templateName: 'Push',
+      isRestDay: false,
+      status: 'Planned',
+    })),
+  );
+  mockApi.listClimbLogs.mockResolvedValue(
+    Array.from({ length: 12 }, (_, id) => ({
+      id,
+      date,
+      climbingType: 'Bouldering',
+      gradeSystem: 'Font',
+      grade: '7A',
+      environment: 'Indoor',
+      attempts: 1,
+      outcome: 'Flash',
+      styles: [],
+    })),
+  );
+  await mount();
+  await screen.findByTestId(`climbs-${date}-count`);
+  for (const prefix of ['plans', 'climbs']) {
+    const icon = screen.getByTestId(`${prefix}-${date}`);
+    const badge = screen.getByTestId(`${prefix}-${date}-count`);
+    const iconSize = StyleSheet.flatten(icon.props.style).width as number;
+    const style = StyleSheet.flatten(badge.props.style);
+    expect(style.width).toBe(8);
+    expect(style.height).toBe(8);
+    expect(style.width).toBeLessThan(iconSize * 0.6);
+    expect(style.top).toBe(-4);
+    expect(style.right).toBe(-3);
+    expect(within(badge).getByText(prefix === 'plans' ? '2' : '9+')).toBeTruthy();
+  }
+  expect(screen.getByRole('button', { name: /12 climbs logged/ })).toBeTruthy();
+});
+
 test('searches templates, schedules today, and reloads saved plans', async () => {
   await mount();
   await screen.findByText('No workouts planned.');
