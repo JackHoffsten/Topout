@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IWorkoutLogRepository, WorkoutLogRepository>();
         services.AddScoped<IWorkoutTemplateRepository, WorkoutTemplateRepository>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
+        services.AddScoped<Topout.Application.Accounts.IAccountService, AccountService>();
         services.AddScoped<TokenIssuer>();
         services.AddSingleton(TimeProvider.System);
 

@@ -180,6 +180,7 @@ export class ApiClient {
     const send = () =>
       fetcher(this.baseUrl + path, {
         method,
+        ...(path === '/api/account' ? { credentials: 'include' as const } : {}),
         headers: {
           'Content-Type': 'application/json',
           ...(this.token ? { Authorization: 'Bearer ' + this.token } : {}),
@@ -204,6 +205,12 @@ export class ApiClient {
 
   listExercises() {
     return this.request('/api/exercises', exercisesSchema);
+  }
+
+  async deleteAccount(password: string) {
+    await this.renewal?.catch(() => undefined);
+    await this.request('/api/account', z.undefined(), 'DELETE', { password });
+    await this.forget();
   }
 
   getProgress(from?: string, to?: string) {

@@ -2,12 +2,14 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Topout.Api.Authentication;
 using Topout.Api.Errors;
 using Topout.Application.Abstractions;
 using Topout.Infrastructure.Identity;
+using Topout.Infrastructure.Persistence;
 
 namespace Topout.Api;
 
@@ -79,6 +81,25 @@ public static class DependencyInjection
                 {
                     var jwt = configured.Value;
                     bearer.MapInboundClaims = false;
+                    bearer.Events = new JwtBearerEvents
+                    {
+                        OnTokenValidated = async context =>
+                        {
+                            var db =
+                                context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+                            if (
+                                !int.TryParse(
+                                    context.Principal?.FindFirst("sub")?.Value,
+                                    out var userId
+                                )
+                                || !await db.Users.AnyAsync(
+                                    x => x.Id == userId,
+                                    context.HttpContext.RequestAborted
+                                )
+                            )
+                                context.Fail("This account is no longer available.");
+                        },
+                    };
                     bearer.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuer = true,

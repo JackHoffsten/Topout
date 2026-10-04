@@ -22,6 +22,39 @@ function transport(): SessionTransport {
 }
 
 describe('sessions', () => {
+  it('deletes an account and clears local credentials only after success', async () => {
+    const auth = transport();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const api = new ApiClient('', auth, fetcher);
+    await api.initialize();
+    await api.deleteAccount('StrongPassword123!');
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/account',
+      expect.objectContaining({
+        method: 'DELETE',
+        body: JSON.stringify({ password: 'StrongPassword123!' }),
+      }),
+    );
+    expect(auth.clear).toHaveBeenCalledOnce();
+    expect(api.getStatus()).toBe('anonymous');
+  });
+
+  it('keeps the session and credentials when deletion is rejected', async () => {
+    const auth = transport();
+    const api = new ApiClient(
+      '',
+      auth,
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(response({ detail: 'Your password could not be verified.' }, 400)),
+    );
+    await api.initialize();
+    await expect(api.deleteAccount('wrong')).rejects.toThrow(
+      'Your password could not be verified.',
+    );
+    expect(auth.clear).not.toHaveBeenCalled();
+    expect(api.getStatus()).toBe('authenticated');
+  });
   it('calls browser fetch without an incompatible receiver', async () => {
     const fetcher: typeof fetch = async function (this: unknown) {
       expect(this).toBeUndefined();
