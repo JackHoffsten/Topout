@@ -17,11 +17,22 @@
       "package": "com.topout.app"
     },
     "ios": {
-      "bundleIdentifier": "com.topout.app",
-      "supportsTablet": true
+      "bundleIdentifier": "se.jackhoffsten.topout",
+      "icon": "./assets/topout-ios-icon.png",
+      "supportsTablet": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "28007dc8-d89e-4c32-b172-4f4d5e61538d"
+      }
+    },
+    "owner": "jackhoffsten"
   }
 }

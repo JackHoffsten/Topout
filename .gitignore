@@ -12,6 +12,9 @@ obj/
 *.pfx
 *.p12
 *.key
+*.p8
+*.mobileprovision
+credentials.json
 /deploy/runtime.json
 /deploy/migration.json
 /deploy/*_password

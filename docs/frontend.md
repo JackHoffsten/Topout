@@ -16,6 +16,48 @@ Android builds require Android Studio and an Android SDK. On macOS with Xcode, u
 Generated `android` and `ios` directories are ignored. Keep native configuration in
 `apps/app/app.json` and Expo config plugins.
 
+## iOS TestFlight
+
+Run EAS commands from `apps/app`, not the repository root. The production profile in
+`eas.json` builds a store-signed app against the hosted HTTPS API and increments build
+numbers automatically.
+
+Before the first build:
+
+- Confirm the iOS bundle identifier in `app.json`; it must match the Apple app record.
+- The iOS icon is an opaque 1024 × 1024 PNG. Regenerate it from the SVG logo on Windows
+  with `./scripts/export-ios-icon.ps1` from the repository root after changing the logo.
+- Sign in to Expo and link the app to an EAS project:
+
+```powershell
+cd apps/app
+npx eas-cli@latest login
+npx eas-cli@latest init
+```
+
+Review the project ID added to `app.json`, then build:
+
+```powershell
+npx eas-cli@latest build --platform ios --profile production
+```
+
+Follow the Apple signing prompts; credentials should be managed through EAS, not committed.
+After the build succeeds, upload it:
+
+```powershell
+npx eas-cli@latest submit --platform ios --profile production
+```
+
+Select the intended build. Complete the app-record and signing setup if prompted. In App
+Store Connect, open TestFlight after processing, configure testers, and install using the
+TestFlight app. Uploading to TestFlight does not publish to the public App Store.
+These commands upload project source/builds to external services and may consume build quota.
+
+For public release, separately complete the privacy disclosures, privacy policy, account
+deletion, store listing, and App Review requirements. TestFlight setup is not a release audit.
+
+See the [Expo iOS submission guide](https://docs.expo.dev/submit/ios/).
+
 ## API connection
 
 Override the API origin with `EXPO_PUBLIC_API_URL` in `apps/app/.env.local`:
