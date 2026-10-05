@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   climbingTypes,
   climbingEnvironments,
@@ -22,6 +22,8 @@ import { LocationField } from '../../ui/components/LocationField';
 import { Label } from '../../ui/components/Label';
 import { ErrorNotice } from '../../ui/components/ErrorNotice';
 import { useTheme } from '../../ui/theme';
+import { pickClimbPhoto, type ClimbPhotoDraft } from './pickClimbPhoto';
+import { PhotoPreview } from './ClimbPhoto';
 
 function Choices<T extends string>({
   label,
@@ -140,13 +142,41 @@ export function ClimbEditor({
   const [attempts, setAttempts] = useState(String(draft.attempts));
   const [gradeSearch, setGradeSearch] = useState('');
   const [validation, setValidation] = useState<string>();
+  const [savedId, setSavedId] = useState(log?.id);
+  const [photo, setPhoto] = useState<ClimbPhotoDraft | null | undefined>();
+  const [picking, setPicking] = useState(false);
+  const [photoError, setPhotoError] = useState<string>();
+  const existingPhoto = useQuery({
+    queryKey: ['climb-photo', log?.id],
+    queryFn: () => api.getClimbPhoto(log!.id),
+    enabled: !!log,
+    gcTime: 0,
+  });
+  const displayedPhoto = photo === undefined ? existingPhoto.data : photo;
   const save = useMutation({
-    mutationFn: (input: ClimbLogInput) =>
-      log ? api.updateClimbLog(log.id, input) : api.createClimbLog(input),
+    mutationFn: async (input: ClimbLogInput) => {
+      const result = savedId
+        ? await api.updateClimbLog(savedId, input)
+        : await api.createClimbLog(input);
+      // Preserve the created ID if a photo upload fails, so retry cannot create duplicates.
+      setSavedId(result.id);
+      if (photo !== undefined) {
+        try {
+          if (photo) await api.saveClimbPhoto(result.id, photo.base64);
+          else await api.deleteClimbPhoto(result.id);
+        } catch (error) {
+          await cache.invalidateQueries({ queryKey: ['climb-logs'] });
+          setPhotoError('The climb was saved, but the photo change was not. Try saving again.');
+          throw error;
+        }
+      }
+      return result;
+    },
     onSuccess: async (_, input) => {
       await cache.invalidateQueries({ queryKey: ['progress'] });
       await cache.invalidateQueries({ queryKey: ['climb-logs'] });
       await cache.invalidateQueries({ queryKey: ['log-locations', 'climb'] });
+      await cache.invalidateQueries({ queryKey: ['climb-photo'] });
       onClose(input.date);
     },
   });
@@ -349,9 +379,51 @@ export function ClimbEditor({
         onChange={(location) => patch({ location })}
       />
       <ErrorNotice message={validation ?? (save.isError ? errorMessage(save.error) : undefined)} />
+      <View style={{ gap: 8 }}>
+        <Label small>Photo (optional)</Label>
+        {displayedPhoto && <PhotoPreview photo={displayedPhoto} />}
+        {log && existingPhoto.isPending && (
+          <Label small muted>
+            Loading photo…
+          </Label>
+        )}
+        {existingPhoto.isError && <ErrorNotice message="The existing photo could not be loaded." />}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <Button
+            title={displayedPhoto ? 'Replace photo' : 'Add photo'}
+            variant="secondary"
+            busy={picking}
+            disabled={save.isPending}
+            onPress={async () => {
+              setPicking(true);
+              setPhotoError(undefined);
+              try {
+                const selected = await pickClimbPhoto();
+                if (selected) setPhoto(selected);
+              } catch (error) {
+                setPhotoError(
+                  error instanceof Error ? error.message : 'The photo could not be opened.',
+                );
+              } finally {
+                setPicking(false);
+              }
+            }}
+          />
+          {!!displayedPhoto && (
+            <Button
+              title="Remove photo"
+              variant="secondary"
+              disabled={save.isPending || picking}
+              onPress={() => setPhoto(null)}
+            />
+          )}
+        </View>
+        <ErrorNotice message={photoError} />
+      </View>
       <Button
         title={log ? 'Save changes' : 'Save climb'}
         busy={save.isPending}
+        disabled={picking}
         onPress={() => {
           if (!/^\d+$/.test(attempts) || Number(attempts) < 1 || Number(attempts) > 1000) {
             setValidation('Enter attempts as a whole number from 1 to 1000.');

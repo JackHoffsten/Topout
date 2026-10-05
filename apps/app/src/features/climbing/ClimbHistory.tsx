@@ -27,6 +27,7 @@ import { Label } from '../../ui/components/Label';
 import { Loading } from '../../ui/components/Loading';
 import { Page } from '../../ui/components/Page';
 import { ClimbEditor } from './ClimbEditor';
+import { ClimbPhoto } from './ClimbPhoto';
 import { ClimbSummary } from './ClimbSummary';
 import { Field } from '../../ui/components/Field';
 import { SearchField } from '../../ui/components/SearchField';
@@ -485,6 +486,7 @@ export function ClimbHistory() {
               </Pressable>
               {expanded === log.id && (
                 <View style={{ gap: 10 }}>
+                  {editing !== log.id && <ClimbPhoto id={log.id} />}
                   <Label small muted>
                     {climbingLabel(log.climbingType)} · {climbingLabel(log.gradeSystem)} ·{' '}
                     {log.environment}

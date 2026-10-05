@@ -41,6 +41,12 @@ export class ApiError extends Error {
 
 export type Fetcher = typeof fetch;
 
+export const climbPhotoSchema = z.object({
+  base64: z.string().min(1).max(2796204),
+  width: z.number().int().min(1).max(1600),
+  height: z.number().int().min(1).max(1600),
+});
+
 export async function readResponse(response: Response): Promise<unknown> {
   if (response.status === 204) return undefined;
   const body: unknown = await response.json().catch(() => null);
@@ -259,6 +265,20 @@ export class ApiClient {
 
   deleteClimbLog(id: number) {
     return this.request('/api/climb-logs/' + id, z.undefined(), 'DELETE');
+  }
+
+  getClimbPhoto(id: number) {
+    return this.request(`/api/climb-logs/${id}/photo`, climbPhotoSchema.nullable());
+  }
+
+  saveClimbPhoto(id: number, base64: string) {
+    return this.request(`/api/climb-logs/${id}/photo`, climbPhotoSchema, 'PUT', {
+      base64: z.string().min(1).max(2796204).parse(base64),
+    });
+  }
+
+  deleteClimbPhoto(id: number) {
+    return this.request(`/api/climb-logs/${id}/photo`, z.undefined(), 'DELETE');
   }
 
   listWorkoutTemplates() {

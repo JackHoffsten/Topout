@@ -27,7 +27,12 @@ const mockApi = {
   deleteClimbLog: jest.fn<(...args: any[]) => Promise<void>>(),
   listClimbHistory: jest.fn<(...args: any[]) => Promise<any>>(),
   getClimbLog: jest.fn<(...args: any[]) => Promise<any>>(),
+  getClimbPhoto: jest.fn<(...args: any[]) => Promise<any>>(),
+  saveClimbPhoto: jest.fn<(...args: any[]) => Promise<any>>(),
+  deleteClimbPhoto: jest.fn<(...args: any[]) => Promise<void>>(),
 };
+const mockPickPhoto = jest.fn<() => Promise<any>>();
+jest.mock('../features/climbing/pickClimbPhoto', () => ({ pickClimbPhoto: () => mockPickPhoto() }));
 let mockClimb: string | undefined;
 let mockDate: string | undefined;
 let mockReturnTo: string | undefined;
@@ -72,6 +77,9 @@ beforeEach(() => {
   mockApi.deleteClimbLog.mockResolvedValue(undefined);
   mockApi.listClimbHistory.mockResolvedValue({ items: [log], nextPage: null, totalCount: 1 });
   mockApi.getClimbLog.mockResolvedValue(log);
+  mockApi.getClimbPhoto.mockResolvedValue(null);
+  mockApi.saveClimbPhoto.mockResolvedValue({ base64: 'photo', width: 800, height: 600 });
+  mockPickPhoto.mockResolvedValue({ base64: 'photo', width: 800, height: 600 });
 });
 
 async function mountHistory() {
@@ -361,6 +369,35 @@ test('creates a graded climb with multiple styles and optional details', async (
   await waitFor(() =>
     expect(mockReplace).toHaveBeenCalledWith({ pathname: '/calendar', params: { date: log.date } }),
   );
+});
+
+test('loads a photo only when expanded and allows removing it when editing', async () => {
+  mockApi.getClimbPhoto.mockResolvedValue({ base64: 'photo', width: 800, height: 600 });
+  await mountHistory();
+  expect(mockApi.getClimbPhoto).not.toHaveBeenCalled();
+  await fireEventAsync.press(await screen.findByRole('button', { name: 'Expand climb Problem' }));
+  await screen.findByLabelText('Climb photo');
+  expect(mockApi.getClimbPhoto).toHaveBeenCalledWith(7);
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Edit climb Problem' }));
+  await fireEventAsync.press(await screen.findByRole('button', { name: 'Remove photo' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(mockApi.deleteClimbPhoto).toHaveBeenCalledWith(7));
+});
+
+test('photo upload failure retries the saved climb instead of creating another', async () => {
+  mockApi.saveClimbPhoto.mockRejectedValueOnce(new ApiError(400, 'Photo rejected'));
+  await mountCreate();
+  await fireEventAsync.changeText(screen.getByLabelText('Search grades'), '7A');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 7A' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Add photo' }));
+  await screen.findByLabelText('Climb photo');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
+  await screen.findByText('The climb was saved, but the photo change was not. Try saving again.');
+  expect(mockReplace).not.toHaveBeenCalled();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
+  await waitFor(() => expect(mockApi.saveClimbPhoto).toHaveBeenCalledTimes(2));
+  expect(mockApi.createClimbLog).toHaveBeenCalledTimes(1);
+  expect(mockApi.updateClimbLog).toHaveBeenCalledWith(7, expect.anything());
 });
 
 test('changing climbing type resets incompatible grades and board environment', async () => {

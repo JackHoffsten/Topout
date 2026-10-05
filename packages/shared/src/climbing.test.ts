@@ -23,6 +23,31 @@ const input: ClimbLogInput = {
   location: null,
 };
 
+it('validates private photo responses and uses the authenticated photo endpoints', async () => {
+  const transport = {
+    refresh: vi
+      .fn()
+      .mockResolvedValue({ accessToken: 'token', accessTokenExpiresAt: '2099-01-01T00:00:00Z' }),
+  } as unknown as SessionTransport;
+  const photo = { base64: 'jpeg', width: 800, height: 600 };
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(new Response('null'))
+    .mockResolvedValueOnce(new Response(JSON.stringify(photo)))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ ...photo, width: 0 })));
+  const api = new ApiClient('https://example.com', transport, fetcher);
+  await api.initialize();
+  expect(await api.getClimbPhoto(7)).toBeNull();
+  expect(await api.saveClimbPhoto(7, 'jpeg')).toEqual(photo);
+  expect(fetcher.mock.calls[1]![0]).toBe('https://example.com/api/climb-logs/7/photo');
+  expect(fetcher.mock.calls[1]![1]).toEqual(
+    expect.objectContaining({ method: 'PUT', body: JSON.stringify({ base64: 'jpeg' }) }),
+  );
+  await api.deleteClimbPhoto(7);
+  await expect(api.getClimbPhoto(7)).rejects.toThrow();
+});
+
 it('loads history pages and selected climbs with runtime validation', async () => {
   const log = { id: 7, ...input };
   const transport = {

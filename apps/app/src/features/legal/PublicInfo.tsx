@@ -23,14 +23,16 @@ export function PublicInfo({ privacy = false }: { privacy?: boolean }) {
             We store your email address, display name, password hash, account identifiers, and
             session credentials. We also store the exercises, templates, calendar plans, sets, reps,
             weights, notes, and climbing details you enter, including optional route names and
-            location text.
+            location text and photos you choose to attach to climbs.
           </Label>
           <Heading>How information is used</Heading>
           <Label>
             This information is used to provide your account, save your training, and show progress.
             Your records are linked to your account and are not publicly visible. Topout does not
-            include advertising or analytics SDKs in this release and does not access GPS,
-            HealthKit, your contacts, or photos.
+            include advertising or analytics SDKs in this release and does not access GPS, HealthKit
+            or your contacts. You can optionally attach one photo to a climb. Topout only uploads
+            photos you select; it does not upload your photo library. Image metadata such as GPS
+            location is removed before storage.
           </Label>
           <Heading>Storage and security</Heading>
           <Label>

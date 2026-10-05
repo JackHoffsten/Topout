@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<IExerciseRepository, ExerciseRepository>();
         services.AddScoped<IProgressRepository, ProgressRepository>();
         services.AddScoped<IClimbLogRepository, ClimbLogRepository>();
+        services.AddScoped<IClimbPhotoService, ClimbPhotoService>();
         services.AddScoped<IWorkoutScheduleRepository, WorkoutScheduleRepository>();
         services.AddScoped<IWorkoutLogRepository, WorkoutLogRepository>();
         services.AddScoped<ILogLocationRepository, LogLocationRepository>();

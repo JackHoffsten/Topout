@@ -1,9 +1,16 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
+using SixLabors.ImageSharp.PixelFormats;
+using Topout.Application.Abstractions;
 using Topout.Application.Climbing;
 using Topout.Application.WorkoutSchedule;
 using Topout.Application.WorkoutTemplates;
+using Topout.Infrastructure.Persistence;
 
 namespace Topout.IntegrationTests;
 
@@ -39,6 +46,72 @@ public class ClimbLogApiTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task Photos_are_private_replaceable_validated_and_deleted_with_the_climb()
+    {
+        using var client = await Client();
+        using var other = await Client();
+        using var anonymous = fixture.Client();
+        var climb = (
+            await (
+                await client.PostAsJsonAsync(Path, Input)
+            ).Content.ReadFromJsonAsync<ClimbLogResponse>()
+        )!;
+        var path = $"{Path}/{climb.Id}/photo";
+        Assert.Equal("null", await client.GetStringAsync(path));
+        Assert.Equal(HttpStatusCode.NotFound, (await other.GetAsync(path)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(path)).StatusCode);
+        using var image = new Image<Rgb24>(40, 60);
+        image.Metadata.ExifProfile = new ExifProfile();
+        image.Metadata.ExifProfile.SetValue(ExifTag.Artist, "Private metadata");
+        using var output = new MemoryStream();
+        await image.SaveAsJpegAsync(output);
+        var payload = new { Base64 = Convert.ToBase64String(output.ToArray()) };
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await other.PutAsJsonAsync(path, payload)).StatusCode
+        );
+        var response = await client.PutAsJsonAsync(path, payload);
+        response.EnsureSuccessStatusCode();
+        var photo = (await response.Content.ReadFromJsonAsync<ClimbPhotoResponse>())!;
+        Assert.Equal(40, photo.Width);
+        Assert.Equal(60, photo.Height);
+        using var decoded = Image.Load(Convert.FromBase64String(photo.Base64));
+        Assert.Null(decoded.Metadata.ExifProfile);
+        var read = await client.GetAsync(path);
+        Assert.True(read.Headers.CacheControl!.NoStore);
+        Assert.Equal(photo, await read.Content.ReadFromJsonAsync<ClimbPhotoResponse>());
+        Assert.Equal(HttpStatusCode.NotFound, (await other.DeleteAsync(path)).StatusCode);
+        foreach (
+            var invalid in new[]
+            {
+                "invalid",
+                Convert.ToBase64String("Not a photo"u8.ToArray()),
+                new string('A', 2796208),
+            }
+        )
+        {
+            var rejected = await client.PutAsJsonAsync(path, new { Base64 = invalid });
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            Assert.Equal(photo, await client.GetFromJsonAsync<ClimbPhotoResponse>(path));
+        }
+        await client.PutAsJsonAsync(path, payload);
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(1, await db.ClimbPhotos.CountAsync(x => x.ClimbLogId == climb.Id));
+        }
+        (await client.DeleteAsync(path)).EnsureSuccessStatusCode();
+        Assert.Equal("null", await client.GetStringAsync(path));
+        (await client.PutAsJsonAsync(path, payload)).EnsureSuccessStatusCode();
+        (await client.DeleteAsync($"{Path}/{climb.Id}")).EnsureSuccessStatusCode();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.False(await db.ClimbPhotos.AnyAsync(x => x.ClimbLogId == climb.Id));
+        }
+    }
+
+    [Fact]
     public async Task Location_suggestions_match_case_insensitively_and_exclude_other_accounts()
     {
         using var client = await Client();
@@ -46,11 +119,20 @@ public class ClimbLogApiTests(ApiFixture fixture)
         await client.PostAsJsonAsync(Path, Input with { Location = "North Wall" });
         await client.PostAsJsonAsync(Path, Input with { Location = "north wall" });
         await other.PostAsJsonAsync(Path, Input with { Location = "North Secret" });
-        var suggestions = (await client.GetFromJsonAsync<string[]>("/api/log-locations?activity=climb&search=NORTH"))!;
+        var suggestions = (
+            await client.GetFromJsonAsync<string[]>(
+                "/api/log-locations?activity=climb&search=NORTH"
+            )
+        )!;
         Assert.Single(suggestions);
         Assert.Equal("north wall", suggestions[0].ToLowerInvariant());
-        Assert.Empty((await client.GetFromJsonAsync<string[]>("/api/log-locations?activity=workout"))!);
-        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/log-locations?activity=unknown")).StatusCode);
+        Assert.Empty(
+            (await client.GetFromJsonAsync<string[]>("/api/log-locations?activity=workout"))!
+        );
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (await client.GetAsync("/api/log-locations?activity=unknown")).StatusCode
+        );
     }
 
     [Fact]
@@ -59,14 +141,42 @@ public class ClimbLogApiTests(ApiFixture fixture)
         using var client = await Client();
         using var other = await Client();
         await client.PostAsJsonAsync(Path, Input with { Name = null, Location = null });
-        await client.PostAsJsonAsync(Path, Input with { ClimbingType = "TopRope", GradeSystem = "French", Grade = "6b", Environment = "Indoor", Name = null, Location = null });
+        await client.PostAsJsonAsync(
+            Path,
+            Input with
+            {
+                ClimbingType = "TopRope",
+                GradeSystem = "French",
+                Grade = "6b",
+                Environment = "Indoor",
+                Name = null,
+                Location = null,
+            }
+        );
         await other.PostAsJsonAsync(Path, Input);
-        foreach (var (search, type) in new[] { ("7a", "Bouldering"), ("BOULDER", "Bouldering"), ("top rope", "TopRope"), ("top-rope", "TopRope"), ("6B", "TopRope") })
+        foreach (
+            var (search, type) in new[]
+            {
+                ("7a", "Bouldering"),
+                ("BOULDER", "Bouldering"),
+                ("top rope", "TopRope"),
+                ("top-rope", "TopRope"),
+                ("6B", "TopRope"),
+            }
+        )
         {
-            var result = (await client.GetFromJsonAsync<ClimbHistoryResponse>(Path + "/history?search=" + Uri.EscapeDataString(search)))!;
+            var result = (
+                await client.GetFromJsonAsync<ClimbHistoryResponse>(
+                    Path + "/history?search=" + Uri.EscapeDataString(search)
+                )
+            )!;
             Assert.Equal(type, Assert.Single(result.Items).ClimbingType);
         }
-        var filtered = (await client.GetFromJsonAsync<ClimbHistoryResponse>(Path + "/history?search=7a&climbingType=TopRope"))!;
+        var filtered = (
+            await client.GetFromJsonAsync<ClimbHistoryResponse>(
+                Path + "/history?search=7a&climbingType=TopRope"
+            )
+        )!;
         Assert.Empty(filtered.Items);
     }
 
