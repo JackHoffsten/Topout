@@ -73,7 +73,7 @@ export function ProgressScreen() {
   const [search, setSearch] = useState('');
   const [exerciseId, setExerciseId] = useState<number>();
   const [choosing, setChoosing] = useState(true);
-  const [metric, setMetric] = useState('Volume');
+  const [metric, setMetric] = useState('Heaviest weight');
   const [side, setSide] = useState('All sides');
   const [type, setType] = useState<ClimbingType>('Bouldering');
   const [system, setSystem] = useState<GradeSystem>('Font');

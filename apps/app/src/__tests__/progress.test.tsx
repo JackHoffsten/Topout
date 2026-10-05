@@ -85,13 +85,12 @@ test('exercise selection, metric changes, and side filters keep the left and rig
   await fireEventAsync.press(screen.getByRole('button', { name: 'Exercises' }));
   await fireEventAsync.changeText(screen.getByLabelText('Search exercises'), 'curl');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Select progress exercise Curl' }));
-  expect(screen.getByRole('button', { name: 'Volume' }).props.accessibilityState.selected).toBe(
+  expect(screen.getByRole('button', { name: 'Heaviest weight' }).props.accessibilityState.selected).toBe(
     true,
   );
   expect(
-    screen.getByRole('button', { name: `Curl · Volume, Left, ${today}, 192 kg` }),
+    screen.getByRole('button', { name: `Curl · Heaviest weight, Left, ${today}, 12 kg` }),
   ).toBeTruthy();
-  await fireEventAsync.press(screen.getByRole('button', { name: 'Heaviest weight' }));
   expect(
     screen.getByRole('button', { name: `Curl · Heaviest weight, Left, ${today}, 12 kg` }),
   ).toBeTruthy();
