@@ -39,6 +39,23 @@ public class ClimbLogApiTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task History_search_matches_grade_and_readable_climbing_types()
+    {
+        using var client = await Client();
+        using var other = await Client();
+        await client.PostAsJsonAsync(Path, Input with { Name = null, Location = null });
+        await client.PostAsJsonAsync(Path, Input with { ClimbingType = "TopRope", GradeSystem = "French", Grade = "6b", Environment = "Indoor", Name = null, Location = null });
+        await other.PostAsJsonAsync(Path, Input);
+        foreach (var (search, type) in new[] { ("7a", "Bouldering"), ("BOULDER", "Bouldering"), ("top rope", "TopRope"), ("top-rope", "TopRope"), ("6B", "TopRope") })
+        {
+            var result = (await client.GetFromJsonAsync<ClimbHistoryResponse>(Path + "/history?search=" + Uri.EscapeDataString(search)))!;
+            Assert.Equal(type, Assert.Single(result.Items).ClimbingType);
+        }
+        var filtered = (await client.GetFromJsonAsync<ClimbHistoryResponse>(Path + "/history?search=7a&climbingType=TopRope"))!;
+        Assert.Empty(filtered.Items);
+    }
+
+    [Fact]
     public async Task History_sorts_by_difficulty_and_filters_before_pagination()
     {
         using var client = await Client();

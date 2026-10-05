@@ -44,10 +44,13 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
             items = items.Where(x => x.Date <= query.To);
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            var search = query.Search.Trim().ToLower();
+            var search = query.Search.Trim().ToLowerInvariant();
+            var typeSearch = search.Replace(" ", "").Replace("-", "");
             items = items.Where(x =>
                 (x.Name != null && x.Name.ToLower().Contains(search))
                 || (x.Location != null && x.Location.ToLower().Contains(search))
+                || x.Grade.ToLower().Contains(search)
+                || (typeSearch.Length > 0 && x.ClimbingType.ToLower().Contains(typeSearch))
             );
         }
         IOrderedQueryable<ClimbLog> ordered;

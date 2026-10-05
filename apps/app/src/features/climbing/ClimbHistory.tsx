@@ -29,6 +29,7 @@ import { Page } from '../../ui/components/Page';
 import { ClimbEditor } from './ClimbEditor';
 import { ClimbSummary } from './ClimbSummary';
 import { Field } from '../../ui/components/Field';
+import { SearchField } from '../../ui/components/SearchField';
 import { TotalCard } from '../../ui/components/TotalCard';
 
 export function ClimbHistory() {
@@ -165,9 +166,10 @@ export function ClimbHistory() {
         onPress={() => router.push({ pathname: '/climbs/new', params: { returnTo: 'climbs' } })}
       />
       <TotalCard label="TOTAL CLIMBS" count={totalCount} />
-      <Field
-        label="Search name or location"
-        placeholder="Search climbs"
+      <SearchField
+        scrollRef={scroll}
+        label="Search climbs"
+        placeholder="Name, location, grade or climbing type"
         value={search}
         onChangeText={(value) => {
           setSearch(value);

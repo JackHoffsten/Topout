@@ -194,7 +194,7 @@ test('history applies sorting and filters to API queries and validates date rang
   );
   await fireEventAsync.press(screen.getByRole('button', { name: 'Filters' }));
   await fireEventAsync.press(screen.getByRole('button', { name: 'Filter Environment: Outdoor' }));
-  await fireEventAsync.changeText(screen.getByLabelText('Search name or location'), 'rock');
+  await fireEventAsync.changeText(screen.getByLabelText('Search climbs'), 'rock');
   await waitFor(() =>
     expect(mockApi.listClimbHistory).toHaveBeenCalledWith(1, {
       sort: 'grade-desc',
@@ -220,7 +220,7 @@ test('search is visible outside filters and remains when filters are reset', asy
   await mountHistory();
   await screen.findByRole('button', { name: 'Expand climb Problem' });
   expect(screen.queryByLabelText('From date')).toBeNull();
-  await fireEventAsync.changeText(screen.getByLabelText('Search name or location'), '  rock  ');
+  await fireEventAsync.changeText(screen.getByLabelText('Search climbs'), '  rock  ');
   await waitFor(() => expect(mockApi.listClimbHistory).toHaveBeenCalledWith(1, { search: 'rock' }));
   await fireEventAsync.press(screen.getByRole('button', { name: 'Filters' }));
   await fireEventAsync.press(screen.getByRole('button', { name: 'Filter Environment: Outdoor' }));
@@ -232,14 +232,14 @@ test('search is visible outside filters and remains when filters are reset', asy
     ),
   );
   await fireEventAsync.press(screen.getByRole('button', { name: 'Reset filters' }));
-  expect(screen.getByLabelText('Search name or location').props.value).toBe('  rock  ');
+  expect(screen.getByLabelText('Search climbs').props.value).toBe('  rock  ');
   await waitFor(() =>
     expect(mockApi.listClimbHistory).toHaveBeenLastCalledWith(1, {
       sort: undefined,
       search: 'rock',
     }),
   );
-  await fireEventAsync.changeText(screen.getByLabelText('Search name or location'), '');
+  await fireEventAsync.changeText(screen.getByLabelText('Search climbs'), '');
   await waitFor(() =>
     expect(mockApi.listClimbHistory).toHaveBeenLastCalledWith(1, {
       sort: undefined,
