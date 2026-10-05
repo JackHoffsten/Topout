@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Providers, useSession } from '../src/lib/providers';
 import { Loading } from '../src/ui/components/Loading';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 export const unstable_settings = { initialRouteName: 'index' };
 
@@ -40,9 +41,11 @@ export default function Root() {
   if (!fontsLoaded) return null;
   return (
     <SafeAreaProvider>
-      <Providers>
-        <Routes />
-      </Providers>
+      <KeyboardProvider>
+        <Providers>
+          <Routes />
+        </Providers>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

@@ -16,7 +16,6 @@ export function Page({
       ref={scrollRef}
       onContentSizeChange={onContentSizeChange}
       keyboardShouldPersistTaps="handled"
-      automaticallyAdjustKeyboardInsets
       showsVerticalScrollIndicator
       style={{ flex: 1, minHeight: 0, backgroundColor: c.bg }}
       contentContainerStyle={{

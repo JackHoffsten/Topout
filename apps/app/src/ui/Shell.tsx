@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Brand } from './components/Brand';
 import { NavigationContent } from './NavigationContent';
+import { KeyboardViewport } from './KeyboardViewport';
 import { useNavigationDismiss } from './useNavigationDismiss';
 import { tokens, useDesktop, useTheme } from './theme';
 
@@ -90,78 +91,80 @@ export function Shell({ children }: React.PropsWithChildren) {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.chrome }}>
-      <View style={{ flex: 1, flexDirection: wide ? 'row' : 'column' }}>
-        {wide ? (
-          <View style={{ width: 230, borderRightWidth: 1, borderColor: c.line, paddingTop: 32 }}>
-            <View style={{ paddingHorizontal: 28, paddingBottom: 40 }}>
-              <Brand />
+    <KeyboardViewport>
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.chrome }}>
+        <View style={{ flex: 1, flexDirection: wide ? 'row' : 'column' }}>
+          {wide ? (
+            <View style={{ width: 230, borderRightWidth: 1, borderColor: c.line, paddingTop: 32 }}>
+              <View style={{ paddingHorizontal: 28, paddingBottom: 40 }}>
+                <Brand />
+              </View>
+              {navigation}
             </View>
-            {navigation}
-          </View>
-        ) : (
-          <View
-            testID="phone-navigation-header"
-            style={{
-              paddingHorizontal: 24,
-              paddingVertical: 14,
-              borderBottomWidth: 1,
-              borderColor: c.line,
-              backgroundColor: c.chrome,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 12,
-              justifyContent: 'space-between',
-            }}
-          >
-            <Brand />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={menuOpen ? 'Close navigation' : 'Open navigation'}
-              accessibilityState={{ expanded: menuOpen }}
-              onPress={() => setMenuOpen((open) => !open)}
-              style={({ pressed }) => ({
-                width: 44,
-                height: 44,
-                justifyContent: 'center',
-                alignItems: 'center',
-                borderRadius: tokens.radius.sm,
-                backgroundColor: pressed ? c.soft : 'transparent',
-              })}
-            >
-              <Feather name={menuOpen ? 'x' : 'menu'} size={24} color={c.ink} />
-            </Pressable>
-          </View>
-        )}
-        <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-          <NavigationContent blocked={menuOpen && !wide}>{children}</NavigationContent>
-          {!wide && menuOpen && (
+          ) : (
             <View
-              style={[
-                StyleSheet.absoluteFill,
-                { flexDirection: 'row', backgroundColor: '#00000066' },
-              ]}
+              testID="phone-navigation-header"
+              style={{
+                paddingHorizontal: 24,
+                paddingVertical: 14,
+                borderBottomWidth: 1,
+                borderColor: c.line,
+                backgroundColor: c.chrome,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                justifyContent: 'space-between',
+              }}
             >
+              <Brand />
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Dismiss navigation"
-                style={{ flex: 1 }}
-                onPress={closeMenu}
-              />
-              <View
-                onAccessibilityEscape={closeMenu}
-                style={{
-                  width: '85%',
-                  maxWidth: 320,
-                  backgroundColor: c.chrome,
-                }}
+                accessibilityLabel={menuOpen ? 'Close navigation' : 'Open navigation'}
+                accessibilityState={{ expanded: menuOpen }}
+                onPress={() => setMenuOpen((open) => !open)}
+                style={({ pressed }) => ({
+                  width: 44,
+                  height: 44,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderRadius: tokens.radius.sm,
+                  backgroundColor: pressed ? c.soft : 'transparent',
+                })}
               >
-                <ScrollView>{navigation}</ScrollView>
-              </View>
+                <Feather name={menuOpen ? 'x' : 'menu'} size={24} color={c.ink} />
+              </Pressable>
             </View>
           )}
+          <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+            <NavigationContent blocked={menuOpen && !wide}>{children}</NavigationContent>
+            {!wide && menuOpen && (
+              <View
+                style={[
+                  StyleSheet.absoluteFill,
+                  { flexDirection: 'row', backgroundColor: '#00000066' },
+                ]}
+              >
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss navigation"
+                  style={{ flex: 1 }}
+                  onPress={closeMenu}
+                />
+                <View
+                  onAccessibilityEscape={closeMenu}
+                  style={{
+                    width: '85%',
+                    maxWidth: 320,
+                    backgroundColor: c.chrome,
+                  }}
+                >
+                  <ScrollView>{navigation}</ScrollView>
+                </View>
+              </View>
+            )}
+          </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardViewport>
   );
 }
