@@ -1,5 +1,5 @@
 import { Platform, TextStyle, useWindowDimensions } from 'react-native';
-import { usePreferredColorScheme } from './colorScheme';
+import { useAppColorScheme } from './ThemeProvider';
 
 export const webInputStyle =
   Platform.OS === 'web'
@@ -86,7 +86,7 @@ export const dark = {
 export type SyntaxKind = keyof typeof light.syntax;
 
 export function useTheme() {
-  return usePreferredColorScheme() === 'dark' ? dark : light;
+  return useAppColorScheme() === 'dark' ? dark : light;
 }
 
 export function useDesktop() {

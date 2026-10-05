@@ -5,17 +5,19 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Providers, useSession } from '../src/lib/providers';
 import { Loading } from '../src/ui/components/Loading';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { ThemeProvider, useAppColorScheme } from '../src/ui/ThemeProvider';
 
 export const unstable_settings = { initialRouteName: 'index' };
 
 function Routes() {
+  const scheme = useAppColorScheme();
   const { status } = useSession();
   const path = usePathname();
   if (status === 'restoring' && path !== '/privacy' && path !== '/support') return <Loading />;
   return (
     <>
-      <StatusBar style="auto" />
-      <Stack initialRouteName="index" screenOptions={{ headerShown: false }}>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      <Stack initialRouteName="index" screenOptions={{ headerShown: false, contentStyle: { backgroundColor: scheme === 'dark' ? '#121314' : '#FFFFFF' } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="privacy" />
         <Stack.Screen name="support" />
@@ -42,9 +44,9 @@ export default function Root() {
   return (
     <SafeAreaProvider>
       <KeyboardProvider>
-        <Providers>
+        <ThemeProvider><Providers>
           <Routes />
-        </Providers>
+        </Providers></ThemeProvider>
       </KeyboardProvider>
     </SafeAreaProvider>
   );
