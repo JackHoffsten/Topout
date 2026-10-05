@@ -32,6 +32,26 @@ const template = {
   ],
 };
 
+it('allows no planned sets or rep targets, including split sets with weight only', () => {
+  expect(
+    workoutTemplateInputSchema.parse({ name: 'Optional', exercises: [{ exerciseId: 1 }] })
+      .exercises[0]!.sets,
+  ).toEqual([]);
+  const emptyTargets = { isWarmup: false, isAmrap: false, rightTarget: { targetWeightKg: 12 } };
+  const parsed = workoutTemplateInputSchema.parse({
+    name: 'Optional',
+    exercises: [{ exerciseId: 1, sets: [emptyTargets] }],
+  });
+  expect(parsed.exercises[0]!.sets[0]!.targetRepsMin).toBeNull();
+  expect(parsed.exercises[0]!.sets[0]!.rightTarget!.targetRepsMin).toBeNull();
+  expect(
+    workoutTemplateInputSchema.safeParse({
+      name: 'Invalid',
+      exercises: [{ exerciseId: 1, sets: [{ ...emptyTargets, targetRepsMax: 10 }] }],
+    }).success,
+  ).toBe(false);
+});
+
 it('validates templates, empty plans, ranges, duplicates and weight bounds', () => {
   const split = {
     ...set,

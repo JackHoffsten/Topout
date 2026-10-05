@@ -23,8 +23,12 @@ test('template CRUD persists targets, supports keyboard reordering and protects 
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click();
   await page.getByLabel('Search exercises', { exact: true }).fill('Barbell Row');
   await page.getByRole('button', { name: 'Select Barbell Row', exact: true }).click();
-  await expect(page.getByLabel('Barbell Row set 1 reps', { exact: true })).toHaveValue('8');
-  await expect(page.getByLabel('Barbell Row set 2 reps', { exact: true })).toHaveValue('8');
+  await expect(page.getByLabel('Barbell Row set 1 reps', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add set to Barbell Row', exact: true }).click();
+  await expect(page.getByLabel('Barbell Row set 1 reps', { exact: true })).toHaveValue('');
+  await page.getByLabel('Barbell Row set 1 reps', { exact: true }).fill('8');
+  await page.getByRole('button', { name: 'Add set to Barbell Row', exact: true }).click();
+  await expect(page.getByLabel('Barbell Row set 2 reps', { exact: true })).toHaveValue('');
   await page.getByLabel('Barbell Row set 1 max reps (optional)', { exact: true }).fill('12');
   await page.getByLabel('Barbell Row set 1 weight (kg, optional)', { exact: true }).fill('30.5');
   await page.getByRole('switch', { name: 'Barbell Row set 1 warm-up', exact: true }).click();

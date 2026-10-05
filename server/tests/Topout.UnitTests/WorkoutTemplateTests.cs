@@ -10,6 +10,28 @@ namespace Topout.UnitTests;
 public class WorkoutTemplateTests
 {
     [Fact]
+    public void Optional_reps_and_empty_split_targets_survive_replacement()
+    {
+        var source = new WorkoutDay(1, "Optional");
+        var row = source.AddExercise(new Exercise(1, "Row", MuscleGroup.Back));
+        row.AddSet();
+        row.AddSet(null, rightTargetWeight: Weight.FromKilograms(10), isSplit: true);
+        row.AddSet(null, isSplit: true);
+        var day = new WorkoutDay(1, "Old");
+        day.ReplaceContents(source);
+        var response = WorkoutTemplateResponse.From(day);
+        Assert.Null(response.Exercises[0].Sets[0].TargetRepsMin);
+        Assert.Null(response.Exercises[0].Sets[0].RightTarget);
+        Assert.Null(response.Exercises[0].Sets[1].RightTarget!.TargetRepsMin);
+        Assert.Equal(10m, response.Exercises[0].Sets[1].RightTarget!.TargetWeightKg);
+        Assert.NotNull(response.Exercises[0].Sets[2].RightTarget);
+        Assert.Throws<ArgumentException>(() => row.AddSet(null, targetRepsMax: 10));
+        Assert.Throws<ArgumentException>(() =>
+            row.AddSet(null, rightTargetRepsMax: 10, isSplit: true)
+        );
+    }
+
+    [Fact]
     public void Replacement_preserves_order_targets_and_ownership()
     {
         var day = new WorkoutDay(1, " Old ");

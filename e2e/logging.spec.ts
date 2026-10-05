@@ -21,6 +21,10 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click();
   await page.getByLabel('Search exercises', { exact: true }).fill('Barbell Row');
   await page.getByRole('button', { name: 'Select Barbell Row', exact: true }).click();
+  await page.getByRole('button', { name: 'Add set to Barbell Row', exact: true }).click();
+  await page.getByLabel('Barbell Row set 1 reps', { exact: true }).fill('8');
+  await page.getByRole('button', { name: 'Add set to Barbell Row', exact: true }).click();
+  await page.getByLabel('Barbell Row set 2 reps', { exact: true }).fill('8');
   await page
     .getByRole('button', { name: 'Split Barbell Row set 2 left/right', exact: true })
     .click();

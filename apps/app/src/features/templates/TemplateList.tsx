@@ -34,13 +34,19 @@ function TargetValues({
 }) {
   return (
     <>
-      <Label syntax="number">
-        {target.targetRepsMin}
-        {target.targetRepsMax != null && `–${target.targetRepsMax}`}
-      </Label>{' '}
-      <Label syntax="string">
-        {target.targetRepsMin === 1 && target.targetRepsMax == null ? 'rep' : 'reps'}
-      </Label>
+      {target.targetRepsMin != null ? (
+        <>
+          <Label syntax="number">
+            {target.targetRepsMin}
+            {target.targetRepsMax != null && `–${target.targetRepsMax}`}
+          </Label>{' '}
+          <Label syntax="string">
+            {target.targetRepsMin === 1 && target.targetRepsMax == null ? 'rep' : 'reps'}
+          </Label>
+        </>
+      ) : (
+        <Label muted>Reps not planned</Label>
+      )}
       {target.targetWeightKg != null && (
         <>
           {' ('}

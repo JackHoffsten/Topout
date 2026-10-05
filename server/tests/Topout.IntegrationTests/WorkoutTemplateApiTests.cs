@@ -16,6 +16,63 @@ public class WorkoutTemplateApiTests(ApiFixture fixture)
     private const string Url = "/api/workout-templates";
 
     [Fact]
+    public async Task Sets_and_rep_targets_can_be_omitted_and_split_targets_remain_split()
+    {
+        using var client = await Client();
+        var exercise = (await Exercises(client))[0];
+        var created = await client.PostAsJsonAsync(
+            Url,
+            new { Name = "Optional", Exercises = new[] { new { ExerciseId = exercise.Id } } }
+        );
+        created.EnsureSuccessStatusCode();
+        var template = await Read(created);
+        Assert.Empty(template.Exercises[0].Sets);
+        var set = new PlannedSetInput(null, null, 20, false, false, new(null, null, null));
+        var input = new WorkoutTemplateInput("Optional", [new(exercise.Id, [set])]);
+        (
+            await client.PutAsJsonAsync(
+                $"{Url}/{template.Id}",
+                new
+                {
+                    Name = "Optional",
+                    Exercises = new[]
+                    {
+                        new
+                        {
+                            ExerciseId = exercise.Id,
+                            Sets = new[]
+                            {
+                                new
+                                {
+                                    TargetWeightKg = 20,
+                                    IsWarmup = false,
+                                    IsAmrap = false,
+                                    RightTarget = new Dictionary<string, object?>(),
+                                },
+                            },
+                        },
+                    },
+                }
+            )
+        ).EnsureSuccessStatusCode();
+        var restored = await Read(await client.GetAsync($"{Url}/{template.Id}"));
+        Assert.Equal(set, restored.Exercises[0].Sets[0]);
+        Assert.NotNull(restored.Exercises[0].Sets[0].RightTarget);
+        var invalid = input with
+        {
+            Exercises = [new(exercise.Id, [set with { TargetRepsMax = 10 }])],
+        };
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (await client.PutAsJsonAsync($"{Url}/{template.Id}", invalid)).StatusCode
+        );
+        Assert.Equal(
+            set,
+            (await Read(await client.GetAsync($"{Url}/{template.Id}"))).Exercises[0].Sets[0]
+        );
+    }
+
+    [Fact]
     public async Task Split_targets_persist_and_invalid_updates_are_atomic()
     {
         using var client = await Client();
@@ -95,7 +152,7 @@ public class WorkoutTemplateApiTests(ApiFixture fixture)
                 input.Exercises[1],
                 input.Exercises[0] with
                 {
-                    Sets = input.Exercises[0].Sets.Reverse().ToArray(),
+                    Sets = input.Exercises[0].Sets!.Reverse().ToArray(),
                 },
             ],
         };

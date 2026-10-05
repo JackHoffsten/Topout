@@ -99,14 +99,14 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
   const nextKey = useRef(0);
   const toDraft = (set?: PlannedSet): DraftSet => ({
     key: nextKey.current++,
-    min: String(set?.targetRepsMin ?? 8),
+    min: set?.targetRepsMin == null ? '' : String(set.targetRepsMin),
     max: set?.targetRepsMax == null ? '' : String(set.targetRepsMax),
     weight: set?.targetWeightKg == null ? '' : String(set.targetWeightKg),
     warmup: set?.isWarmup ?? false,
     amrap: set?.isAmrap ?? false,
     right: set?.rightTarget
       ? {
-          min: String(set.rightTarget.targetRepsMin),
+          min: set.rightTarget.targetRepsMin == null ? '' : String(set.rightTarget.targetRepsMin),
           max: set.rightTarget.targetRepsMax == null ? '' : String(set.rightTarget.targetRepsMax),
           weight:
             set.rightTarget.targetWeightKg == null ? '' : String(set.rightTarget.targetWeightKg),
@@ -170,7 +170,7 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
       exercises: items.map((e) => ({
         exerciseId: e.exercise.id,
         sets: e.sets.map((s) => ({
-          targetRepsMin: number(s.min),
+          targetRepsMin: s.min.trim() === '' ? null : number(s.min),
           targetRepsMax: s.max.trim() === '' ? null : number(s.max),
           targetWeightKg: s.weight.trim() === '' ? null : number(s.weight),
           isWarmup: s.warmup,
@@ -178,7 +178,7 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
           ...(s.right
             ? {
                 rightTarget: {
-                  targetRepsMin: number(s.right.min),
+                  targetRepsMin: s.right.min.trim() === '' ? null : number(s.right.min),
                   targetRepsMax: s.right.max.trim() === '' ? null : number(s.right.max),
                   targetWeightKg: s.right.weight.trim() === '' ? null : number(s.right.weight),
                 },
@@ -228,7 +228,7 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
           initialName={search.trim()}
           onCancel={() => setCreatingExercise(false)}
           onCreated={(exercise) => {
-            setPending({ exercise, sets: [toDraft(), toDraft()] });
+            setPending({ exercise, sets: [] });
             setCreatingExercise(false);
             setDropdown(false);
             setSearch('');
@@ -279,9 +279,7 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
                       accessibilityLabel={`Select ${exercise.name}`}
                       onPress={() => {
                         setPending((previous) =>
-                          previous?.exercise.id === exercise.id
-                            ? previous
-                            : { exercise, sets: [toDraft(), toDraft()] },
+                          previous?.exercise.id === exercise.id ? previous : { exercise, sets: [] },
                         );
                         setDropdown(false);
                         setSearch('');
@@ -443,7 +441,7 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
                               <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
                                 <View style={{ flex: 1 }}>
                                   <Field
-                                    label="Reps"
+                                    label="Reps (optional)"
                                     accessibilityLabel={`${labelPrefix} reps`}
                                     value={values.min}
                                     editable={!busy}
@@ -555,7 +553,15 @@ function EditorForm({ template }: { template?: WorkoutTemplate }) {
                     disabled={busy}
                     onPress={() => {
                       const last = item.sets.at(-1);
-                      const set = last ? { ...last, key: nextKey.current++ } : toDraft();
+                      const set = last
+                        ? {
+                            ...last,
+                            key: nextKey.current++,
+                            min: '',
+                            max: '',
+                            right: last.right ? { ...last.right, min: '', max: '' } : undefined,
+                          }
+                        : toDraft();
                       changeItems(
                         items.map((e, n) => (n === i ? { ...e, sets: [...e.sets, set] } : e)),
                       );

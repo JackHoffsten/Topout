@@ -70,6 +70,24 @@ beforeEach(() => {
   mockApi.updateWorkoutTemplate.mockResolvedValue(template);
 });
 
+test('blank rep targets can be saved and stay blank when restored', async () => {
+  mockApi.getWorkoutTemplate.mockResolvedValue({
+    ...template,
+    exercises: [{ exercise, sets: [{ ...set, targetRepsMin: null }] }],
+  });
+  await mount(<TemplateEditor id={1} />);
+  await fireEvent.press(await screen.findByRole('button', { name: 'Expand Row' }));
+  const field = await screen.findByLabelText('Row set 1 reps');
+  expect(field.props.value).toBe('');
+  await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() =>
+    expect(mockApi.updateWorkoutTemplate).toHaveBeenCalledWith(1, {
+      name: 'Pull',
+      exercises: [{ exerciseId: 1, sets: [{ ...set, targetRepsMin: null }] }],
+    }),
+  );
+});
+
 test('loading and empty list states', async () => {
   let resolve!: (value: any[]) => void;
   mockApi.listWorkoutTemplates.mockImplementationOnce(
@@ -171,7 +189,7 @@ test('template list shows distinct left and right targets for split sets', async
   expect(screen.getByText('Set 2: 1 rep')).toBeTruthy();
 });
 
-test('creates a complete ordered draft with two default sets and copied additional sets', async () => {
+test('starts exercises without sets and defaults new set reps to blank', async () => {
   await mount(<TemplateEditor />);
   await fireEvent.press(screen.getByRole('button', { name: 'Create template' }));
   await screen.findByText('Enter a template name.');
@@ -180,12 +198,17 @@ test('creates a complete ordered draft with two default sets and copied addition
   await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'Row');
   expect(screen.queryByRole('button', { name: 'Select Curl' })).toBeNull();
   await fireEvent.press(await screen.findByRole('button', { name: 'Select Row' }));
-  expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('8');
-  expect(screen.getByLabelText('Row set 2 reps').props.value).toBe('8');
+  expect(screen.queryByLabelText('Row set 1 reps')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Add set to Row' }));
+  expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('');
+  await fireEvent.changeText(screen.getByLabelText('Row set 1 reps'), '8');
+  await fireEvent.press(screen.getByRole('button', { name: 'Add set to Row' }));
+  expect(screen.getByLabelText('Row set 2 reps').props.value).toBe('');
   expect(screen.queryByRole('button', { name: 'Add Row' })).toBeNull();
   await fireEvent.changeText(screen.getByLabelText('Row set 2 reps'), '12');
   await fireEvent.press(screen.getByRole('button', { name: 'Add set to Row' }));
-  expect(screen.getByLabelText('Row set 3 reps').props.value).toBe('12');
+  expect(screen.getByLabelText('Row set 3 reps').props.value).toBe('');
+  await fireEvent.changeText(screen.getByLabelText('Row set 3 reps'), '12');
   await fireEvent.press(screen.getByRole('button', { name: 'Move Row set 3 up' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Remove Row set 3' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Add exercise' }));
@@ -203,7 +226,7 @@ test('creates a complete ordered draft with two default sets and copied addition
     expect(mockApi.createWorkoutTemplate).toHaveBeenCalledWith({
       name: 'Pull',
       exercises: [
-        { exerciseId: 2, sets: [set, set] },
+        { exerciseId: 2, sets: [] },
         { exerciseId: 1, sets: [set, { ...set, targetRepsMin: 12 }] },
       ],
     }),
@@ -257,6 +280,7 @@ test('cancelling a selected exercise discards its sets without changing the temp
   await fireEvent.changeText(screen.getByLabelText('Template name'), 'Empty');
   await fireEvent.press(screen.getByRole('button', { name: 'Add exercise' }));
   await fireEvent.press(await screen.findByRole('button', { name: 'Select Row' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Add set to Row' }));
   await fireEvent.changeText(screen.getByLabelText('Row set 1 reps'), '20');
   await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
   expect(screen.queryByRole('button', { name: 'Expand Row' })).toBeNull();
@@ -306,8 +330,8 @@ test('creates a missing exercise inline and preserves the template draft', async
   await fireEvent.press(screen.getByRole('checkbox', { name: 'Back' }));
   await fireEvent.press(screen.getByRole('checkbox', { name: 'Biceps' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Create exercise' }));
-  await screen.findByLabelText('Cable row set 1 reps');
-  expect(screen.getByLabelText('Cable row set 2 reps').props.value).toBe('8');
+  await screen.findByRole('button', { name: 'Add set to Cable row' });
+  expect(screen.queryByLabelText('Cable row set 1 reps')).toBeNull();
   expect(mockApi.createExercise).toHaveBeenCalledWith({
     name: 'Cable row',
     muscleGroups: ['Back', 'Biceps'],
@@ -319,8 +343,8 @@ test('creates a missing exercise inline and preserves the template draft', async
     expect(mockApi.createWorkoutTemplate).toHaveBeenCalledWith({
       name: 'Pull',
       exercises: [
-        { exerciseId: 1, sets: [set, set] },
-        { exerciseId: 3, sets: [set, set] },
+        { exerciseId: 1, sets: [] },
+        { exerciseId: 3, sets: [] },
       ],
     }),
   );
@@ -345,12 +369,13 @@ test('inline creation errors and cancellation preserve the search and template n
   expect(mockReplace).not.toHaveBeenCalled();
 });
 
-test('plans different left/right targets, validates ranges and copies split sets', async () => {
+test('plans left/right targets and preserves split weights while leaving added reps blank', async () => {
   await mount(<TemplateEditor />);
   await fireEvent.changeText(screen.getByLabelText('Template name'), 'Split');
   await fireEvent.press(screen.getByRole('button', { name: 'Add exercise' }));
   await fireEvent.press(await screen.findByRole('button', { name: 'Select Row' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'Remove Row set 2' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Add set to Row' }));
+  await fireEvent.changeText(screen.getByLabelText('Row set 1 reps'), '8');
   await fireEvent.press(screen.getByRole('button', { name: 'Split Row set 1 left/right' }));
   await fireEvent.changeText(screen.getByLabelText('Row set 1 left weight (kg, optional)'), '12');
   await fireEvent.changeText(screen.getByLabelText('Row set 1 right reps'), '10');
@@ -362,7 +387,10 @@ test('plans different left/right targets, validates ranges and copies split sets
   expect(mockApi.createWorkoutTemplate).not.toHaveBeenCalled();
   await fireEvent.changeText(screen.getByLabelText('Row set 1 right max reps (optional)'), '12');
   await fireEvent.press(screen.getByRole('button', { name: 'Add set to Row' }));
-  expect(screen.getByLabelText('Row set 2 right reps').props.value).toBe('10');
+  expect(screen.getByLabelText('Row set 2 right reps').props.value).toBe('');
+  expect(screen.getByLabelText('Row set 2 left reps').props.value).toBe('');
+  await fireEvent.changeText(screen.getByLabelText('Row set 2 left reps'), '8');
+  await fireEvent.changeText(screen.getByLabelText('Row set 2 right max reps (optional)'), '12');
   await fireEvent.changeText(screen.getByLabelText('Row set 2 right reps'), '11');
   await fireEvent.press(screen.getByRole('button', { name: 'Move Row set 2 up' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Create template' }));

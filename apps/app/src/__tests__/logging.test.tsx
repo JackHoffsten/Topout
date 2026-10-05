@@ -68,6 +68,29 @@ async function mount(label = 'Row set 1 reps') {
   await screen.findByLabelText(label);
 }
 
+test('missing defaults stay empty and cannot be logged without reps', async () => {
+  mockApi.getWorkoutLogging.mockResolvedValue({
+    ...workout,
+    template: {
+      ...workout.template,
+      exercises: [
+        {
+          exercise,
+          sets: [
+            { ...workout.template.exercises[0]!.sets[0], targetRepsMin: null, targetRepsMax: null },
+          ],
+        },
+      ],
+    },
+  });
+  await mount();
+  expect(screen.queryByText(/Planned:/)).toBeNull();
+  expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('');
+  expect(screen.getByLabelText('Row set 1 reps').props.placeholder).toBe('');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Log Row set 1' }));
+  expect(mockApi.recordWorkoutSet).not.toHaveBeenCalled();
+});
+
 const matchingWorkout = () =>
   ({
     ...JSON.parse(JSON.stringify(workout)),
@@ -261,11 +284,9 @@ test('split template targets require both sides and keep their independent value
   current.log!.exercises[0]!.sets.pop();
   expect(templateFromLog(current)).toBeNull();
 });
-test('requires actual reps and weight, saves entered sets, and shows completed results', async () => {
+test('saves entered values instead of defaults and shows completed results', async () => {
   await mount();
   expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('');
-  await fireEventAsync.press(screen.getByRole('button', { name: 'Finish workout' }));
-  expect(mockApi.completeWorkout).not.toHaveBeenCalled();
   await fireEventAsync.changeText(screen.getByLabelText('Row set 1 reps'), '9');
   await fireEventAsync.changeText(screen.getByLabelText('Row set 1 weight (kg)'), '22,5');
   mockApi.completeWorkout.mockResolvedValue({
@@ -342,6 +363,41 @@ test('shows the latest matching set instead of planned targets without filling a
   expect(screen.getByText(/Last logged \(2026-09-29\)/)).toBeTruthy();
   expect(screen.queryByText(/Planned:/)).toBeNull();
   expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('');
+  expect(screen.getByLabelText('Row set 1 reps').props.placeholder).toBe('10');
+  expect(screen.getByLabelText('Row set 1 weight (kg)').props.placeholder).toBe('35');
+  mockApi.recordWorkoutSet.mockResolvedValue(workout);
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Log Row set 1' }));
+  await waitFor(() =>
+    expect(mockApi.recordWorkoutSet).toHaveBeenCalledWith(
+      2,
+      expect.objectContaining({ reps: 10, weightKg: 35 }),
+    ),
+  );
+  expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('10');
+});
+test('planned placeholders save on finish and zero weight is retained', async () => {
+  mockApi.getWorkoutLogging.mockResolvedValue({
+    ...workout,
+    template: {
+      ...workout.template,
+      exercises: [
+        { exercise, sets: [{ ...workout.template.exercises[0]!.sets[0], targetWeightKg: 0 }] },
+      ],
+    },
+  });
+  mockApi.completeWorkout.mockResolvedValue(matchingWorkout());
+  await mount();
+  expect(screen.getByLabelText('Row set 1 reps').props.placeholder).toBe('8');
+  expect(screen.getByLabelText('Row set 1 weight (kg)').props.placeholder).toBe('0');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Finish workout' }));
+  await waitFor(() =>
+    expect(mockApi.completeWorkout).toHaveBeenCalledWith(
+      2,
+      expect.objectContaining({
+        exercises: [{ exerciseId: 1, sets: [expect.objectContaining({ reps: 8, weightKg: 0 })] }],
+      }),
+    ),
+  );
 });
 test('add and remove sets, collapse, cancel, and preserve values after failed saving', async () => {
   await mount();
@@ -349,7 +405,8 @@ test('add and remove sets, collapse, cancel, and preserve values after failed sa
   await fireEventAsync.changeText(screen.getByLabelText('Row set 1 weight (kg)'), '20');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Add set to Row' }));
   expect(screen.getByLabelText('Row set 2 reps').props.value).toBe('');
-  expect(screen.getByLabelText('Row set 2 weight (kg)').props.value).toBe('20');
+  expect(screen.getByLabelText('Row set 2 weight (kg)').props.value).toBe('');
+  expect(screen.getByLabelText('Row set 2 weight (kg)').props.placeholder).toBe('');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Remove Row set 2' }));
   await fireEventAsync.press(screen.getByRole('button', { name: 'Collapse Row' }));
   expect(screen.queryByLabelText('Row set 1 reps')).toBeNull();

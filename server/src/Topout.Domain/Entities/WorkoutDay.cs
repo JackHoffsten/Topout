@@ -48,7 +48,8 @@ public class WorkoutDay : OwnedEntity
                     set.TargetRepsMax,
                     set.RightTargetRepsMin,
                     set.RightTargetRepsMax,
-                    set.RightTargetWeight
+                    set.RightTargetWeight,
+                    set.IsSplit
                 );
         }
         Rename(copy.Name);
@@ -65,7 +66,8 @@ public class WorkoutDay : OwnedEntity
                     set.TargetRepsMax,
                     set.RightTargetRepsMin,
                     set.RightTargetRepsMax,
-                    set.RightTargetWeight
+                    set.RightTargetWeight,
+                    set.IsSplit
                 );
         }
     }

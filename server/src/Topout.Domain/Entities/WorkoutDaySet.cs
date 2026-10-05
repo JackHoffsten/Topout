@@ -8,7 +8,8 @@ public class WorkoutDaySet : Entity
     public int WorkoutDayExerciseId { get; private set; }
     public WorkoutDayExercise WorkoutDayExercise { get; private set; } = null!;
     public int Order { get; private set; }
-    public int TargetRepsMin { get; private set; }
+    public int? TargetRepsMin { get; private set; }
+    public bool IsSplit { get; private set; }
     public int? TargetRepsMax { get; private set; } // null = exact
     public Weight? TargetWeight { get; private set; } // null = not pre-planned
     public bool IsWarmup { get; private set; }
@@ -22,21 +23,20 @@ public class WorkoutDaySet : Entity
     internal WorkoutDaySet(
         WorkoutDayExercise workoutDayExercise,
         int order,
-        int targetReps,
+        int? targetReps,
         Weight? targetWeight,
         bool isWarmup,
         bool isAmrap,
         int? targetRepsMax = null,
         int? rightTargetRepsMin = null,
         int? rightTargetRepsMax = null,
-        Weight? rightTargetWeight = null
+        Weight? rightTargetWeight = null,
+        bool isSplit = false
     )
     {
         ValidateRange(targetReps, targetRepsMax);
-        if (rightTargetRepsMin.HasValue)
-            ValidateRange(rightTargetRepsMin.Value, rightTargetRepsMax);
-        else if (rightTargetRepsMax.HasValue || rightTargetWeight is not null)
-            throw new ArgumentException("Right-side reps are required for split sets.");
+        ValidateRange(rightTargetRepsMin, rightTargetRepsMax);
+        IsSplit = isSplit || rightTargetRepsMin.HasValue || rightTargetWeight is not null;
 
         WorkoutDayExercise = workoutDayExercise;
         Order = order;
@@ -52,7 +52,7 @@ public class WorkoutDaySet : Entity
 
     internal void SetOrder(int order) => Order = order;
 
-    public void UpdateTarget(int repsMin, int? repsMax, bool isAmrap)
+    public void UpdateTarget(int? repsMin, int? repsMax, bool isAmrap)
     {
         ValidateRange(repsMin, repsMax);
         TargetRepsMin = repsMin;
@@ -64,12 +64,14 @@ public class WorkoutDaySet : Entity
 
     public void MarkAsWarmup(bool isWarmup) => IsWarmup = isWarmup;
 
-    private static void ValidateRange(int repsMin, int? repsMax)
+    private static void ValidateRange(int? repsMin, int? repsMax)
     {
         if (repsMin is < 1 or > 1000)
             throw new ArgumentException("Target reps must be between 1 and 1000.");
         if (repsMax is < 1 or > 1000)
             throw new ArgumentException("Target reps max must be between 1 and 1000.");
+        if (repsMin is null && repsMax is not null)
+            throw new ArgumentException("Enter minimum reps before setting maximum reps.");
         if (repsMax is not null && repsMax < repsMin)
             throw new ArgumentException("Target reps max must be greater than or equal to min.");
     }

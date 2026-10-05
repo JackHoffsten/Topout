@@ -43,9 +43,9 @@ public sealed class SaveWorkoutTemplateHandler(
         var draft = new WorkoutDay(user.UserId, input.Name);
         if (
             input.Exercises is null
-            || input.Exercises.Any(x => x is null || x.Sets is null || x.Sets.Any(s => s is null))
+            || input.Exercises.Any(x => x is null || (x.Sets?.Any(s => s is null) ?? false))
         )
-            throw new RequestException(ErrorKind.Validation, "Exercises and sets are required.");
+            throw new RequestException(ErrorKind.Validation, "Exercises must be a valid list.");
         if (input.Exercises.Select(x => x.ExerciseId).Distinct().Count() != input.Exercises.Count)
             throw new RequestException(
                 ErrorKind.Conflict,
@@ -57,7 +57,7 @@ public sealed class SaveWorkoutTemplateHandler(
             if (!available.TryGetValue(item.ExerciseId, out var exercise))
                 throw new RequestException(ErrorKind.NotFound, "Exercise not found.");
             var entry = draft.AddExercise(exercise);
-            foreach (var set in item.Sets)
+            foreach (var set in item.Sets ?? [])
                 entry.AddSet(
                     set.TargetRepsMin,
                     set.TargetWeightKg is null
@@ -70,7 +70,8 @@ public sealed class SaveWorkoutTemplateHandler(
                     set.RightTarget?.TargetRepsMax,
                     set.RightTarget?.TargetWeightKg is null
                         ? null
-                        : Weight.FromKilograms(set.RightTarget.TargetWeightKg.Value)
+                        : Weight.FromKilograms(set.RightTarget.TargetWeightKg.Value),
+                    set.RightTarget is not null
                 );
         }
         return WorkoutTemplateResponse.From(await templates.SaveAsync(id, draft, ct));

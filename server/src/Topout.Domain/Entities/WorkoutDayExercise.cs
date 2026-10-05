@@ -26,14 +26,15 @@ public class WorkoutDayExercise : Entity
     internal void SetOrder(int order) => Order = order;
 
     public WorkoutDaySet AddSet(
-        int targetReps,
+        int? targetReps = null,
         Weight? targetWeight = null,
         bool isWarmup = false,
         bool isAmrap = false,
         int? targetRepsMax = null,
         int? rightTargetRepsMin = null,
         int? rightTargetRepsMax = null,
-        Weight? rightTargetWeight = null
+        Weight? rightTargetWeight = null,
+        bool isSplit = false
     )
     {
         var set = new WorkoutDaySet(
@@ -46,7 +47,8 @@ public class WorkoutDayExercise : Entity
             targetRepsMax: targetRepsMax,
             rightTargetRepsMin: rightTargetRepsMin,
             rightTargetRepsMax: rightTargetRepsMax,
-            rightTargetWeight: rightTargetWeight
+            rightTargetWeight: rightTargetWeight,
+            isSplit: isSplit
         );
 
         _plannedSets.Add(set);

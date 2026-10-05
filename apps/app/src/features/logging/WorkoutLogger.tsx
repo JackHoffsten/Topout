@@ -143,6 +143,18 @@ export function WorkoutLogger({ scheduleId }: { scheduleId: number }) {
 }
 
 function LoggingForm({ workout }: { workout: WorkoutLogging }) {
+  const defaults = (exerciseId: number, set: DraftSet) => {
+    const previous = workout.previousSets?.find(
+      (s) =>
+        s.exerciseId === exerciseId && s.order === set.order && (s.side ?? 'Both') === set.side,
+    );
+    return {
+      reps: previous?.reps ?? set.target?.targetRepsMin,
+      weight: previous?.weightKg ?? set.target?.targetWeightKg,
+    };
+  };
+  const valueOrDefault = (value: string, fallback: number | null | undefined) =>
+    value.trim() ? Number(value.replace(',', '.')) : (fallback ?? NaN);
   const router = useRouter();
   const wide = useDesktop();
   const { api } = useSession();
@@ -232,7 +244,14 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                 ...item,
                 sets: item.sets.map((set) =>
                   set.order === input.order && set.side === input.side
-                    ? { ...set, saved: signature(set) }
+                    ? (() => {
+                        const logged = {
+                          ...set,
+                          reps: String(input.reps),
+                          weight: String(input.weightKg),
+                        };
+                        return { ...logged, saved: signature(logged) };
+                      })()
                     : set,
                 ),
               }
@@ -281,13 +300,14 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     saveLocation.isPending;
   const logSet = (i: number, j: number) => {
     const set = items[i]!.sets[j]!;
+    const fallback = defaults(items[i]!.exercise.id, set);
     const parsed = recordWorkoutSetSchema.safeParse({
       location: location.trim(),
       exerciseId: items[i]!.exercise.id,
       order: set.order,
       side: set.side,
-      reps: set.reps.trim() ? Number(set.reps.replace(',', '.')) : NaN,
-      weightKg: set.weight.trim() ? Number(set.weight.replace(',', '.')) : NaN,
+      reps: valueOrDefault(set.reps, fallback.reps),
+      weightKg: valueOrDefault(set.weight, fallback.weight),
       isWarmup: set.warmup,
       notes: set.notes.trim() || null,
     });
@@ -353,7 +373,6 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     changed();
   };
   const finish = () => {
-    const number = (value: string) => (value.trim() ? Number(value.replace(',', '.')) : NaN);
     const parsed = completeWorkoutInputSchema.safeParse({
       notes: notes.trim() || null,
       location: location.trim() || null,
@@ -361,12 +380,18 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
         .map((item) => ({
           exerciseId: item.exercise.id,
           sets: item.sets
-            .filter((set) => set.saved || set.reps.trim())
+            .filter(
+              (set) =>
+                set.saved ||
+                set.reps.trim() ||
+                set.weight.trim() ||
+                defaults(item.exercise.id, set).reps != null,
+            )
             .map((set) => ({
-              reps: number(set.reps),
+              reps: valueOrDefault(set.reps, defaults(item.exercise.id, set).reps),
               order: set.order,
               side: set.side,
-              weightKg: number(set.weight),
+              weightKg: valueOrDefault(set.weight, defaults(item.exercise.id, set).weight),
               isWarmup: set.warmup,
               notes: set.notes.trim() || null,
             })),
@@ -647,14 +672,21 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                             kg{previous.isWarmup ? ' · Warm-up' : ''}
                           </Label>
                         ) : (
-                          set.target && (
+                          set.target?.targetRepsMin != null && (
                             <Label small muted>
                               Planned:{' '}
-                              <Label syntax="number" small>
-                                {set.target.targetRepsMin}
-                                {set.target.targetRepsMax != null && `–${set.target.targetRepsMax}`}
-                              </Label>{' '}
-                              reps
+                              {set.target.targetRepsMin != null ? (
+                                <>
+                                  <Label syntax="number" small>
+                                    {set.target.targetRepsMin}
+                                    {set.target.targetRepsMax != null &&
+                                      `–${set.target.targetRepsMax}`}
+                                  </Label>{' '}
+                                  reps
+                                </>
+                              ) : (
+                                'Reps not planned'
+                              )}
                               {set.target.targetWeightKg != null && (
                                 <>
                                   {' · '}
@@ -674,6 +706,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                               label="Reps"
                               accessibilityLabel={`${prefix} reps`}
                               value={set.reps}
+                              placeholder={defaults(item.exercise.id, set).reps?.toString() ?? ''}
                               onChangeText={(reps) => changeSet(i, j, { reps })}
                               keyboardType="number-pad"
                               editable={!busy}
@@ -685,6 +718,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                               label={set.side === 'Both' ? 'Weight (kg)' : 'Weight per side (kg)'}
                               accessibilityLabel={`${prefix} weight (kg)`}
                               value={set.weight}
+                              placeholder={defaults(item.exercise.id, set).weight?.toString() ?? ''}
                               onChangeText={(weight) => changeSet(i, j, { weight })}
                               keyboardType="decimal-pad"
                               editable={!busy}
@@ -792,7 +826,6 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                                         undefined,
                                         Math.max(0, ...entry.sets.map((set) => set.order)) + 1,
                                       ),
-                                      weight: entry.sets.at(-1)?.weight ?? '',
                                     },
                                   ],
                                 }
@@ -918,7 +951,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
           <Label small muted>
             {workout.log?.completedAt
               ? 'Save set saves that set immediately. Save changes also saves notes and exercise changes.'
-              : 'Log each set to save it immediately. Finish when done; empty sets are skipped.'}
+              : 'Blank fields use the shown previous or planned values. Log each set to save it immediately. Remove sets you did not complete before finishing.'}
           </Label>
           <Button
             title={workout.log?.completedAt ? 'Save changes' : 'Finish workout'}

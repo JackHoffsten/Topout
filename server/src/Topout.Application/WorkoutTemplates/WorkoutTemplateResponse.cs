@@ -4,13 +4,13 @@ using Topout.Domain.Entities;
 namespace Topout.Application.WorkoutTemplates;
 
 public sealed record PlannedSideInput(
-    int TargetRepsMin,
+    int? TargetRepsMin,
     int? TargetRepsMax,
     decimal? TargetWeightKg
 );
 
 public sealed record PlannedSetInput(
-    int TargetRepsMin,
+    int? TargetRepsMin,
     int? TargetRepsMax,
     decimal? TargetWeightKg,
     bool IsWarmup,
@@ -18,7 +18,10 @@ public sealed record PlannedSetInput(
     PlannedSideInput? RightTarget = null
 );
 
-public sealed record TemplateExerciseInput(int ExerciseId, IReadOnlyList<PlannedSetInput> Sets);
+public sealed record TemplateExerciseInput(
+    int ExerciseId,
+    IReadOnlyList<PlannedSetInput>? Sets = null
+);
 
 public sealed record WorkoutTemplateInput(
     string Name,
@@ -50,10 +53,10 @@ public sealed record WorkoutTemplateResponse(
                             s.TargetWeight?.Kilograms,
                             s.IsWarmup,
                             s.IsAmrap,
-                            s.RightTargetRepsMin is null
+                            !s.IsSplit
                                 ? null
                                 : new PlannedSideInput(
-                                    s.RightTargetRepsMin.Value,
+                                    s.RightTargetRepsMin,
                                     s.RightTargetRepsMax,
                                     s.RightTargetWeight?.Kilograms
                                 )

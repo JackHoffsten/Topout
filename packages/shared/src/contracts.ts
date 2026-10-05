@@ -51,14 +51,18 @@ export type ExerciseInput = z.infer<typeof exerciseInputSchema>;
 
 const plannedSideSchema = z
   .object({
-    targetRepsMin: z.number().int().min(1).max(1000),
+    targetRepsMin: z.number().int().min(1).max(1000).nullish().default(null),
     targetRepsMax: z.number().int().min(1).max(1000).nullish(),
     targetWeightKg: z.number().min(0).max(2000).nullish(),
   })
-  .refine((s) => s.targetRepsMax == null || s.targetRepsMax >= s.targetRepsMin, {
-    message: 'Maximum reps must be at least minimum reps.',
-    path: ['targetRepsMax'],
-  });
+  .refine(
+    (s) =>
+      s.targetRepsMax == null || (s.targetRepsMin != null && s.targetRepsMax >= s.targetRepsMin),
+    {
+      message: 'Maximum reps must be at least minimum reps.',
+      path: ['targetRepsMax'],
+    },
+  );
 
 export const plannedSetSchema = plannedSideSchema.safeExtend({
   isWarmup: z.boolean(),
@@ -76,7 +80,10 @@ export const workoutTemplateInputSchema = z
       .min(1, 'Enter a template name.')
       .max(100, 'Use 100 characters or fewer.'),
     exercises: z.array(
-      z.object({ exerciseId: z.number().int().positive(), sets: z.array(plannedSetSchema) }),
+      z.object({
+        exerciseId: z.number().int().positive(),
+        sets: z.array(plannedSetSchema).default([]),
+      }),
     ),
   })
   .refine((t) => new Set(t.exercises.map((e) => e.exerciseId)).size === t.exercises.length, {
