@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View } from 'react-native';
+import { useRef, useState } from 'react';
+import { View, type ScrollView } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import {
   climbingTypes,
@@ -23,7 +23,7 @@ import { Page } from '../../ui/components/Page';
 import { Heading } from '../../ui/components/Heading';
 import { Label } from '../../ui/components/Label';
 import { Card } from '../../ui/components/Card';
-import { Field } from '../../ui/components/Field';
+import { SearchField } from '../../ui/components/SearchField';
 import { Button } from '../../ui/components/Button';
 import { ErrorNotice } from '../../ui/components/ErrorNotice';
 import { Loading } from '../../ui/components/Loading';
@@ -59,6 +59,7 @@ function Choices<T extends string>({
 }
 
 export function ProgressScreen() {
+  const scrollRef = useRef<ScrollView>(null);
   const { api } = useSession();
   const c = useTheme();
   const wide = useDesktop();
@@ -143,7 +144,7 @@ export function ProgressScreen() {
     ['Climbs sent', data.climbing.reduce((sum, x) => sum + x.sends, 0)],
   ] as const;
   return (
-    <Page>
+    <Page scrollRef={scrollRef}>
       <Heading large>Progress</Heading>
       <Choices values={['Overview', 'Exercises', 'Climbing']} selected={tab} onChange={setTab} />
       <Choices
@@ -270,7 +271,8 @@ export function ProgressScreen() {
                     )}
                     {choosing && (
                       <>
-                        <Field
+                      <SearchField
+                        scrollRef={scrollRef}
                           label="Search exercises"
                           value={search}
                           onChangeText={setSearch}

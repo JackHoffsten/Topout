@@ -83,8 +83,10 @@ test('exercise selection, metric changes, and side filters keep the left and rig
   await mount();
   await screen.findByText('Weekly activity');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Exercises' }));
+  await fireEventAsync(screen.getByLabelText('Search exercises'), 'focus', { nativeEvent: {} });
   await fireEventAsync.changeText(screen.getByLabelText('Search exercises'), 'curl');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Select progress exercise Curl' }));
+  expect(screen.queryByLabelText('Search exercises')).toBeNull();
   expect(screen.getByRole('button', { name: 'Heaviest weight' }).props.accessibilityState.selected).toBe(
     true,
   );
