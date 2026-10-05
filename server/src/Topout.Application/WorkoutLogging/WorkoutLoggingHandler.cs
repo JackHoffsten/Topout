@@ -39,14 +39,16 @@ public sealed record RecordSetInput(
     [property: System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault
     )]
-        SetSide Side = SetSide.Both
+        SetSide Side = SetSide.Both,
+    string? Location = null
 );
 
 public sealed record LoggedExerciseInput(int ExerciseId, IReadOnlyList<LoggedSetInput> Sets);
 
 public sealed record CompleteWorkoutInput(
     string? Notes,
-    IReadOnlyList<LoggedExerciseInput> Exercises
+    IReadOnlyList<LoggedExerciseInput> Exercises,
+    string? Location = null
 );
 
 public sealed record LoggedExerciseResponse(
@@ -59,7 +61,8 @@ public sealed record WorkoutLogResponse(
     DateOnly Date,
     string? Notes,
     DateTime? CompletedAt,
-    IReadOnlyList<LoggedExerciseResponse> Exercises
+    IReadOnlyList<LoggedExerciseResponse> Exercises,
+    string? Location = null
 )
 {
     public static WorkoutLogResponse From(WorkoutLog log) =>
@@ -83,7 +86,8 @@ public sealed record WorkoutLogResponse(
                         ))
                         .ToArray()
                 ))
-                .ToArray()
+                .ToArray(),
+            log.Location
         );
 }
 
@@ -162,6 +166,7 @@ public sealed class WorkoutLoggingHandler(
             throw new RequestException(ErrorKind.Conflict, "This workout cannot be logged again.");
         if (
             input.Notes?.Length > 2000
+            || input.Location?.Trim().Length > 200
             || input.Exercises is null
             || input.Exercises.Count is < 1 or > 100
             || input.Exercises.Any(e =>
@@ -189,6 +194,7 @@ public sealed class WorkoutLoggingHandler(
             );
         var available = (await exercises.ListAsync(user.UserId, ct)).ToDictionary(e => e.Id);
         var log = new WorkoutLog(user.UserId, schedule.Date, input.Notes?.Trim());
+        log.SetLocation(input.Location);
         foreach (var item in input.Exercises)
         {
             if (!available.TryGetValue(item.ExerciseId, out var exercise))
@@ -237,6 +243,7 @@ public sealed class WorkoutLoggingHandler(
             || input.Reps is < 1 or > 1000
             || input.WeightKg is < 0 or > 2000
             || input.Notes?.Length > 2000
+            || input.Location?.Trim().Length > 200
             || !Enum.IsDefined(input.Side)
         )
             throw new RequestException(
@@ -257,7 +264,8 @@ public sealed class WorkoutLoggingHandler(
             input.IsWarmup,
             input.Notes?.Trim(),
             ct,
-            input.Side
+            input.Side,
+            input.Location
         );
         return await GetAsync(scheduleId, ct);
     }
@@ -278,4 +286,12 @@ public sealed class WorkoutLoggingHandler(
 
     public Task DeleteAsync(int scheduleId, CancellationToken ct) =>
         logs.DeleteAsync(user.UserId, scheduleId, ct);
+
+    public async Task<WorkoutLoggingResponse> SetLocationAsync(int scheduleId, string? location, CancellationToken ct)
+    {
+        if (location?.Trim().Length > 200)
+            throw new RequestException(ErrorKind.Validation, "Location may contain up to 200 characters.");
+        await logs.SetLocationAsync(user.UserId, scheduleId, location, ct);
+        return await GetAsync(scheduleId, ct);
+    }
 }

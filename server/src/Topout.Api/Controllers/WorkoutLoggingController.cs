@@ -10,6 +10,11 @@ namespace Topout.Api.Controllers;
 [Route("api/workout-schedule/{scheduleId:int:min(1)}/log")]
 public sealed class WorkoutLoggingController : ControllerBase
 {
+    public sealed record LocationInput(string? Location);
+
+    [HttpPut("location")]
+    public async Task<IActionResult> SetLocation(int scheduleId, LocationInput input, [FromServices] WorkoutLoggingHandler handler, CancellationToken ct) =>
+        Ok(await handler.SetLocationAsync(scheduleId, input.Location, ct));
     [HttpDelete]
     public async Task<IActionResult> Delete(
         int scheduleId,

@@ -39,6 +39,21 @@ public class ClimbLogApiTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task Location_suggestions_match_case_insensitively_and_exclude_other_accounts()
+    {
+        using var client = await Client();
+        using var other = await Client();
+        await client.PostAsJsonAsync(Path, Input with { Location = "North Wall" });
+        await client.PostAsJsonAsync(Path, Input with { Location = "north wall" });
+        await other.PostAsJsonAsync(Path, Input with { Location = "North Secret" });
+        var suggestions = (await client.GetFromJsonAsync<string[]>("/api/log-locations?activity=climb&search=NORTH"))!;
+        Assert.Single(suggestions);
+        Assert.Equal("north wall", suggestions[0].ToLowerInvariant());
+        Assert.Empty((await client.GetFromJsonAsync<string[]>("/api/log-locations?activity=workout"))!);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/log-locations?activity=unknown")).StatusCode);
+    }
+
+    [Fact]
     public async Task History_search_matches_grade_and_readable_climbing_types()
     {
         using var client = await Client();

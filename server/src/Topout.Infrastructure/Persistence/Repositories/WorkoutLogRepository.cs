@@ -8,6 +8,21 @@ namespace Topout.Infrastructure.Persistence.Repositories;
 
 internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogRepository
 {
+    public async Task SetLocationAsync(int userId, int scheduleId, string? location, CancellationToken ct)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var schedule = await LockAsync(userId, scheduleId, ct);
+        var log = schedule.WorkoutLog;
+        if (log is null)
+        {
+            log = new WorkoutLog(userId, schedule.Date);
+            schedule.StartLog(log);
+            db.WorkoutLogs.Add(log);
+        }
+        log.SetLocation(location);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+    }
     public async Task<
         IReadOnlyList<Topout.Application.WorkoutLogging.PreviousSetResponse>
     > PreviousSetsAsync(int userId, DateOnly date, int? excludedLogId, CancellationToken ct) =>
@@ -157,7 +172,8 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
         bool warmup,
         string? notes,
         CancellationToken ct,
-        SetSide side = SetSide.Both
+        SetSide side = SetSide.Both,
+        string? location = null
     )
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -180,6 +196,7 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
                 ErrorKind.Conflict,
                 "Remove the existing set before changing its split mode."
             );
+        if (location is not null) log.SetLocation(location);
         log.RecordSet(exercise, order, reps, weight, warmup, notes, side);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

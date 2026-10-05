@@ -121,6 +121,12 @@ export const loggedSetSchema = z.object({
 });
 export const completeWorkoutInputSchema = z
   .object({
+    location: z
+      .string()
+      .trim()
+      .max(200, 'Location may contain up to 200 characters.')
+      .nullable()
+      .optional(),
     notes: z.string().trim().max(2000).nullable(),
     exercises: z
       .array(
@@ -153,6 +159,7 @@ export const completeWorkoutInputSchema = z
   );
 export type CompleteWorkoutInput = z.input<typeof completeWorkoutInputSchema>;
 export const workoutLogSchema = z.object({
+  location: z.string().nullable().optional(),
   id: z.number().int().positive(),
   date: z.iso.date(),
   notes: z.string().nullable(),
@@ -186,6 +193,7 @@ export const workoutLoggingSchema = z.object({
 });
 export type WorkoutLogging = z.infer<typeof workoutLoggingSchema>;
 export const recordWorkoutSetSchema = loggedSetSchema.extend({
+  location: z.string().trim().max(200).optional(),
   exerciseId: z.number().int().positive(),
   order: z.number().int().min(1).max(100),
 });

@@ -82,6 +82,28 @@ it('sends completion data and parses the persisted workout', async () => {
   expect(await api.getWorkoutLogging(2)).toEqual(response);
 });
 
+it('validates locations and sends encoded suggestion queries and independent location updates', async () => {
+  expect(
+    completeWorkoutInputSchema.safeParse({ ...input, location: 'x'.repeat(201) }).success,
+  ).toBe(false);
+  const transport = {
+    refresh: vi
+      .fn()
+      .mockResolvedValue({ accessToken: 'test', accessTokenExpiresAt: '2030-01-01T00:00:00Z' }),
+  } as unknown as SessionTransport;
+  const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(['Gym & Wall'])));
+  const api = new ApiClient('https://example.com', transport, fetcher);
+  await api.initialize();
+  expect(await api.listLogLocations('climb', 'Gym &')).toEqual(['Gym & Wall']);
+  expect(fetcher.mock.calls[0]![0]).toBe(
+    'https://example.com/api/log-locations?activity=climb&search=Gym%20%26',
+  );
+  fetcher.mockResolvedValue(new Response(JSON.stringify(response)));
+  await api.setWorkoutLocation(2, ' Gym ');
+  expect(fetcher.mock.calls[1]![1].method).toBe('PUT');
+  expect(JSON.parse(fetcher.mock.calls[1]![1].body)).toEqual({ location: 'Gym' });
+});
+
 it('records an individual set and updates completed workouts using PUT', async () => {
   const transport = {
     refresh: vi

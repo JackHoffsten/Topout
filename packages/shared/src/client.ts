@@ -293,6 +293,24 @@ export class ApiClient {
     return this.request(`/api/workout-schedule/${scheduleId}/log`, workoutLoggingSchema);
   }
 
+  listLogLocations(activity: 'workout' | 'climb', search = '') {
+    return this.request(
+      `/api/log-locations?activity=${activity}&search=${encodeURIComponent(search.trim())}`,
+      z.array(z.string().max(200)).max(8),
+    );
+  }
+
+  setWorkoutLocation(scheduleId: number, location: string | null) {
+    return this.request(
+      `/api/workout-schedule/${scheduleId}/log/location`,
+      workoutLoggingSchema,
+      'PUT',
+      {
+        location: z.string().trim().max(200).nullable().parse(location),
+      },
+    );
+  }
+
   completeWorkout(scheduleId: number, input: CompleteWorkoutInput) {
     return this.request(
       `/api/workout-schedule/${scheduleId}/log`,

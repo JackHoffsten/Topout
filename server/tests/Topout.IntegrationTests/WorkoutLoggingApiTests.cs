@@ -15,6 +15,31 @@ namespace Topout.IntegrationTests;
 public class WorkoutLoggingApiTests(ApiFixture fixture)
 {
     [Fact]
+    public async Task Locations_are_saved_cleared_suggested_and_scoped_to_the_account()
+    {
+        using var client = await Client();
+        using var other = await Client();
+        var (plan, _, exercise) = await Plan(client);
+        var url = $"/api/workout-schedule/{plan.Id}/log";
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync(url + "/location", new { location = "  Central Gym  " })).StatusCode);
+        var log = (await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json))!;
+        Assert.Equal("Central Gym", log.Log!.Location);
+        var suggestions = (await client.GetFromJsonAsync<string[]>("/api/log-locations?activity=workout&search=central"))!;
+        Assert.Equal("Central Gym", Assert.Single(suggestions));
+        Assert.Empty((await other.GetFromJsonAsync<string[]>("/api/log-locations?activity=workout"))!);
+        Assert.Equal(HttpStatusCode.NotFound, (await other.PutAsJsonAsync(url + "/location", new { location = "Other" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(url + "/location", new { location = new string('x', 201) })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync(url + "/sets", new RecordSetInput(exercise.Id, 1, 8, 20, false, null, Location: "East Gym"), ExerciseApiTests.Json)).StatusCode);
+        var complete = new CompleteWorkoutInput(null, [new(exercise.Id, [new(8, 20, false, null)])], "East Gym");
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync(url, complete, ExerciseApiTests.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync(url, complete with { Location = "West Gym" }, ExerciseApiTests.Json)).StatusCode);
+        Assert.Equal("West Gym", (await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json))!.Log!.Location);
+        await client.PutAsJsonAsync(url + "/location", new { location = (string?)null });
+        Assert.Null((await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json))!.Log!.Location);
+        Assert.Empty((await client.GetFromJsonAsync<string[]>("/api/log-locations?activity=workout"))!);
+    }
+
+    [Fact]
     public async Task Split_sets_save_restore_edit_delete_and_keep_side_specific_history()
     {
         using var client = await Client();

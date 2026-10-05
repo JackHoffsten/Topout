@@ -7,6 +7,7 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
 {
     public DateOnly Date { get; private set; }
     public string? Notes { get; private set; }
+    public string? Location { get; private set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public DateTime? CompletedAt { get; private set; }
@@ -36,6 +37,14 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
         var entry = new WorkoutLogEntry(this, exercise, order: _entries.Count + 1);
         _entries.Add(entry);
         return entry;
+    }
+
+    public void SetLocation(string? location)
+    {
+        var value = location?.Trim();
+        if (value?.Length > 200)
+            throw new ArgumentException("Location may contain up to 200 characters.");
+        Location = string.IsNullOrEmpty(value) ? null : value;
     }
 
     public void RemoveEntry(int entryId)
@@ -123,6 +132,7 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
         CompletedAt = null;
         _entries.Clear();
         Notes = source.Notes;
+        Location = source.Location;
         foreach (var entry in source.Entries.OrderBy(e => e.Order))
         {
             var replacement = AddEntry(entry.Exercise);
