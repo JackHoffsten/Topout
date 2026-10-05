@@ -21,9 +21,9 @@ try {
         )
     }
     $taskPath.AddLines([System.Drawing.PointF[]]$taskPoints)
-    $taskPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $taskPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $taskPen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+    $taskPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Square
+    $taskPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Square
+    $taskPen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Miter
     $taskGraphics.DrawPath($taskPen, $taskPath)
     $taskBitmap.Save(
         (Join-Path $taskRoot 'apps/app/assets/topout-ios-icon.png'),

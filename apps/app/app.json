@@ -3,6 +3,7 @@
     "name": "Topout",
     "slug": "topout",
     "scheme": "topout",
+    "icon": "./assets/topout-ios-icon.png",
     "version": "0.1.0",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
