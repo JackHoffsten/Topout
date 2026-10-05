@@ -39,6 +39,8 @@ const mockApi = {
   removeWorkoutSet: jest.fn<(...args: any[]) => Promise<any>>(),
   updateWorkoutTemplate: jest.fn<(...args: any[]) => Promise<any>>(),
   listExercises: jest.fn<() => Promise<any[]>>(),
+  listLogLocations: jest.fn<() => Promise<string[]>>(),
+  setWorkoutLocation: jest.fn<(...args: any[]) => Promise<any>>(),
 };
 const mockReplace = jest.fn();
 jest.mock('../lib/providers', () => ({
@@ -48,6 +50,7 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace }) })
 beforeEach(() => {
   jest.resetAllMocks();
   mockApi.getWorkoutLogging.mockResolvedValue(workout);
+  mockApi.listLogLocations.mockResolvedValue([]);
   mockApi.listExercises.mockResolvedValue([exercise]);
 });
 async function mount(label = 'Row set 1 reps') {
@@ -280,6 +283,7 @@ test('requires actual reps and weight, saves entered sets, and shows completed r
   await fireEventAsync.press(screen.getByRole('button', { name: 'Finish workout' }));
   await waitFor(() =>
     expect(mockApi.completeWorkout).toHaveBeenCalledWith(2, {
+      location: null,
       notes: null,
       exercises: [
         {
@@ -291,6 +295,40 @@ test('requires actual reps and weight, saves entered sets, and shows completed r
   );
   await screen.findByText('Completed');
   expect(screen.queryByLabelText('Row set 1 reps')).toBeNull();
+});
+
+test('saves an optional workout location independently without requiring sets', async () => {
+  mockApi.setWorkoutLocation.mockResolvedValue({
+    ...workout,
+    log: {
+      id: 1,
+      date: workout.date,
+      notes: null,
+      completedAt: null,
+      exercises: [],
+      location: 'Central Gym',
+    },
+  });
+  await mount();
+  await screen.findByLabelText('Location (optional)');
+  await fireEventAsync.changeText(screen.getByLabelText('Location (optional)'), 'Central Gym');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Save location' }));
+  await waitFor(() => expect(mockApi.setWorkoutLocation).toHaveBeenCalledWith(2, 'Central Gym'));
+  expect(mockApi.recordWorkoutSet).not.toHaveBeenCalled();
+});
+
+test('automatically saves the selected workout location rather than the typed prefix', async () => {
+  mockApi.listLogLocations.mockResolvedValue(['Central Gym']);
+  mockApi.setWorkoutLocation.mockResolvedValue(workout);
+  await mount();
+  const field = await screen.findByLabelText('Location (optional)');
+  await fireEventAsync.changeText(field, 'Cent');
+  await fireEventAsync(field, 'focus');
+  const suggestion = await screen.findByRole('button', { name: 'Use location Central Gym' });
+  await fireEventAsync.press(suggestion);
+  await waitFor(() => expect(mockApi.setWorkoutLocation).toHaveBeenCalledWith(2, 'Central Gym'));
+  expect(mockApi.setWorkoutLocation).toHaveBeenCalledTimes(1);
+  expect(mockApi.recordWorkoutSet).not.toHaveBeenCalled();
 });
 
 test('shows the latest matching set instead of planned targets without filling actual inputs', async () => {
@@ -346,6 +384,7 @@ test('records one set without requiring the remaining sets and allows editing a 
   await fireEventAsync.press(screen.getByRole('button', { name: 'Log Row set 1' }));
   await waitFor(() =>
     expect(mockApi.recordWorkoutSet).toHaveBeenCalledWith(2, {
+      location: '',
       exerciseId: 1,
       order: 1,
       side: 'Both',
@@ -367,6 +406,7 @@ test('records one set without requiring the remaining sets and allows editing a 
   await fireEventAsync.press(screen.getByRole('button', { name: 'Save changes' }));
   await waitFor(() =>
     expect(mockApi.updateWorkout).toHaveBeenCalledWith(2, {
+      location: null,
       notes: null,
       exercises: [
         {
@@ -406,6 +446,7 @@ test('splits a set, logs each side independently and finishes with the same set 
   await fireEventAsync.press(screen.getByRole('button', { name: 'Log Row set 1 left' }));
   await waitFor(() =>
     expect(mockApi.recordWorkoutSet).toHaveBeenCalledWith(2, {
+      location: '',
       exerciseId: 1,
       order: 1,
       side: 'Left',
@@ -421,6 +462,7 @@ test('splits a set, logs each side independently and finishes with the same set 
   await fireEventAsync.press(screen.getByRole('button', { name: 'Log Row set 1 right' }));
   await waitFor(() =>
     expect(mockApi.recordWorkoutSet).toHaveBeenLastCalledWith(2, {
+      location: '',
       exerciseId: 1,
       order: 1,
       side: 'Right',
@@ -435,6 +477,7 @@ test('splits a set, logs each side independently and finishes with the same set 
   await waitFor(() =>
     expect(mockApi.completeWorkout).toHaveBeenCalledWith(2, {
       notes: null,
+      location: null,
       exercises: [
         {
           exerciseId: 1,

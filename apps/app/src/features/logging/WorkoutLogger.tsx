@@ -16,6 +16,7 @@ import { Card } from '../../ui/components/Card';
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog';
 import { ErrorNotice } from '../../ui/components/ErrorNotice';
 import { Field } from '../../ui/components/Field';
+import { LocationField } from '../../ui/components/LocationField';
 import { Heading } from '../../ui/components/Heading';
 import { Label } from '../../ui/components/Label';
 import { Loading } from '../../ui/components/Loading';
@@ -149,6 +150,14 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
   const available = useExercises();
   const [items, setItems] = useState<DraftExercise[]>(() => initialItems(workout));
   const [notes, setNotes] = useState(workout.log?.notes ?? '');
+  const [location, setLocation] = useState(workout.log?.location ?? '');
+  const saveLocation = useMutation({
+    mutationFn: (value: string) => api.setWorkoutLocation(workout.scheduleId, value.trim() || null),
+    onSuccess: async (response) => {
+      cache.setQueryData(key(workout.scheduleId), response);
+      await cache.invalidateQueries({ queryKey: ['log-locations', 'workout'] });
+    },
+  });
   const [editing, setEditing] = useState(!workout.log?.completedAt);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
@@ -207,6 +216,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
       cache.setQueryData(key(workout.scheduleId), response);
       setEditing(false);
       setDirty(false);
+      await cache.invalidateQueries({ queryKey: ['log-locations', 'workout'] });
       await cache.invalidateQueries({ queryKey: ['progress'] });
       await cache.invalidateQueries({ queryKey: ['workout-schedule'] });
     },
@@ -230,6 +240,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
         ),
       );
       cache.setQueryData(key(workout.scheduleId), response);
+      await cache.invalidateQueries({ queryKey: ['log-locations', 'workout'] });
       await cache.invalidateQueries({ queryKey: ['progress'] });
       await cache.invalidateQueries({ queryKey: ['workout-schedule'] });
     },
@@ -263,10 +274,15 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     },
   });
   const busy =
-    save.isPending || record.isPending || remove.isPending || updateTemplateSet.isPending;
+    save.isPending ||
+    record.isPending ||
+    remove.isPending ||
+    updateTemplateSet.isPending ||
+    saveLocation.isPending;
   const logSet = (i: number, j: number) => {
     const set = items[i]!.sets[j]!;
     const parsed = recordWorkoutSetSchema.safeParse({
+      location: location.trim(),
       exerciseId: items[i]!.exercise.id,
       order: set.order,
       side: set.side,
@@ -340,6 +356,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     const number = (value: string) => (value.trim() ? Number(value.replace(',', '.')) : NaN);
     const parsed = completeWorkoutInputSchema.safeParse({
       notes: notes.trim() || null,
+      location: location.trim() || null,
       exercises: items
         .map((item) => ({
           exerciseId: item.exercise.id,
@@ -384,6 +401,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
       {workout.log?.completedAt && !editing ? (
         <>
           <Label syntax="keyword">Completed</Label>
+          {!!workout.log.location && <Label>Location: {workout.log.location}</Label>}
           {workout.log.exercises.map((item) => (
             <Card key={item.exercise.id}>
               <Heading name>{item.exercise.name}</Heading>
@@ -444,6 +462,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
             onPress={() => {
               setItems(initialItems(workout));
               setNotes(workout.log?.notes ?? '');
+              setLocation(workout.log?.location ?? '');
               setEditing(true);
             }}
           />
@@ -488,6 +507,26 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
       ) : (
         <>
           <Label muted>Enter the sets you completed. Use 0 kg for bodyweight exercises.</Label>
+          <LocationField
+            activity="workout"
+            value={location}
+            disabled={busy || saveLocation.isPending}
+            onSelect={(value) => saveLocation.mutate(value)}
+            onChange={(value) => {
+              setLocation(value);
+              changed();
+            }}
+          />
+          <Button
+            title="Save location"
+            variant="secondary"
+            busy={saveLocation.isPending}
+            disabled={busy || location.trim() === (workout.log?.location ?? '')}
+            onPress={() => saveLocation.mutate(location)}
+          />
+          <ErrorNotice
+            message={saveLocation.isError ? errorMessage(saveLocation.error) : undefined}
+          />
           {items.map((item, i) => (
             <Card key={item.exercise.id}>
               <Pressable

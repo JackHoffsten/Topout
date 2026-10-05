@@ -18,6 +18,7 @@ import {
 import { useSession } from '../../lib/providers';
 import { Button } from '../../ui/components/Button';
 import { Field } from '../../ui/components/Field';
+import { LocationField } from '../../ui/components/LocationField';
 import { Label } from '../../ui/components/Label';
 import { ErrorNotice } from '../../ui/components/ErrorNotice';
 import { useTheme } from '../../ui/theme';
@@ -145,6 +146,7 @@ export function ClimbEditor({
     onSuccess: async (_, input) => {
       await cache.invalidateQueries({ queryKey: ['progress'] });
       await cache.invalidateQueries({ queryKey: ['climb-logs'] });
+      await cache.invalidateQueries({ queryKey: ['log-locations', 'climb'] });
       onClose(input.date);
     },
   });
@@ -340,12 +342,11 @@ export function ClimbEditor({
         editable={!save.isPending}
         onChangeText={(name) => patch({ name })}
       />
-      <Field
-        label="Location (optional)"
+      <LocationField
+        activity="climb"
         value={draft.location ?? ''}
-        maxLength={200}
-        editable={!save.isPending}
-        onChangeText={(location) => patch({ location })}
+        disabled={save.isPending}
+        onChange={(location) => patch({ location })}
       />
       <ErrorNotice message={validation ?? (save.isError ? errorMessage(save.error) : undefined)} />
       <Button

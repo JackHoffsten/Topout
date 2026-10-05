@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text } from 'react-native';
+import { ActivityIndicator, Pressable, Text, type GestureResponderEvent } from 'react-native';
 import { useTheme, tokens } from '../theme';
 
 export function Button({
   title,
   onPress,
+  onPressIn,
   variant = 'primary',
   busy = false,
   disabled = false,
@@ -14,6 +15,7 @@ export function Button({
 }: {
   title: string;
   onPress: () => void;
+  onPressIn?: (event: GestureResponderEvent) => void;
   variant?: 'primary' | 'secondary' | 'danger';
   busy?: boolean;
   disabled?: boolean;
@@ -32,6 +34,7 @@ export function Button({
       aria-pressed={selected}
       disabled={disabled || busy}
       onPress={onPress}
+      onPressIn={onPressIn}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={({ pressed }) => ({
