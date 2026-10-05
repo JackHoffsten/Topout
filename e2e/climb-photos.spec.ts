@@ -17,7 +17,7 @@ test('climb photo uploads, restores when expanded, and can be removed', async ({
   await page.getByRole('button', { name: 'Choose grade 7A', exact: true }).click();
   await page.getByLabel('Route name (optional)', { exact: true }).fill('Photo climb');
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Add photo', exact: true }).click();
+  await page.getByRole('button', { name: 'Upload photo', exact: true }).click();
   await (await chooser).setFiles('apps/app/assets/topout-icon.png');
   await expect(page.getByRole('img', { name: 'Climb photo', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Save climb', exact: true }).click();

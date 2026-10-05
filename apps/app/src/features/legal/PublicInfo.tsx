@@ -31,8 +31,9 @@ export function PublicInfo({ privacy = false }: { privacy?: boolean }) {
             Your records are linked to your account and are not publicly visible. Topout does not
             include advertising or analytics SDKs in this release and does not access GPS, HealthKit
             or your contacts. You can optionally attach one photo to a climb. Topout only uploads
-            photos you select; it does not upload your photo library. Image metadata such as GPS
-            location is removed before storage.
+            photos you select or take; it does not upload your photo library. Camera access is
+            requested only when you choose to take a photo. Image metadata such as GPS location is
+            removed before storage.
           </Label>
           <Heading>Storage and security</Heading>
           <Label>

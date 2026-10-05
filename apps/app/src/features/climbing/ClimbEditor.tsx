@@ -185,6 +185,18 @@ export function ClimbEditor({
     setValidation(undefined);
     save.reset();
   };
+  const choosePhoto = async (source: 'library' | 'camera') => {
+    setPicking(true);
+    setPhotoError(undefined);
+    try {
+      const selected = await pickClimbPhoto(source);
+      if (selected) setPhoto(selected);
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : 'The photo could not be opened.');
+    } finally {
+      setPicking(false);
+    }
+  };
   return (
     <View testID="climb-editor" style={{ gap: 16 }}>
       {showHeading && <Label syntax="name">{log ? 'Edit climb' : 'Log climb'}</Label>}
@@ -390,23 +402,21 @@ export function ClimbEditor({
         {existingPhoto.isError && <ErrorNotice message="The existing photo could not be loaded." />}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           <Button
-            title={displayedPhoto ? 'Replace photo' : 'Add photo'}
+            title="Upload photo"
             variant="secondary"
             busy={picking}
             disabled={save.isPending}
-            onPress={async () => {
-              setPicking(true);
-              setPhotoError(undefined);
-              try {
-                const selected = await pickClimbPhoto();
-                if (selected) setPhoto(selected);
-              } catch (error) {
-                setPhotoError(
-                  error instanceof Error ? error.message : 'The photo could not be opened.',
-                );
-              } finally {
-                setPicking(false);
-              }
+            onPress={() => {
+              void choosePhoto('library');
+            }}
+          />
+          <Button
+            title="Take photo"
+            variant="secondary"
+            busy={picking}
+            disabled={save.isPending}
+            onPress={() => {
+              void choosePhoto('camera');
             }}
           />
           {!!displayedPhoto && (
@@ -418,6 +428,11 @@ export function ClimbEditor({
             />
           )}
         </View>
+        {!!displayedPhoto && (
+          <Label small muted>
+            Uploading or taking another photo will replace the current photo when you save.
+          </Label>
+        )}
         <ErrorNotice message={photoError} />
       </View>
       <Button

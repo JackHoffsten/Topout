@@ -1,16 +1,30 @@
 import * as ImagePicker from 'expo-image-picker';
+import { Platform } from 'react-native';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
 export type ClimbPhotoDraft = { base64: string; width: number; height: number };
-export async function pickClimbPhoto(): Promise<ClimbPhotoDraft | undefined> {
-  const result = await ImagePicker.launchImageLibraryAsync({
+export async function pickClimbPhoto(
+  source: 'library' | 'camera' = 'library',
+): Promise<ClimbPhotoDraft | undefined> {
+  if (source === 'camera' && Platform.OS !== 'web') {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      throw new Error(
+        'Camera access is required to take a photo. You can enable it in device settings or choose an existing photo.',
+      );
+    }
+  }
+  const options: ImagePicker.ImagePickerOptions = {
     mediaTypes: ['images'],
     allowsMultipleSelection: false,
     // Request a compatible representation of iPhone HEIC photos.
     preferredAssetRepresentationMode:
       ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
     quality: 1,
-  });
+  };
+  const result = await (source === 'camera'
+    ? ImagePicker.launchCameraAsync({ ...options, cameraType: ImagePicker.CameraType.back })
+    : ImagePicker.launchImageLibraryAsync(options));
   if (result.canceled) return;
   const asset = result.assets[0];
   if (!asset) return;

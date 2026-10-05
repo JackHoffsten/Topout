@@ -16,7 +16,7 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow Topout to access a photo you choose to attach to a climb.",
-          "cameraPermission": false,
+          "cameraPermission": "Allow Topout to use your camera to take a photo for a climb.",
           "microphonePermission": false
         }
       ]

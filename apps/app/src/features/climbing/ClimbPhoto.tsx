@@ -9,23 +9,27 @@ import type { ClimbPhotoDraft } from './pickClimbPhoto';
 
 export function PhotoPreview({ photo }: { photo: ClimbPhotoDraft }) {
   const c = useTheme();
+  const aspectRatio = photo.width / photo.height;
   return (
-    <View
-      style={{
-        backgroundColor: c.input,
-        borderRadius: tokens.radius.md,
-        overflow: 'hidden',
-        maxWidth: 640,
-        width: '100%',
-        alignSelf: 'center',
-      }}
-    >
-      <Image
-        accessibilityLabel="Climb photo"
-        source={{ uri: `data:image/jpeg;base64,${photo.base64}` }}
-        resizeMode="contain"
-        style={{ width: '100%', aspectRatio: photo.width / photo.height, maxHeight: 480 }}
-      />
+    <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          backgroundColor: c.input,
+          borderRadius: tokens.radius.md,
+          overflow: 'hidden',
+          maxWidth: Math.min(640, 480 * aspectRatio),
+          width: '100%',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Image
+          accessibilityLabel="Climb photo"
+          source={{ uri: `data:image/jpeg;base64,${photo.base64}` }}
+          resizeMode="contain"
+          style={{ width: '100%', aspectRatio }}
+        />
+      </View>
     </View>
   );
 }

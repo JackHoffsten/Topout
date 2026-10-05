@@ -31,8 +31,10 @@ const mockApi = {
   saveClimbPhoto: jest.fn<(...args: any[]) => Promise<any>>(),
   deleteClimbPhoto: jest.fn<(...args: any[]) => Promise<void>>(),
 };
-const mockPickPhoto = jest.fn<() => Promise<any>>();
-jest.mock('../features/climbing/pickClimbPhoto', () => ({ pickClimbPhoto: () => mockPickPhoto() }));
+const mockPickPhoto = jest.fn<(...args: any[]) => Promise<any>>();
+jest.mock('../features/climbing/pickClimbPhoto', () => ({
+  pickClimbPhoto: (...args: any[]) => mockPickPhoto(...args),
+}));
 let mockClimb: string | undefined;
 let mockDate: string | undefined;
 let mockReturnTo: string | undefined;
@@ -389,7 +391,7 @@ test('photo upload failure retries the saved climb instead of creating another',
   await mountCreate();
   await fireEventAsync.changeText(screen.getByLabelText('Search grades'), '7A');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 7A' }));
-  await fireEventAsync.press(screen.getByRole('button', { name: 'Add photo' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Upload photo' }));
   await screen.findByLabelText('Climb photo');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
   await screen.findByText('The climb was saved, but the photo change was not. Try saving again.');
@@ -398,6 +400,14 @@ test('photo upload failure retries the saved climb instead of creating another',
   await waitFor(() => expect(mockApi.saveClimbPhoto).toHaveBeenCalledTimes(2));
   expect(mockApi.createClimbLog).toHaveBeenCalledTimes(1);
   expect(mockApi.updateClimbLog).toHaveBeenCalledWith(7, expect.anything());
+});
+
+test('take photo opens the camera and previews the result', async () => {
+  await mountCreate();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Take photo' }));
+  expect(mockPickPhoto).toHaveBeenCalledWith('camera');
+  await screen.findByLabelText('Climb photo');
+  expect(mockApi.saveClimbPhoto).not.toHaveBeenCalled();
 });
 
 test('changing climbing type resets incompatible grades and board environment', async () => {

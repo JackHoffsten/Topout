@@ -2,12 +2,17 @@ import { jest, test, expect, beforeEach } from '@jest/globals';
 import { pickClimbPhoto } from '../features/climbing/pickClimbPhoto';
 
 const mockPick = jest.fn<() => Promise<any>>();
+const mockCamera = jest.fn<() => Promise<any>>();
+const mockPermission = jest.fn<() => Promise<any>>();
 const mockResize = jest.fn();
 const mockSave = jest.fn<() => Promise<any>>();
 const mockRelease = jest.fn();
 const mockContextRelease = jest.fn();
 jest.mock('expo-image-picker', () => ({
   launchImageLibraryAsync: (...args: any[]) => mockPick(...(args as [])),
+  launchCameraAsync: (...args: any[]) => mockCamera(...(args as [])),
+  requestCameraPermissionsAsync: () => mockPermission(),
+  CameraType: { back: 'back' },
   UIImagePickerPreferredAssetRepresentationMode: { Compatible: 'compatible' },
 }));
 jest.mock('expo-image-manipulator', () => ({
@@ -23,6 +28,30 @@ jest.mock('expo-image-manipulator', () => ({
 beforeEach(() => {
   jest.clearAllMocks();
   mockSave.mockResolvedValue({ base64: 'jpeg', width: 1200, height: 1600 });
+  mockPermission.mockResolvedValue({ granted: true });
+});
+
+test('takes a photo only after camera permission is granted and normalizes it', async () => {
+  mockCamera.mockResolvedValue({
+    canceled: false,
+    assets: [{ uri: 'file:///camera.jpg', width: 3024, height: 4032 }],
+  });
+  expect(await pickClimbPhoto('camera')).toEqual({ base64: 'jpeg', width: 1200, height: 1600 });
+  expect(mockPermission).toHaveBeenCalled();
+  expect(mockCamera).toHaveBeenCalledWith(
+    expect.objectContaining({ mediaTypes: ['images'], cameraType: 'back' }),
+  );
+  expect(mockPick).not.toHaveBeenCalled();
+});
+test('permission denial gives a clear message without opening the camera', async () => {
+  mockPermission.mockResolvedValue({ granted: false });
+  await expect(pickClimbPhoto('camera')).rejects.toThrow('Camera access is required');
+  expect(mockCamera).not.toHaveBeenCalled();
+});
+test('cancelling the camera leaves the photo unchanged', async () => {
+  mockCamera.mockResolvedValue({ canceled: true });
+  expect(await pickClimbPhoto('camera')).toBeUndefined();
+  expect(mockSave).not.toHaveBeenCalled();
 });
 test('cancelling the picker leaves the photo unchanged', async () => {
   mockPick.mockResolvedValue({ canceled: true });
