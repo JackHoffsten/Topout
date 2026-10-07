@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { climbHistorySchema } from './climbing';
+import { climbHistorySchema, climbProjectsSchema, projectAttemptsSchema } from './climbing';
 import { progressSchema } from './progress';
 import {
   climbLogInputSchema,
@@ -231,6 +231,24 @@ export class ApiClient {
       `/api/climb-logs?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
       climbLogsSchema,
     );
+  }
+
+  listClimbingDays(from: string, to: string) {
+    return this.request(
+      `/api/climb-logs/days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      z.array(z.iso.date()),
+    );
+  }
+  setClimbingDay(date: string, marked: boolean) {
+    z.iso.date().parse(date);
+    return this.request(`/api/climb-logs/days/${date}`, z.undefined(), marked ? 'PUT' : 'DELETE');
+  }
+
+  listClimbProjects() {
+    return this.request('/api/climb-logs/projects', climbProjectsSchema);
+  }
+  getProjectAttempts(id: number) {
+    return this.request(`/api/climb-logs/projects/${id}/attempts`, projectAttemptsSchema);
   }
 
   createClimbLog(input: ClimbLogInput) {

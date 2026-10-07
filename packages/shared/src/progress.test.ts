@@ -34,6 +34,13 @@ const climb = {
 };
 
 describe('progress calculations', () => {
+  it('validates ranges and ranks them at the lower midpoint', () => {
+    const ranged = { ...climb, grade: '6B-6C' };
+    expect(progressSchema.safeParse({ exercises: [], climbing: [ranged] }).success).toBe(true);
+    expect(hardestSends([ranged], 'Font')).toEqual(
+      hardestSends([{ ...climb, grade: '6B+' }], 'Font'),
+    );
+  });
   it('uses Monday weeks across year and DST boundaries, includes inactive weeks, and counts days once', () => {
     expect(weekKey('2026-01-01')).toBe('2025-12-29');
     expect(weekKey('2026-03-29')).toBe('2026-03-23');
