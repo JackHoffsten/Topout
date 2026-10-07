@@ -151,6 +151,7 @@ export function ClimbHistory() {
       if (selectedId === id) router.replace('/climbs');
       cache.removeQueries({ queryKey: ['climb-logs', 'detail', id] });
       await cache.invalidateQueries({ queryKey: ['progress'] });
+      await cache.invalidateQueries({ queryKey: ['climb-projects'] });
       await cache.invalidateQueries({
         predicate: (query) =>
           query.queryKey[0] === 'climb-logs' &&
@@ -238,6 +239,29 @@ export function ClimbHistory() {
       )}
       {showFilters && (
         <Card>
+          <View style={{ gap: 6 }}>
+            <Label small>Projects</Label>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {(
+                [
+                  [undefined, 'All climbs'],
+                  ['projects', 'Projects'],
+                  ['unfinished', 'Unfinished projects'],
+                  ['completed', 'Completed projects'],
+                  ['none', 'Not projects'],
+                ] as const
+              ).map(([value, label]) => (
+                <Button
+                  key={value ?? 'all'}
+                  title={label}
+                  accessibilityLabel={`Filter projects: ${label}`}
+                  selected={draft.project === value}
+                  variant={draft.project === value ? 'primary' : 'secondary'}
+                  onPress={() => setDraft({ ...draft, project: value })}
+                />
+              ))}
+            </View>
+          </View>
           {(
             [
               ['climbingType', 'Climbing type', climbingTypes],
@@ -474,7 +498,7 @@ export function ClimbHistory() {
               >
                 <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
                   <Label small muted>
-                    {new Date(`${log.date}T12:00:00`).toLocaleDateString(undefined, {
+                    {displayDate(log.date, {
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric',
@@ -562,3 +586,4 @@ export function ClimbHistory() {
     </Page>
   );
 }
+import { displayDate } from '../../lib/dates';

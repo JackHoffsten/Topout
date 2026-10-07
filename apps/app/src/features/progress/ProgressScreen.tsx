@@ -5,6 +5,7 @@ import {
   climbingTypes,
   climbingEnvironments,
   climbingGrades,
+  representativeGrade,
   climbingLabel,
   systemsForType,
   groupPoints,
@@ -128,7 +129,9 @@ export function ProgressScreen() {
   const gradeCounts = climbingGrades[system]
     .map((grade) => ({
       grade,
-      sends: climbs.filter((x) => x.grade === grade).reduce((sum, x) => sum + x.sends, 0),
+      sends: climbs
+        .filter((x) => representativeGrade(system, x.grade) === grade)
+        .reduce((sum, x) => sum + x.sends, 0),
     }))
     .filter((x) => x.sends);
   const gradeMax = Math.max(1, ...gradeCounts.map((x) => x.sends));
@@ -223,7 +226,7 @@ export function ProgressScreen() {
                     <Label key={`${x.date}:${x.exerciseId}:${x.side}`} small>
                       {x.name}
                       {x.side !== 'Both' ? ` · ${x.side}` : ''} · {count(x.maxWeightKg)} kg ·{' '}
-                      {x.date}
+                      {displayDate(x.date)}
                     </Label>
                   ))
                 ) : (
@@ -271,8 +274,8 @@ export function ProgressScreen() {
                     )}
                     {choosing && (
                       <>
-                      <SearchField
-                        scrollRef={scrollRef}
+                        <SearchField
+                          scrollRef={scrollRef}
                           label="Search exercises"
                           value={search}
                           onChangeText={setSearch}
@@ -358,6 +361,9 @@ export function ProgressScreen() {
                 selected={environment}
                 onChange={setEnvironment}
               />
+              <Label small muted>
+                Grade ranges use the middle grade, rounded down.
+              </Label>
               <ProgressChart
                 key={`${type}:${system}:${environment}:${range}`}
                 title="Hardest grade sent"
@@ -437,3 +443,4 @@ export function ProgressScreen() {
     </Page>
   );
 }
+import { displayDate } from '../../lib/dates';

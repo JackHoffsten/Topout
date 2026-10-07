@@ -17,6 +17,7 @@ import { Page } from '../../ui/components/Page';
 import { tokens, useDesktop, useTheme } from '../../ui/theme';
 import { useTemplates } from '../templates/queries';
 import { dateKey, monthDays } from './calendar';
+import { displayDate } from '../../lib/dates';
 import { ClimbingDay } from '../climbing/ClimbingDay';
 import { useAutoScroll } from '../../ui/useAutoScroll';
 import { SearchField } from '../../ui/components/SearchField';
@@ -71,6 +72,16 @@ export function CalendarScreen() {
   const climbs = useQuery({
     queryKey: ['climb-logs', from, to],
     queryFn: () => api.listClimbLogs(from, to),
+  });
+  const climbingDays = useQuery({
+    queryKey: ['climbing-days', from, to],
+    queryFn: () => api.listClimbingDays(from, to),
+  });
+  const markClimbingDay = useMutation({
+    mutationFn: (marked: boolean) => api.setClimbingDay(selected, marked),
+    onSuccess: async () => {
+      await cache.invalidateQueries({ queryKey: ['climbing-days'] });
+    },
   });
   const create = useMutation({
     mutationFn: (templateId: number | null) => api.scheduleWorkout({ date: selected, templateId }),
@@ -191,6 +202,7 @@ export function CalendarScreen() {
                 const key = dateKey(date);
                 const entries = schedule.data?.filter((plan) => plan.date === key) ?? [];
                 const climbCount = climbs.data?.filter((log) => log.date === key).length ?? 0;
+                const markedClimbingDay = climbingDays.data?.includes(key) ?? false;
                 const logged = entries.some(
                   (plan) => plan.status === 'InProgress' || plan.status === 'Completed',
                 );
@@ -207,7 +219,7 @@ export function CalendarScreen() {
                   <Pressable
                     key={key}
                     accessibilityRole="button"
-                    accessibilityLabel={`${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}${today ? ', today' : ''}, ${entries.length} planned entries${logged ? ', workout logged' : ''}${climbCount ? `, ${climbCount} ${climbCount === 1 ? 'climb' : 'climbs'} logged` : ''}`}
+                    accessibilityLabel={`${displayDate(date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}, ${entries.length} planned entries${logged ? ', workout logged' : ''}${climbCount ? `, ${climbCount} ${climbCount === 1 ? 'climb' : 'climbs'} logged` : markedClimbingDay ? ', climbing day' : ''}`}
                     accessibilityState={{ selected: key === selected, disabled: create.isPending }}
                     accessibilityHint={workouts.length ? `Workout: ${statusLabel}` : undefined}
                     disabled={create.isPending}
@@ -247,7 +259,7 @@ export function CalendarScreen() {
                         {date.getDate()}
                       </Text>
                     </View>
-                    {(entries.length > 0 || climbCount > 0) && (
+                    {(entries.length > 0 || climbCount > 0 || markedClimbingDay) && (
                       <View
                         testID={`activity-badges-${key}`}
                         style={{
@@ -272,12 +284,13 @@ export function CalendarScreen() {
                             count={entries[0]!.isRestDay ? undefined : workouts.length}
                           />
                         )}
-                        {climbCount > 0 && (
+                        {(climbCount > 0 || markedClimbingDay) && (
                           <CalendarBadge
                             size={badgeSize}
                             testID={`climbs-${key}`}
                             icon="terrain"
                             color={c.syntax.string}
+                            label={climbCount > 0 ? 'Climbs logged' : 'Climbing day'}
                             count={climbCount}
                           />
                         )}
@@ -317,7 +330,7 @@ export function CalendarScreen() {
           }}
         >
           <Heading>
-            {selectedDate.toLocaleDateString(undefined, {
+            {displayDate(selectedDate, {
               weekday: 'long',
               month: 'long',
               day: 'numeric',
@@ -449,6 +462,9 @@ export function CalendarScreen() {
                       plans.length > 0 ||
                       climbs.isPending ||
                       climbs.isError ||
+                      climbingDays.isPending ||
+                      climbingDays.isError ||
+                      !!climbingDays.data?.includes(selected) ||
                       !!climbs.data?.some((log) => log.date === selected)
                     }
                     busy={create.isPending}
@@ -541,7 +557,21 @@ export function CalendarScreen() {
               void climbs.refetch();
             }}
             restDay={plans.some((plan) => plan.isRestDay)}
+            marked={climbingDays.data?.includes(selected) ?? false}
+            onMark={(marked) => markClimbingDay.mutate(marked)}
+            markBusy={markClimbingDay.isPending}
+            markUnavailable={climbingDays.isPending || climbingDays.isError}
+            markError={
+              markClimbingDay.isError
+                ? markClimbingDay.error
+                : climbingDays.isError
+                  ? climbingDays.error
+                  : undefined
+            }
           />
+          {climbingDays.isError && (
+            <Button title="Retry climbing days" onPress={() => void climbingDays.refetch()} />
+          )}
         </Card>
       </View>
       {removingLog && (

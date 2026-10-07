@@ -16,6 +16,8 @@ const mockApi = {
   listWorkoutSchedule: jest.fn<() => Promise<any[]>>(),
   listWorkoutTemplates: jest.fn<() => Promise<any[]>>(),
   listClimbLogs: jest.fn<() => Promise<any[]>>(),
+  listClimbingDays: jest.fn<() => Promise<string[]>>(),
+  setClimbingDay: jest.fn<(...args: any[]) => Promise<void>>(),
   scheduleWorkout: jest.fn<(...args: any[]) => Promise<any>>(),
   deleteScheduledWorkout: jest.fn<(...args: any[]) => Promise<void>>(),
   deleteWorkoutLog: jest.fn<(...args: any[]) => Promise<void>>(),
@@ -46,6 +48,8 @@ beforeEach(() => {
   mockCalendarDate = undefined;
   mockApi.listWorkoutSchedule.mockResolvedValue([]);
   mockApi.listClimbLogs.mockResolvedValue([]);
+  mockApi.listClimbingDays.mockResolvedValue([]);
+  mockApi.setClimbingDay.mockResolvedValue(undefined);
   mockApi.listWorkoutTemplates.mockResolvedValue([{ id: 1, name: 'Push', exercises: [] }]);
   mockApi.scheduleWorkout.mockResolvedValue({});
   mockApi.deleteScheduledWorkout.mockResolvedValue(undefined);
@@ -65,6 +69,45 @@ async function mount() {
     </QueryClientProvider>,
   );
 }
+
+test('marks an empty date as a climbing day and shows its calendar icon', async () => {
+  const today = dateKey(new Date());
+  mockApi.setClimbingDay.mockImplementation(async () => {
+    mockApi.listClimbingDays.mockResolvedValue([today]);
+  });
+  await mount();
+  await fireEventAsync.press(await screen.findByRole('button', { name: 'Mark climbing day' }));
+  await waitFor(() => expect(mockApi.setClimbingDay).toHaveBeenCalledWith(today, true));
+  await screen.findByText('Climbing day · No climbs logged.');
+  expect(screen.getByTestId(`climbs-${today}`)).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Add rest day' }).props.accessibilityState.disabled,
+  ).toBe(true);
+  mockApi.setClimbingDay.mockImplementation(async () => {
+    mockApi.listClimbingDays.mockResolvedValue([]);
+  });
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Remove climbing day' }));
+  await waitFor(() => expect(mockApi.setClimbingDay).toHaveBeenCalledWith(today, false));
+  await screen.findByRole('button', { name: 'Mark climbing day' });
+});
+
+test('hides the climbing-day option when a climb is logged', async () => {
+  mockApi.listClimbLogs.mockResolvedValue([
+    {
+      id: 1,
+      date: dateKey(new Date()),
+      name: 'Boulder',
+      grade: '7A',
+      climbingType: 'Bouldering',
+      attempts: 1,
+      outcome: 'Flash',
+    },
+  ]);
+  await mount();
+  await screen.findByRole('button', { name: 'Log climb' });
+  expect(screen.queryByRole('button', { name: 'Mark climbing day' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Remove climbing day' })).toBeNull();
+});
 
 test('calendar covers leap February in complete Monday-first weeks using local dates', () => {
   const days = monthDays(new Date(2028, 1, 1));

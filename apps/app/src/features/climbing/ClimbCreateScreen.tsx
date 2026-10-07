@@ -1,4 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRef } from 'react';
+import type { ScrollView } from 'react-native';
 import { z } from 'zod';
 import { Page } from '../../ui/components/Page';
 import { Heading } from '../../ui/components/Heading';
@@ -8,6 +10,7 @@ import { dateKey } from '../calendar/calendar';
 import { ClimbEditor } from './ClimbEditor';
 
 export function ClimbCreateScreen() {
+  const scrollRef = useRef<ScrollView>(null);
   const router = useRouter();
   const { date, returnTo } = useLocalSearchParams<{ date?: string; returnTo?: string }>();
   const initialDate = date ?? dateKey(new Date());
@@ -21,10 +24,16 @@ export function ClimbCreateScreen() {
       });
   };
   return (
-    <Page>
+    <Page scrollRef={scrollRef}>
       <Heading large>Log climb</Heading>
       {valid ? (
-        <ClimbEditor key={initialDate} date={initialDate} showHeading={false} onClose={close} />
+        <ClimbEditor
+          key={initialDate}
+          date={initialDate}
+          showHeading={false}
+          onClose={close}
+          scrollRef={scrollRef}
+        />
       ) : (
         <>
           <ErrorNotice message="Choose a valid calendar date." />
