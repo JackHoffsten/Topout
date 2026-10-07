@@ -416,7 +416,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
       </Heading>
       <Heading name>{workout.templateName ?? 'Workout'}</Heading>
       <Label muted>
-        {new Date(`${workout.date}T12:00:00`).toLocaleDateString(undefined, {
+        {displayDate(workout.date, {
           weekday: 'long',
           year: 'numeric',
           month: 'long',
@@ -661,7 +661,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                         )}
                         {previous ? (
                           <Label small muted>
-                            Last logged ({previous.date}):{' '}
+                            Last logged ({displayDate(previous.date)}):{' '}
                             <Label syntax="number" small>
                               {previous.reps}
                             </Label>{' '}
@@ -1011,3 +1011,4 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     </Page>
   );
 }
+import { displayDate } from '../../lib/dates';

@@ -5,14 +5,14 @@ import { Card } from '../../ui/components/Card';
 import { Label } from '../../ui/components/Label';
 import { Button } from '../../ui/components/Button';
 import { tokens, useTheme } from '../../ui/theme';
+import { displayDate } from '../../lib/dates';
 
 export type ChartSeries = { name: string; color: string; points: ChartPoint[] };
 const stamp = (date: string) => Date.parse(date + 'T12:00:00Z');
 const shortDate = (date: string) =>
-  new Date(stamp(date)).toLocaleDateString(undefined, {
+  displayDate(date, {
     month: 'short',
     day: 'numeric',
-    timeZone: 'UTC',
   });
 
 /** View-based plotting works on native and web without a separate browser chart library. */
@@ -171,7 +171,7 @@ export function ProgressChart({
                     <Pressable
                       key={point.date}
                       accessibilityRole="button"
-                      accessibilityLabel={`${title}, ${s.name}, ${point.date}, ${format(point.value)}`}
+                      accessibilityLabel={`${title}, ${s.name}, ${displayDate(point.date)}, ${format(point.value)}`}
                       accessibilityState={{ selected: chosen === point.date }}
                       onPress={() => setSelected(point.date)}
                       style={{
@@ -240,7 +240,7 @@ export function ProgressChart({
           {!!chosen && (
             <View style={{ gap: 8 }}>
               <Label small>
-                {chosen} ·{' '}
+                {displayDate(chosen)} ·{' '}
                 {series
                   .flatMap((s) => {
                     const point = s.points.find((p) => p.date === chosen);
@@ -274,7 +274,7 @@ export function ProgressChart({
           {table &&
             dates.map((date) => (
               <Label key={date} small>
-                {date} ·{' '}
+                {displayDate(date)} ·{' '}
                 {series
                   .flatMap((s) => {
                     const p = s.points.find((x) => x.date === date);
