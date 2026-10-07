@@ -39,11 +39,14 @@ internal sealed class WorkoutScheduleRepository(AppDbContext db) : IWorkoutSched
             .ToArrayAsync(ct);
         if (
             !templateId.HasValue
-            && await db.ClimbLogs.AnyAsync(x => x.UserId == userId && x.Date == date, ct)
+            && (
+                await db.ClimbLogs.AnyAsync(x => x.UserId == userId && x.Date == date, ct)
+                || await db.ClimbingDayMarks.AnyAsync(x => x.UserId == userId && x.Date == date, ct)
+            )
         )
             throw new RequestException(
                 ErrorKind.Conflict,
-                "Remove the climbing logs before marking this date as a rest day."
+                "Remove the climbing logs or climbing day before marking this date as a rest day."
             );
         if (existing.Any(x => x.IsRestDay || !templateId.HasValue))
             throw new RequestException(

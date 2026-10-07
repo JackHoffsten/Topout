@@ -72,6 +72,10 @@ public class AccountApiTests(ApiFixture fixture)
                 null
             );
             db.ScheduledWorkouts.Add(plan);
+            var project = new ClimbProject(userId);
+            project.SetCompleted(true);
+            db.ClimbProjects.Add(project);
+            climb.SetProject(project);
             db.ClimbLogs.Add(climb);
             await db.SaveChangesAsync();
             templateId = template.Id;
@@ -121,6 +125,7 @@ public class AccountApiTests(ApiFixture fixture)
         Assert.False(await verify.WorkoutDays.AnyAsync(x => x.UserId == userId));
         Assert.False(await verify.WorkoutLogs.AnyAsync(x => x.UserId == userId));
         Assert.False(await verify.ClimbLogs.AnyAsync(x => x.UserId == userId));
+        Assert.False(await verify.ClimbProjects.AnyAsync(x => x.UserId == userId));
         Assert.False(await verify.WorkoutDayExercises.AnyAsync(x => x.WorkoutDayId == templateId));
         Assert.False(await verify.WorkoutLogEntries.AnyAsync(x => x.WorkoutLogId == logId));
         Assert.False(await verify.RefreshSessions.AnyAsync(x => x.UserId == userId));

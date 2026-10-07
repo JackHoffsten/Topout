@@ -59,7 +59,7 @@ public sealed class ProgressRepository(AppDbContext db) : IProgressRepository
                 g.Count(),
                 g.Count(c => c.Outcome != "Attempted"),
                 g.Count(c => c.Outcome == "Flash"),
-                g.Sum(c => c.Attempts)
+                g.Sum(c => c.Attempts ?? 0)
             ))
             .ToArrayAsync(ct);
         return new ProgressResponse(exercises, climbs);

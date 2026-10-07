@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Topout.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Topout.Infrastructure.Persistence;
 namespace Topout.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007170554_ClimbingProjects")]
+    partial class ClimbingProjects
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -133,15 +136,8 @@ namespace Topout.Infrastructure.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int?>("Attempts")
+                    b.Property<int>("Attempts")
                         .HasColumnType("integer");
-
-                    b.Property<string>("AttemptsMode")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasDefaultValue("Exact");
 
                     b.Property<string>("ClimbingType")
                         .IsRequired()
@@ -241,28 +237,6 @@ namespace Topout.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "IsCompleted");
 
                     b.ToTable("ClimbProjects");
-                });
-
-            modelBuilder.Entity("Topout.Domain.Entities.ClimbingDayMark", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId", "Date")
-                        .IsUnique();
-
-                    b.ToTable("ClimbingDayMarks");
                 });
 
             modelBuilder.Entity("Topout.Domain.Entities.Exercise", b =>
@@ -808,15 +782,6 @@ namespace Topout.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("Topout.Domain.Entities.ClimbProject", b =>
-                {
-                    b.HasOne("Topout.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Topout.Domain.Entities.ClimbingDayMark", b =>
                 {
                     b.HasOne("Topout.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()

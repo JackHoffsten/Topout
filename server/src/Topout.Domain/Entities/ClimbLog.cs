@@ -9,14 +9,32 @@ public sealed class ClimbLog : OwnedEntity
     public string GradeSystem { get; private set; } = "";
     public string Grade { get; private set; } = "";
     public string Environment { get; private set; } = "";
-    public int Attempts { get; private set; }
+    public int? Attempts { get; private set; }
+    public string AttemptsMode { get; private set; } = "Exact";
     public string Outcome { get; private set; } = "";
     public string? WallAngle { get; private set; }
     public string[] Styles { get; private set; } = [];
     public string? Name { get; private set; }
     public string? Location { get; private set; }
+    public int? ProjectId { get; private set; }
+    public ClimbProject? Project { get; private set; }
+
+    public void SetProject(ClimbProject? project)
+    {
+        if (project is not null && project.UserId != UserId)
+            throw new ArgumentException("Project must belong to the same account.");
+        Project = project;
+        ProjectId = project?.Id;
+    }
 
     private ClimbLog() { }
+
+    public void ClassifySingleAttemptSend(bool hasPreviousAttempts, bool hasAttemptsToday)
+    {
+        if (Outcome != "Redpoint" || Attempts != 1 || AttemptsMode != "Exact" || hasAttemptsToday)
+            return;
+        Outcome = hasPreviousAttempts ? "DayFlash" : "Flash";
+    }
 
     public ClimbLog(int userId)
         : base(userId) { }
@@ -27,12 +45,13 @@ public sealed class ClimbLog : OwnedEntity
         string gradeSystem,
         string grade,
         string environment,
-        int attempts,
+        int? attempts,
         string outcome,
         string? wallAngle,
         string[] styles,
         string? name,
-        string? location
+        string? location,
+        string attemptsMode = "Exact"
     )
     {
         if (date == default)
@@ -42,19 +61,24 @@ public sealed class ClimbLog : OwnedEntity
         if (!ClimbingGrades.Systems(climbingType).Contains(gradeSystem))
             throw new ArgumentException("Choose a grade system for this climbing type.");
         grade = grade?.Trim() ?? "";
-        if (!ClimbingGrades.Values(gradeSystem).Contains(grade))
+        if (!ClimbingGrades.IsValid(gradeSystem, grade))
             throw new ArgumentException("Choose a valid grade.");
         if (
             environment is not ("Indoor" or "Outdoor" or "Board")
             || (environment == "Board" && climbingType != "Bouldering")
         )
             throw new ArgumentException("Board climbing is available for bouldering only.");
-        if (attempts is < 1 or > 1000)
+        if (attemptsMode is not ("Exact" or "MoreThan" or "Unknown"))
+            throw new ArgumentException("Choose how attempts are counted.");
+        if (attemptsMode == "Unknown" ? attempts != null : attempts is null or < 1 or > 1000)
             throw new ArgumentException("Attempts must be between 1 and 1000.");
-        if (outcome is not ("Attempted" or "Redpoint" or "Flash" or "Onsight"))
+        if (outcome is not ("Attempted" or "Redpoint" or "Flash" or "Onsight" or "DayFlash"))
             throw new ArgumentException("Choose an outcome.");
-        if (outcome is "Flash" or "Onsight" && attempts != 1)
-            throw new ArgumentException("Flash and onsight require one attempt.");
+        if (
+            outcome is "Flash" or "Onsight" or "DayFlash"
+            && (attempts != 1 || attemptsMode != "Exact")
+        )
+            throw new ArgumentException("Flash, onsight and day flash require one attempt.");
         if (wallAngle is not (null or "Slab" or "Vertical" or "Overhang" or "Roof"))
             throw new ArgumentException("Choose a valid wall angle.");
         string[] allowedStyles =
@@ -86,6 +110,7 @@ public sealed class ClimbLog : OwnedEntity
         Grade = grade;
         Environment = environment;
         Attempts = attempts;
+        AttemptsMode = attemptsMode;
         Outcome = outcome;
         WallAngle = wallAngle;
         Styles = styles.ToArray();
@@ -102,6 +127,27 @@ public sealed class ClimbLog : OwnedEntity
 
 public static class ClimbingGrades
 {
+    public static bool IsValid(string system, string grade)
+    {
+        var parts = grade.Split('-');
+        var scale = Values(system);
+        return parts.Length == 1
+            ? scale.Contains(grade)
+            : parts.Length == 2
+                && Array.IndexOf(scale, parts[0]) >= 0
+                && Array.IndexOf(scale, parts[1]) > Array.IndexOf(scale, parts[0])
+                && Array.IndexOf(scale, parts[1]) - Array.IndexOf(scale, parts[0]) <= 3;
+    }
+
+    public static string Representative(string system, string grade)
+    {
+        if (!IsValid(system, grade))
+            return "";
+        var parts = grade.Split('-');
+        var scale = Values(system);
+        return scale[(Array.IndexOf(scale, parts[0]) + Array.IndexOf(scale, parts[^1])) / 2];
+    }
+
     public static string[] Systems(string type) =>
         type == "Bouldering" ? ["Font", "V"] : ["French", "YDS"];
 
