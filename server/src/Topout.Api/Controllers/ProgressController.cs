@@ -14,6 +14,7 @@ public sealed class ProgressController : ControllerBase
         DateOnly? from,
         DateOnly? to,
         [FromServices] ProgressHandler handler,
-        CancellationToken ct
-    ) => Ok(await handler.GetAsync(from, to, ct));
+        CancellationToken ct,
+        [FromQuery] string[]? location = null
+    ) => Ok(await handler.GetAsync(from, to, ct, location));
 }

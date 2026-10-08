@@ -219,10 +219,11 @@ export class ApiClient {
     await this.forget();
   }
 
-  getProgress(from?: string, to?: string) {
+  getProgress(from?: string, to?: string, locations?: string[]) {
     const params = new URLSearchParams();
     if (from) params.set('from', from);
     if (to) params.set('to', to);
+    for (const location of locations ?? []) params.append('location', location);
     return this.request('/api/progress' + (params.size ? '?' + params : ''), progressSchema);
   }
 

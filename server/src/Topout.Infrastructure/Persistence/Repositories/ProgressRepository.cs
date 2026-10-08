@@ -10,9 +10,11 @@ public sealed class ProgressRepository(AppDbContext db) : IProgressRepository
         int userId,
         DateOnly? from,
         DateOnly? to,
-        CancellationToken ct
+        CancellationToken ct,
+        string[]? locations = null
     )
     {
+        var selectedLocations = locations ?? [];
         // Weight is a converted value object. Aggregate its numeric column in PostgreSQL;
         // EF cannot translate Weight.Kilograms inside Sum/Max. All inputs remain parameters.
         var exercises = await db
@@ -27,6 +29,7 @@ public sealed class ProgressRepository(AppDbContext db) : IProgressRepository
                 JOIN "WorkoutLogs" w ON w."Id" = e."WorkoutLogId"
                 JOIN "Exercises" x ON x."Id" = e."ExerciseId"
                 WHERE w."UserId" = {userId} AND NOT s."IsWarmup"
+                    AND ({selectedLocations.Length} = 0 OR lower(btrim(w."Location")) = ANY({selectedLocations}))
                     AND w."Date" >= {from ?? DateOnly.MinValue} AND w."Date" <= {to
                     ?? DateOnly.MaxValue}
                 GROUP BY w."Date", e."ExerciseId", x."Name", s."Side"
@@ -40,6 +43,13 @@ public sealed class ProgressRepository(AppDbContext db) : IProgressRepository
                 c.UserId == userId
                 && (!from.HasValue || c.Date >= from.Value)
                 && (!to.HasValue || c.Date <= to.Value)
+                && (
+                    selectedLocations.Length == 0
+                    || (
+                        c.Location != null
+                        && selectedLocations.Contains(c.Location.Trim().ToLower())
+                    )
+                )
             )
             .GroupBy(c => new
             {

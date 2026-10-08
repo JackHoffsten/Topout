@@ -7,7 +7,10 @@ import { ProgressScreen } from '../features/progress/ProgressScreen';
 import { dateKey } from '../features/calendar/calendar';
 
 const today = dateKey(new Date());
-const mockApi = { getProgress: jest.fn<(...args: any[]) => Promise<any>>() };
+const mockApi = {
+  getProgress: jest.fn<(...args: any[]) => Promise<any>>(),
+  listLogLocations: jest.fn<(...args: any[]) => Promise<string[]>>(),
+};
 jest.mock('../lib/providers', () => ({ useSession: () => ({ api: mockApi }) }));
 const data: ProgressData = {
   exercises: [
@@ -66,8 +69,35 @@ async function mount() {
   );
 }
 beforeEach(() => {
+  mockApi.listLogLocations.mockReset();
+  mockApi.listLogLocations.mockResolvedValue(['Central Gym', 'Board Gym']);
   mockApi.getProgress.mockReset();
   mockApi.getProgress.mockResolvedValue(data);
+});
+
+test('filters all progress views by multiple locations and clears the selection', async () => {
+  await mount();
+  await screen.findByText('Weekly activity');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Locations' }));
+  await fireEventAsync.press(
+    await screen.findByRole('button', { name: 'Filter location Central Gym' }),
+  );
+  await waitFor(() =>
+    expect(mockApi.getProgress).toHaveBeenCalledWith(undefined, today, ['Central Gym']),
+  );
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Filter location Board Gym' }));
+  await waitFor(() =>
+    expect(mockApi.getProgress).toHaveBeenCalledWith(undefined, today, [
+      'Central Gym',
+      'Board Gym',
+    ]),
+  );
+  await fireEventAsync.changeText(screen.getByLabelText('Search locations'), 'central');
+  await waitFor(() => expect(mockApi.listLogLocations).toHaveBeenCalledWith('climb', 'central'));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Clear' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Locations' })).toBeTruthy());
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Close' }));
+  expect(screen.queryByLabelText('Search locations')).toBeNull();
 });
 
 test('overview renders activity and lifetime weight records, with values available without a graph gesture', async () => {

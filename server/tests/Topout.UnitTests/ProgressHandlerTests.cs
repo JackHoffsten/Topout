@@ -45,7 +45,8 @@ public class ProgressHandlerTests
             int userId,
             DateOnly? from,
             DateOnly? to,
-            CancellationToken ct
+            CancellationToken ct,
+            string[]? locations = null
         )
         {
             UserId = userId;

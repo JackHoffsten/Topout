@@ -52,6 +52,40 @@ public class ProgressApiTests(ApiFixture fixture)
             HttpStatusCode.Created,
             (await client.PostAsJsonAsync("/api/climb-logs", climb)).StatusCode
         );
+        var located = await client.PostAsJsonAsync(
+            "/api/climb-logs",
+            climb with
+            {
+                Location = "Central Gym",
+            }
+        );
+        located.EnsureSuccessStatusCode();
+        var filtered = (
+            await client.GetFromJsonAsync<ProgressResponse>("/api/progress?location=central%20gym")
+        )!;
+        Assert.Equal(1, Assert.Single(filtered.Climbing).Climbs);
+        Assert.Empty(
+            (
+                await other.GetFromJsonAsync<ProgressResponse>(
+                    "/api/progress?location=Central%20Gym"
+                )
+            )!.Climbing
+        );
+        Assert.Empty(
+            (
+                await client.GetFromJsonAsync<ProgressResponse>("/api/progress?location=Missing")
+            )!.Climbing
+        );
+        Assert.Single(
+            (
+                await client.GetFromJsonAsync<ProgressResponse>(
+                    "/api/progress?location=Missing&location=Central%20Gym"
+                )
+            )!.Climbing
+        );
+        await client.DeleteAsync(
+            $"/api/climb-logs/{(await located.Content.ReadFromJsonAsync<ClimbLogResponse>())!.Id}"
+        );
         var own = (await client.GetFromJsonAsync<ProgressResponse>("/api/progress"))!;
         Assert.Equal(1, Assert.Single(own.Climbing).Flashes);
         var isolated = (await other.GetFromJsonAsync<ProgressResponse>("/api/progress"))!;
@@ -161,6 +195,24 @@ public class ProgressApiTests(ApiFixture fixture)
         Assert.Equal(1, climbed.Sends);
         Assert.Equal(1, climbed.Flashes);
         Assert.Equal(4, climbed.Attempts);
+        (
+            await client.PutAsJsonAsync(url + "/location", new { location = "Central Gym" })
+        ).EnsureSuccessStatusCode();
+        Assert.Equal(
+            2,
+            (
+                await client.GetFromJsonAsync<ProgressResponse>(
+                    "/api/progress?location=central%20gym"
+                )
+            )!
+                .Exercises
+                .Count
+        );
+        Assert.Empty(
+            (
+                await client.GetFromJsonAsync<ProgressResponse>("/api/progress?location=Missing")
+            )!.Exercises
+        );
         await client.PutAsJsonAsync(
             url + "/sets",
             new RecordSetInput(exercise.Id, 1, 9, 15, false, null, SetSide.Left),
