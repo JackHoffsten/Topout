@@ -438,7 +438,9 @@ export function ClimbHistory() {
         </Card>
       )}
       {climb && !selectedId && <ErrorNotice message="Choose a valid climb." />}
-      {selectedId && selected.isPending && <Loading text="Loading selected climb…" />}
+      {selectedId && selected.isPending && !history.isPending && (
+        <Loading text="Loading selected climb…" />
+      )}
       {selected.isError && (
         <>
           <ErrorNotice message={errorMessage(selected.error)} />
@@ -515,9 +517,10 @@ export function ClimbHistory() {
                     {climbingLabel(log.climbingType)} · {climbingLabel(log.gradeSystem)} ·{' '}
                     {log.environment}
                   </Label>
-                  {log.wallAngle && (
+                  {!!(log.wallAngles?.length ?? (log.wallAngle ? 1 : 0)) && (
                     <Label small muted>
-                      Wall angle: {log.wallAngle}
+                      Wall angles:{' '}
+                      {(log.wallAngles ?? (log.wallAngle ? [log.wallAngle] : [])).join(' · ')}
                     </Label>
                   )}
                   {log.styles.length > 0 && (

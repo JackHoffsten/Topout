@@ -107,6 +107,11 @@ const climbFields = {
   attemptsMode: z.enum(['Exact', 'MoreThan', 'Unknown']).optional(),
   outcome: z.enum(climbingOutcomes),
   wallAngle: z.enum(wallAngles).nullable(),
+  wallAngles: z
+    .array(z.enum(wallAngles))
+    .max(wallAngles.length)
+    .refine((values) => new Set(values).size === values.length, 'Choose distinct wall angles.')
+    .optional(),
   styles: z
     .array(z.enum(climbingStyles))
     .max(climbingStyles.length)

@@ -18,7 +18,8 @@ public sealed record ClimbLogInput(
     string? Location,
     bool? IsProject = null,
     int? ProjectId = null,
-    string AttemptsMode = "Exact"
+    string AttemptsMode = "Exact",
+    string[]? WallAngles = null
 );
 
 public sealed record ClimbLogResponse(
@@ -38,7 +39,8 @@ public sealed record ClimbLogResponse(
     bool ProjectCompleted = false,
     int? TotalAttempts = null,
     string AttemptsMode = "Exact",
-    bool TotalAttemptsIsLowerBound = false
+    bool TotalAttemptsIsLowerBound = false,
+    string[]? WallAngles = null
 )
 {
     public static ClimbLogResponse From(ClimbLog x) =>
@@ -76,7 +78,8 @@ public sealed record ClimbLogResponse(
                 : x.Project.Logs.Any(l =>
                     (l.Date < x.Date || (l.Date == x.Date && l.Id <= x.Id))
                     && l.AttemptsMode != "Exact"
-                )
+                ),
+            x.WallAngles
         );
 }
 
@@ -247,7 +250,9 @@ public sealed class ClimbLogHandler(IClimbLogRepository logs, ICurrentUser user)
                             input.Styles,
                             input.Name,
                             input.Location,
-                            input.AttemptsMode
+                            input.AttemptsMode,
+                            input.WallAngles
+                                ?? (x.WallAngle == input.WallAngle ? x.WallAngles : null)
                         ),
                     input.IsProject,
                     input.ProjectId,

@@ -106,7 +106,8 @@ public class ClimbLogTests
         string environment = "Indoor",
         int attempts = 3,
         string outcome = "Redpoint",
-        string[]? styles = null
+        string[]? styles = null,
+        string[]? wallAngles = null
     )
     {
         var log = new ClimbLog(1);
@@ -121,7 +122,8 @@ public class ClimbLogTests
             "Overhang",
             styles ?? ["Crimpy", "Powerful"],
             "  Problem  ",
-            "  Gym  "
+            "  Gym  ",
+            wallAngles: wallAngles
         );
         return log;
     }
@@ -165,6 +167,20 @@ public class ClimbLogTests
         Assert.Throws<ArgumentException>(() =>
             Save(type, system, grade, environment, attempts, outcome)
         );
+
+    [Fact]
+    public void Wall_angles_are_distinct_and_preserve_legacy_input()
+    {
+        string[] angles = ["Slab", "Overhang"];
+        var log = Save(wallAngles: angles);
+        angles[0] = "Roof";
+        Assert.Equal(new[] { "Slab", "Overhang" }, log.WallAngles);
+        Assert.Equal("Slab", log.WallAngle);
+        Assert.Equal(new[] { "Overhang" }, Save().WallAngles);
+        Assert.Empty(Save(wallAngles: []).WallAngles);
+        Assert.Throws<ArgumentException>(() => Save(wallAngles: ["Slab", "Slab"]));
+        Assert.Throws<ArgumentException>(() => Save(wallAngles: ["Unknown"]));
+    }
 
     [Fact]
     public void Styles_are_multiple_distinct_values_and_copied_from_input()

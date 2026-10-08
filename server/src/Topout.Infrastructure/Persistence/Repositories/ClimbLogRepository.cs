@@ -172,7 +172,7 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
         if (query.Outcome is { Length: > 0 })
             items = items.Where(x => query.Outcome.Contains(x.Outcome));
         if (query.WallAngle is { Length: > 0 })
-            items = items.Where(x => query.WallAngle.Contains(x.WallAngle!));
+            items = items.Where(x => x.WallAngles.Any(angle => query.WallAngle.Contains(angle)));
         if (query.Style is { Length: > 0 })
             items = items.Where(x => x.Styles.Any(style => query.Style.Contains(style)));
         if (query.From != null)

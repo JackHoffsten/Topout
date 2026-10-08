@@ -567,21 +567,41 @@ export function ClimbEditor({
         </>
       )}
       <Label muted small>
-        Flash: first attempt with prior information. Onsight: first attempt without prior
-        information. Day flash: first attempt of the day after previous attempts on another day.
-        Redpoint / sent: completed after practice or previous attempts.
-      </Label>
-      <Choices
-        label="Wall angle"
-        options={['Unspecified', ...wallAngles]}
-        value={draft.wallAngle ?? 'Unspecified'}
-        disabled={save.isPending}
-        onChange={(value) =>
-          patch({
-            wallAngle: value === 'Unspecified' ? null : (value as ClimbLogInput['wallAngle']),
-          })
+        {
+          {
+            Attempted: 'Not sent yet. Record the attempts made this day.',
+            Flash: 'Sent on the first attempt with prior information.',
+            Onsight: 'Sent on the first attempt without prior information.',
+            DayFlash: 'Sent on the first attempt of the day, after attempts on an earlier day.',
+            Redpoint:
+              'Sent after practice or previous attempts. An exact one-attempt send is automatically classified as flashed or day flashed when eligible.',
+          }[draft.outcome]
         }
-      />
+      </Label>
+      <View style={{ gap: 8 }}>
+        <Label small>Wall angles (optional, select multiple)</Label>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {wallAngles.map((angle) => {
+            const selected = draft.wallAngles ?? (draft.wallAngle ? [draft.wallAngle] : []);
+            return (
+              <Button
+                key={angle}
+                title={angle}
+                accessibilityLabel={`Wall angle: ${angle}`}
+                selected={selected.includes(angle)}
+                variant={selected.includes(angle) ? 'primary' : 'secondary'}
+                disabled={save.isPending}
+                onPress={() => {
+                  const next = selected.includes(angle)
+                    ? selected.filter((value) => value !== angle)
+                    : [...selected, angle];
+                  patch({ wallAngles: next, wallAngle: next[0] ?? null });
+                }}
+              />
+            );
+          })}
+        </View>
+      </View>
       <Label small>Styles (optional, select multiple)</Label>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {climbingStyles.map((style) => (

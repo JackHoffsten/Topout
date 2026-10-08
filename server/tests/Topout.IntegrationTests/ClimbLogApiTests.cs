@@ -21,6 +21,49 @@ public class ClimbLogApiTests(ApiFixture fixture)
     private const string Range = "?from=2026-10-01&to=2026-10-31";
 
     [Fact]
+    public async Task Multiple_wall_angles_roundtrip_and_legacy_edits_preserve_them()
+    {
+        using var client = await Client();
+        var response = await client.PostAsJsonAsync(
+            Path,
+            Input with
+            {
+                WallAngles = ["Slab", "Overhang"],
+            }
+        );
+        response.EnsureSuccessStatusCode();
+        var created = (await response.Content.ReadFromJsonAsync<ClimbLogResponse>())!;
+        Assert.Equal(new[] { "Slab", "Overhang" }, created.WallAngles);
+        foreach (var angle in new[] { "Slab", "Overhang" })
+        {
+            var history = (
+                await client.GetFromJsonAsync<ClimbHistoryResponse>(
+                    Path + "/history?wallAngle=" + angle
+                )
+            )!;
+            Assert.Equal(created.Id, Assert.Single(history.Items).Id);
+        }
+        var edit = await client.PutAsJsonAsync(
+            Path + "/" + created.Id,
+            Input with
+            {
+                WallAngle = "Slab",
+            }
+        );
+        edit.EnsureSuccessStatusCode();
+        var updated = (await edit.Content.ReadFromJsonAsync<ClimbLogResponse>())!;
+        Assert.Equal(new[] { "Slab", "Overhang" }, updated.WallAngles);
+        var invalid = await client.PutAsJsonAsync(
+            Path + "/" + created.Id,
+            Input with
+            {
+                WallAngles = ["Slab", "Slab"],
+            }
+        );
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+
+    [Fact]
     public async Task Climbing_days_are_private_removable_and_conflict_with_rest_days_and_logs()
     {
         using var client = await Client();

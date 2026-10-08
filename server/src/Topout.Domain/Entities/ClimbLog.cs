@@ -12,7 +12,8 @@ public sealed class ClimbLog : OwnedEntity
     public int? Attempts { get; private set; }
     public string AttemptsMode { get; private set; } = "Exact";
     public string Outcome { get; private set; } = "";
-    public string? WallAngle { get; private set; }
+    public string[] WallAngles { get; private set; } = [];
+    public string? WallAngle => WallAngles.FirstOrDefault();
     public string[] Styles { get; private set; } = [];
     public string? Name { get; private set; }
     public string? Location { get; private set; }
@@ -51,7 +52,8 @@ public sealed class ClimbLog : OwnedEntity
         string[] styles,
         string? name,
         string? location,
-        string attemptsMode = "Exact"
+        string attemptsMode = "Exact",
+        string[]? wallAngles = null
     )
     {
         if (date == default)
@@ -79,8 +81,13 @@ public sealed class ClimbLog : OwnedEntity
             && (attempts != 1 || attemptsMode != "Exact")
         )
             throw new ArgumentException("Flash, onsight and day flash require one attempt.");
-        if (wallAngle is not (null or "Slab" or "Vertical" or "Overhang" or "Roof"))
-            throw new ArgumentException("Choose a valid wall angle.");
+        var angles = wallAngles ?? (wallAngle == null ? [] : new[] { wallAngle });
+        if (
+            angles.Length > 4
+            || angles.Distinct().Count() != angles.Length
+            || angles.Any(x => x is not ("Slab" or "Vertical" or "Overhang" or "Roof"))
+        )
+            throw new ArgumentException("Choose distinct valid wall angles.");
         string[] allowedStyles =
         [
             "Crimpy",
@@ -112,7 +119,7 @@ public sealed class ClimbLog : OwnedEntity
         Attempts = attempts;
         AttemptsMode = attemptsMode;
         Outcome = outcome;
-        WallAngle = wallAngle;
+        WallAngles = angles.ToArray();
         Styles = styles.ToArray();
     }
 

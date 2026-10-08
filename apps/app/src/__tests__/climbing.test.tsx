@@ -1,4 +1,5 @@
 import React from 'react';
+import { ActivityIndicator, StyleSheet } from 'react-native';
 import { jest, beforeEach, test, expect } from '@jest/globals';
 import { renderAsync, screen, fireEventAsync, waitFor, act } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -176,6 +177,25 @@ test('unknown project attempts omit the total suffix', async () => {
   });
   expect(screen.getByText('Attempts unknown · Sent')).toBeTruthy();
   expect(screen.queryByText('Attempts unknown total · Sent')).toBeNull();
+});
+
+test('history shows one spinner while the list and selected climb load together', async () => {
+  mockClimb = String(log.id);
+  let resolveHistory!: (value: any) => void;
+  mockApi.listClimbHistory.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        resolveHistory = resolve;
+      }),
+  );
+  mockApi.getClimbLog.mockImplementation(() => new Promise(() => {}));
+  await mountHistory();
+  expect(screen.UNSAFE_getAllByType(ActivityIndicator)).toHaveLength(1);
+  expect(screen.getByText('Loading climbs…')).toBeTruthy();
+  expect(screen.queryByText('Loading selected climb…')).toBeNull();
+  await act(async () => resolveHistory({ items: [], nextPage: null, totalCount: 0 }));
+  await waitFor(() => expect(screen.getByText('Loading selected climb…')).toBeTruthy());
+  expect(screen.UNSAFE_getAllByType(ActivityIndicator)).toHaveLength(1);
 });
 
 test('history automatically loads an older selected climb in its sorted position without duplicating it', async () => {
@@ -440,7 +460,22 @@ test('creates a graded climb with multiple styles and optional details', async (
   ).toBe(true);
   expect(screen.queryByRole('button', { name: 'Choose grade' })).toBeNull();
   await fireEventAsync.press(screen.getByRole('radio', { name: 'Environment: Board' }));
-  await fireEventAsync.press(screen.getByRole('radio', { name: 'Wall angle: Overhang' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Wall angle: Slab' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Wall angle: Overhang' }));
+  expect(
+    screen.getByRole('button', { name: 'Wall angle: Slab' }).props.accessibilityState.selected,
+  ).toBe(true);
+  expect(
+    screen.getByRole('button', { name: 'Wall angle: Overhang' }).props.accessibilityState.selected,
+  ).toBe(true);
+  expect(
+    StyleSheet.flatten(screen.getByRole('button', { name: 'Wall angle: Overhang' }).props.style)
+      .backgroundColor,
+  ).not.toBe(
+    StyleSheet.flatten(screen.getByRole('button', { name: 'Wall angle: Roof' }).props.style)
+      .backgroundColor,
+  );
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Wall angle: Slab' }));
   await fireEventAsync.press(screen.getByRole('checkbox', { name: 'Crimpy' }));
   await fireEventAsync.press(screen.getByRole('checkbox', { name: 'Slopy' }));
   await fireEventAsync.changeText(screen.getByLabelText('Attempts this day'), '3');
@@ -452,6 +487,7 @@ test('creates a graded climb with multiple styles and optional details', async (
       ...log,
       id: undefined,
       attemptsMode: 'Exact',
+      wallAngles: ['Overhang'],
     }),
   );
   await waitFor(() =>
@@ -601,6 +637,15 @@ test.each(['Flash', 'Onsight', 'Day flash'])(
     await fireEventAsync.changeText(screen.getByLabelText('Attempts this day'), '5');
     await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 7A' }));
     await fireEventAsync.press(screen.getByRole('radio', { name: `Outcome: ${label}` }));
+    const descriptions = {
+      Flash: 'Sent on the first attempt with prior information.',
+      Onsight: 'Sent on the first attempt without prior information.',
+      'Day flash': 'Sent on the first attempt of the day, after attempts on an earlier day.',
+    };
+    for (const [outcome, description] of Object.entries(descriptions)) {
+      if (outcome === label) expect(screen.getByText(description)).toBeTruthy();
+      else expect(screen.queryByText(description)).toBeNull();
+    }
     expect(screen.queryByLabelText('Attempts this day')).toBeNull();
     await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
     await waitFor(() =>
@@ -707,7 +752,7 @@ test('shows recorded details and confirms deletion without losing errors', async
   mockApi.deleteClimbLog.mockRejectedValueOnce(new ApiError(404, 'Climbing log not found.'));
   await mountHistory();
   await fireEventAsync.press(await screen.findByRole('button', { name: 'Expand climb Problem' }));
-  expect(screen.getByText('Wall angle: Overhang')).toBeTruthy();
+  expect(screen.getByText('Wall angles: Overhang')).toBeTruthy();
   expect(screen.getByText('Crimpy · Slopy')).toBeTruthy();
   expect(screen.getByText('Gym')).toBeTruthy();
   await fireEventAsync.press(screen.getByRole('button', { name: 'Delete climb Problem' }));
