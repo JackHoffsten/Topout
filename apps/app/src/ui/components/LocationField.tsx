@@ -1,8 +1,8 @@
-import { useContext, useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { useContext, useEffect, useRef, useState, type RefObject } from 'react';
+import { View, type ScrollView } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from '../../lib/providers';
-import { Field } from './Field';
+import { SearchField } from './SearchField';
 import { LocationSuggestion } from './LocationSuggestion';
 import { ErrorNotice } from './ErrorNotice';
 import { SearchFocus } from '../searchFocus';
@@ -13,14 +13,17 @@ export function LocationField({
   onChange,
   onSelect,
   disabled = false,
+  scrollRef,
 }: {
   activity: 'workout' | 'climb';
   value: string;
   onChange: (value: string) => void;
   onSelect?: (value: string) => void;
   disabled?: boolean;
+  scrollRef?: RefObject<ScrollView | null>;
 }) {
   const { api } = useSession();
+  const fallbackScroll = useRef<ScrollView>(null);
   const focusSearch = useContext(SearchFocus);
   useEffect(() => () => focusSearch(null), [focusSearch]);
   const [focused, setFocused] = useState(false);
@@ -48,7 +51,8 @@ export function LocationField({
   };
   return (
     <View style={{ gap: 8 }}>
-      <Field
+      <SearchField
+        scrollRef={scrollRef ?? fallbackScroll}
         label="Location (optional)"
         value={value}
         maxLength={200}
@@ -56,7 +60,6 @@ export function LocationField({
         autoCapitalize="words"
         onFocus={() => {
           setFocused(true);
-          focusSearch(70);
         }}
         onBlur={() => {
           setFocused(false);

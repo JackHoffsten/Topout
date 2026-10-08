@@ -531,7 +531,12 @@ export function ClimbHistory() {
                     </Label>
                   )}
                   {editing === log.id ? (
-                    <ClimbEditor date={log.date} log={log} onClose={() => setEditing(undefined)} />
+                    <ClimbEditor
+                      scrollRef={scroll}
+                      date={log.date}
+                      log={log}
+                      onClose={() => setEditing(undefined)}
+                    />
                   ) : (
                     <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                       <Button

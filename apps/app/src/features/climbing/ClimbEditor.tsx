@@ -637,6 +637,7 @@ export function ClimbEditor({
         onChangeText={(name) => patch({ name })}
       />
       <LocationField
+        scrollRef={scrollRef}
         activity="climb"
         value={draft.location ?? ''}
         disabled={save.isPending}

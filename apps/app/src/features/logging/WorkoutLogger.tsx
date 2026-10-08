@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, View, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -163,6 +163,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
   const [items, setItems] = useState<DraftExercise[]>(() => initialItems(workout));
   const [notes, setNotes] = useState(workout.log?.notes ?? '');
   const [location, setLocation] = useState(workout.log?.location ?? '');
+  const scrollRef = useRef<ScrollView>(null);
   const saveLocation = useMutation({
     mutationFn: (value: string) => api.setWorkoutLocation(workout.scheduleId, value.trim() || null),
     onSuccess: async (response) => {
@@ -410,7 +411,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     save.mutate(parsed.data);
   };
   return (
-    <Page>
+    <Page scrollRef={scrollRef}>
       <Heading large>
         {workout.log?.completedAt ? (editing ? 'Edit workout' : 'Workout log') : 'Log workout'}
       </Heading>
@@ -533,6 +534,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
         <>
           <Label muted>Enter the sets you completed. Use 0 kg for bodyweight exercises.</Label>
           <LocationField
+            scrollRef={scrollRef}
             activity="workout"
             value={location}
             disabled={busy || saveLocation.isPending}
