@@ -613,10 +613,9 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                             title={set.side === 'Both' ? 'Split left/right' : 'Use normal set'}
                             accessibilityLabel={`${set.side === 'Both' ? 'Split' : 'Unsplit'} ${basePrefix} left/right`}
                             variant="secondary"
-                            disabled={
-                              busy || (group.some((s) => !!s.saved) && !workout.log?.completedAt)
-                            }
+                            disabled={busy || group.some((s) => !!s.saved)}
                             onPress={() => {
+                              if (group.some((s) => !!s.saved)) return;
                               if (set.side !== 'Both') {
                                 const left = group.find((s) => s.side === 'Left') ?? group[0]!;
                                 const right = group.find((s) => s.side === 'Right');
@@ -651,28 +650,33 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                             }}
                           />
                         )}
-                        {firstSide && group.some((s) => !!s.saved) && !workout.log?.completedAt && (
-                          <Label small muted>
-                            Remove logged results before changing the set type.
-                          </Label>
-                        )}
                         {firstSide && modeChanged && workout.log?.completedAt && (
                           <Label small muted>
                             Save changes to apply the set type.
                           </Label>
                         )}
                         {previous ? (
-                          <Label small muted>
-                            Last logged ({displayDate(previous.date)}):{' '}
-                            <Label syntax="number" small>
-                              {previous.reps}
-                            </Label>{' '}
-                            reps ·{' '}
-                            <Label syntax="number" small>
-                              {previous.weightKg}
-                            </Label>{' '}
-                            kg{previous.isWarmup ? ' · Warm-up' : ''}
-                          </Label>
+                          <View style={{ gap: 4 }}>
+                            <Label small muted>
+                              Last logged ({displayDate(previous.date)}
+                              {previous.location?.trim()
+                                ? ` · ${previous.location.trim()}`
+                                : ''}):{' '}
+                              <Label syntax="number" small>
+                                {previous.reps}
+                              </Label>{' '}
+                              reps ·{' '}
+                              <Label syntax="number" small>
+                                {previous.weightKg}
+                              </Label>{' '}
+                              kg{previous.isWarmup ? ' · Warm-up' : ''}
+                            </Label>
+                            {!!previous.notes?.trim() && (
+                              <Label small muted>
+                                Previous note: {previous.notes}
+                              </Label>
+                            )}
+                          </View>
                         ) : (
                           set.target?.targetRepsMin != null && (
                             <Label small muted>
