@@ -533,9 +533,14 @@ public class ClimbLogApiTests(ApiFixture fixture)
         var orientation = new ExifProfile();
         orientation.SetValue(ExifTag.Orientation, (ushort)6);
         rotated.SetProfile(orientation);
+        // Magick.NET writes the image orientation back into EXIF during JPEG encoding.
+        rotated.Orientation = OrientationType.RightTop;
+        var rotatedBytes = rotated.ToByteArray(MagickFormat.Jpeg);
+        using var encoded = new MagickImage(rotatedBytes);
+        Assert.Equal(OrientationType.RightTop, encoded.Orientation);
         var resizedResponse = await client.PutAsJsonAsync(
             path,
-            new { Base64 = Convert.ToBase64String(rotated.ToByteArray(MagickFormat.Jpeg)) }
+            new { Base64 = Convert.ToBase64String(rotatedBytes) }
         );
         resizedResponse.EnsureSuccessStatusCode();
         var resized = (await resizedResponse.Content.ReadFromJsonAsync<ClimbPhotoResponse>())!;
