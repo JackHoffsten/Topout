@@ -1,5 +1,11 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": { "allowJs": true, "types": ["node"] },
-  "include": ["playwright.config.ts", "vitest.config.mts", "e2e/**/*.ts", "scripts/**/*.mjs"]
+  "include": [
+    "playwright*.config.ts",
+    "vitest.config.mts",
+    "e2e/**/*.ts",
+    "browser-tests/**/*.ts",
+    "scripts/**/*.mjs"
+  ]
 }

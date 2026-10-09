@@ -436,7 +436,7 @@ export function ClimbEditor({
       </View>
       {
         <View style={{ gap: 8 }}>
-          <Field
+          <SearchField
             label="Search grades"
             value={gradeSearch}
             onChangeText={setGradeSearch}

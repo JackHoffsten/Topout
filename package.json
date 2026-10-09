@@ -16,6 +16,7 @@
     "test": "vitest run && npm run test --workspace @topout/app",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
+    "test:keyboard": "npm run build && playwright test -c playwright.keyboard.config.ts",
     "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres",

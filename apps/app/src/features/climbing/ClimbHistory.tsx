@@ -329,7 +329,7 @@ export function ClimbHistory() {
             />
             {gradeOpen && filterValues(draft.gradeSystem).length > 0 && (
               <View style={{ gap: 6 }}>
-                <Field
+                <SearchField
                   label="Search filter grades"
                   value={gradeSearch}
                   onChangeText={setGradeSearch}

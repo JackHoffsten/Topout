@@ -7,14 +7,21 @@ export function Field({
   error,
   password = false,
   syntax,
+  keyboardPlacement = 'visible',
   ...props
-}: TextInputProps & { label: string; error?: string; password?: boolean; syntax?: SyntaxKind }) {
+}: TextInputProps & {
+  label: string;
+  error?: string;
+  password?: boolean;
+  syntax?: SyntaxKind;
+  keyboardPlacement?: 'visible' | 'results';
+}) {
   const c = useTheme();
   const desktop = useDesktop();
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
   return (
-    <View style={{ gap: 7 }}>
+    <View style={{ gap: 7 }} {...(Platform.OS === 'web' ? { dataSet: { keyboardPlacement } } : {})}>
       <Text
         style={{
           color: c.syntax.property,

@@ -96,6 +96,23 @@ renew a session and retry once. There is no offline mutation queue.
 
 ## Checks and web preview
 
+Use `Field` for ordinary inputs and `SearchField` for inputs with results or suggestions.
+On mobile web, `KeyboardViewport` handles focus after the keyboard viewport settles:
+ordinary fields stay visible with a 12px margin, while result fields align below the
+page header. Avoid adding screen-specific focus scrolling or scrolling on text changes.
+
+Keyboard layout regressions, including the built login and exercise search pages, run
+without the backend or Docker:
+
+```powershell
+npx playwright install chromium webkit
+npm run test:keyboard
+```
+
+These tests simulate viewport changes in Chromium and WebKit. Also check opening,
+switching, and dismissing the actual keyboard on an iPhone and Android device when
+changing this behavior.
+
 From the repository root:
 
 ```powershell

@@ -1,8 +1,8 @@
 import React from 'react';
 import { jest, test, expect, afterEach } from '@jest/globals';
 import { fireEventAsync, renderAsync, screen } from '@testing-library/react-native';
-import { Keyboard, type ScrollView, type View } from 'react-native';
-import { SearchField, revealSearchField } from '../ui/components/SearchField';
+import { Keyboard, type ScrollView } from 'react-native';
+import { SearchField } from '../ui/components/SearchField';
 import { SearchFocus, searchKeyboardOffset } from '../ui/searchFocus';
 
 let mockDesktop = false;
@@ -48,24 +48,6 @@ test('desktop search does not attach mobile keyboard scrolling', async () => {
   await renderAsync(<SearchField label="Search templates" scrollRef={{ current: null }} />);
   await fireEventAsync(screen.getByLabelText('Search templates'), 'focus', { nativeEvent: {} });
   expect(listen).not.toHaveBeenCalled();
-});
-
-test('native search measures against the Fabric component ref and scrolls to its top', () => {
-  const content = {};
-  const getInnerViewNode = jest.fn(() => 123);
-  const getInnerViewRef = jest.fn(() => content);
-  const scrollTo = jest.fn();
-  const measureLayout = jest.fn((relative: unknown, success: (x: number, y: number) => void) => {
-    expect(relative).toBe(content);
-    success(0, 280);
-  });
-  revealSearchField(
-    { getInnerViewNode, getInnerViewRef, scrollTo } as unknown as ScrollView,
-    { measureLayout } as unknown as View,
-  );
-  expect(getInnerViewNode).not.toHaveBeenCalled();
-  expect(getInnerViewRef).toHaveBeenCalled();
-  expect(scrollTo).toHaveBeenCalledWith({ y: 280, animated: false });
 });
 
 test('native search delegates alignment to the keyboard-aware page without manual scrolling', async () => {

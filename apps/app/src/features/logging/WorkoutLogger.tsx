@@ -16,6 +16,7 @@ import { Card } from '../../ui/components/Card';
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog';
 import { ErrorNotice } from '../../ui/components/ErrorNotice';
 import { Field } from '../../ui/components/Field';
+import { SearchField } from '../../ui/components/SearchField';
 import { LocationField } from '../../ui/components/LocationField';
 import { Heading } from '../../ui/components/Heading';
 import { Label } from '../../ui/components/Label';
@@ -858,7 +859,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
           ))}
           {picker ? (
             <Card>
-              <Field label="Search exercises" value={search} onChangeText={setSearch} />
+              <SearchField label="Search exercises" value={search} onChangeText={setSearch} />
               {available.isPending ? (
                 <Loading text="Loading exercises…" />
               ) : available.isError ? (

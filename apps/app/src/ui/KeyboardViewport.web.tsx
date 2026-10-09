@@ -1,7 +1,12 @@
-import { useEffect, useState, type PropsWithChildren } from 'react';
+import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import { installMobileInputFocus } from './mobileInputFocus';
 
 // Mobile browsers shrink the visual viewport, not necessarily the page, for the keyboard.
 export function KeyboardViewport({ children }: PropsWithChildren) {
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (root.current) return installMobileInputFocus(root.current);
+  }, []);
   const [bounds, setBounds] = useState<{ height: number; top: number }>();
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -27,6 +32,7 @@ export function KeyboardViewport({ children }: PropsWithChildren) {
   }, []);
   return (
     <div
+      ref={root}
       data-testid="keyboard-viewport"
       style={{
         display: 'flex',
