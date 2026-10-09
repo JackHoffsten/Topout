@@ -8,6 +8,7 @@ public interface IProgressRepository
         int userId,
         DateOnly? from,
         DateOnly? to,
-        CancellationToken ct
+        CancellationToken ct,
+        string[]? locations = null
     );
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Topout.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Topout.Infrastructure.Persistence;
 namespace Topout.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007184434_ClimbingDayMarks")]
+    partial class ClimbingDayMarks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -189,9 +192,9 @@ namespace Topout.Infrastructure.Persistence.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("integer");
 
-                    b.PrimitiveCollection<string[]>("WallAngles")
-                        .IsRequired()
-                        .HasColumnType("text[]");
+                    b.Property<string>("WallAngle")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.HasKey("Id");
 

@@ -7,7 +7,10 @@ import { ProgressScreen } from '../features/progress/ProgressScreen';
 import { dateKey } from '../features/calendar/calendar';
 
 const today = dateKey(new Date());
-const mockApi = { getProgress: jest.fn<(...args: any[]) => Promise<any>>() };
+const mockApi = {
+  getProgress: jest.fn<(...args: any[]) => Promise<any>>(),
+  listLogLocations: jest.fn<(...args: any[]) => Promise<string[]>>(),
+};
 jest.mock('../lib/providers', () => ({ useSession: () => ({ api: mockApi }) }));
 const data: ProgressData = {
   exercises: [
@@ -66,15 +69,42 @@ async function mount() {
   );
 }
 beforeEach(() => {
+  mockApi.listLogLocations.mockReset();
+  mockApi.listLogLocations.mockResolvedValue(['Central Gym', 'Board Gym']);
   mockApi.getProgress.mockReset();
   mockApi.getProgress.mockResolvedValue(data);
+});
+
+test('filters all progress views by multiple locations and clears the selection', async () => {
+  await mount();
+  await screen.findByText('Weekly activity');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Locations' }));
+  await fireEventAsync.press(
+    await screen.findByRole('button', { name: 'Filter location Central Gym' }),
+  );
+  await waitFor(() =>
+    expect(mockApi.getProgress).toHaveBeenCalledWith(undefined, today, ['Central Gym']),
+  );
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Filter location Board Gym' }));
+  await waitFor(() =>
+    expect(mockApi.getProgress).toHaveBeenCalledWith(undefined, today, [
+      'Central Gym',
+      'Board Gym',
+    ]),
+  );
+  await fireEventAsync.changeText(screen.getByLabelText('Search locations'), 'central');
+  await waitFor(() => expect(mockApi.listLogLocations).toHaveBeenCalledWith('climb', 'central'));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Clear' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Locations' })).toBeTruthy());
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Close' }));
+  expect(screen.queryByLabelText('Search locations')).toBeNull();
 });
 
 test('overview renders activity and lifetime weight records, with values available without a graph gesture', async () => {
   await mount();
   await screen.findByText('Weekly activity');
   expect(mockApi.getProgress).toHaveBeenCalledWith(undefined, today);
-  expect(screen.getByText(`Curl · Left · 12 kg · ${today}`)).toBeTruthy();
+  expect(screen.getByText('Curl · Left · 12 kg · Today')).toBeTruthy();
   expect(screen.getByText('Bouldering · Fontainebleau · 7A')).toBeTruthy();
   await fireEventAsync.press(screen.getAllByRole('button', { name: 'Show values' })[0]);
   expect(screen.getByText('Hide values')).toBeTruthy();
@@ -87,33 +117,31 @@ test('exercise selection, metric changes, and side filters keep the left and rig
   await fireEventAsync.changeText(screen.getByLabelText('Search exercises'), 'curl');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Select progress exercise Curl' }));
   expect(screen.queryByLabelText('Search exercises')).toBeNull();
-  expect(screen.getByRole('button', { name: 'Heaviest weight' }).props.accessibilityState.selected).toBe(
-    true,
-  );
   expect(
-    screen.getByRole('button', { name: `Curl · Heaviest weight, Left, ${today}, 12 kg` }),
+    screen.getByRole('button', { name: 'Heaviest weight' }).props.accessibilityState.selected,
+  ).toBe(true);
+  expect(
+    screen.getByRole('button', { name: 'Curl · Heaviest weight, Left, Today, 12 kg' }),
   ).toBeTruthy();
   expect(
-    screen.getByRole('button', { name: `Curl · Heaviest weight, Left, ${today}, 12 kg` }),
+    screen.getByRole('button', { name: 'Curl · Heaviest weight, Left, Today, 12 kg' }),
   ).toBeTruthy();
   expect(
-    screen.getByRole('button', { name: `Curl · Heaviest weight, Right, ${today}, 14 kg` }),
+    screen.getByRole('button', { name: 'Curl · Heaviest weight, Right, Today, 14 kg' }),
   ).toBeTruthy();
   await fireEventAsync.press(screen.getByRole('button', { name: 'Left' }));
   expect(
-    screen.queryByRole('button', { name: `Curl · Heaviest weight, Right, ${today}, 14 kg` }),
+    screen.queryByRole('button', { name: 'Curl · Heaviest weight, Right, Today, 14 kg' }),
   ).toBeNull();
   await fireEventAsync.press(screen.getByRole('button', { name: 'Volume' }));
-  expect(
-    screen.getByRole('button', { name: `Curl · Volume, Left, ${today}, 192 kg` }),
-  ).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Curl · Volume, Left, Today, 192 kg' })).toBeTruthy();
 });
 test('climbing filters exclude unsent harder grades and can select a different type or system', async () => {
   await mount();
   await screen.findByText('Weekly activity');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Climbing' }));
   expect(
-    screen.getByRole('button', { name: `Hardest grade sent, Fontainebleau, ${today}, 7A` }),
+    screen.getByRole('button', { name: 'Hardest grade sent, Fontainebleau, Today, 7A' }),
   ).toBeTruthy();
   expect(screen.queryByRole('button', { name: new RegExp('Hardest grade sent.*9C') })).toBeNull();
   await fireEventAsync.press(screen.getByRole('button', { name: 'Board' }));

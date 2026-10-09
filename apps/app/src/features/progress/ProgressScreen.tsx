@@ -5,6 +5,7 @@ import {
   climbingTypes,
   climbingEnvironments,
   climbingGrades,
+  representativeGrade,
   climbingLabel,
   systemsForType,
   groupPoints,
@@ -64,10 +65,29 @@ export function ProgressScreen() {
   const c = useTheme();
   const wide = useDesktop();
   const today = dateKey(new Date());
+  const [locations, setLocations] = useState<string[]>([]);
+  const [locationPicker, setLocationPicker] = useState(false);
+  const [locationSearch, setLocationSearch] = useState('');
+  const locationSuggestions = useQuery({
+    queryKey: ['log-locations', 'progress', locationSearch],
+    queryFn: async () => {
+      const lists = await Promise.all([
+        api.listLogLocations('workout', locationSearch),
+        api.listLogLocations('climb', locationSearch),
+      ]);
+      return [...new Map(lists.flat().map((value) => [value.toLowerCase(), value])).values()].sort(
+        (a, b) => a.localeCompare(b),
+      );
+    },
+    enabled: locationPicker,
+  });
   // Read compact daily history so range changes can preserve lifetime personal-best comparisons.
   const query = useQuery({
-    queryKey: ['progress', today],
-    queryFn: () => api.getProgress(undefined, today),
+    queryKey: ['progress', today, [...locations].sort()],
+    queryFn: () =>
+      locations.length
+        ? api.getProgress(undefined, today, locations)
+        : api.getProgress(undefined, today),
   });
   const [tab, setTab] = useState('Overview');
   const [range, setRange] = useState('3 months');
@@ -128,7 +148,9 @@ export function ProgressScreen() {
   const gradeCounts = climbingGrades[system]
     .map((grade) => ({
       grade,
-      sends: climbs.filter((x) => x.grade === grade).reduce((sum, x) => sum + x.sends, 0),
+      sends: climbs
+        .filter((x) => representativeGrade(system, x.grade) === grade)
+        .reduce((sum, x) => sum + x.sends, 0),
     }))
     .filter((x) => x.sends);
   const gradeMax = Math.max(1, ...gradeCounts.map((x) => x.sends));
@@ -155,6 +177,69 @@ export function ProgressScreen() {
       <Label small muted>
         {from} – {today}
       </Label>
+      <Button
+        title={locations.length ? `Locations (${locations.length})` : 'Locations'}
+        variant="secondary"
+        selected={locationPicker || locations.length > 0}
+        onPress={() => setLocationPicker(!locationPicker)}
+      />
+      {locations.length > 0 && (
+        <Label small muted>
+          {locations.join(' · ')}
+        </Label>
+      )}
+      {locationPicker && (
+        <Card>
+          <SearchField
+            scrollRef={scrollRef}
+            label="Search locations"
+            placeholder="Location name"
+            value={locationSearch}
+            onChangeText={setLocationSearch}
+          />
+          {locationSuggestions.isPending ? (
+            <Loading text="Loading locations…" />
+          ) : locationSuggestions.isError ? (
+            <>
+              <ErrorNotice message="Locations could not be loaded." />
+              <Button title="Retry locations" onPress={() => void locationSuggestions.refetch()} />
+            </>
+          ) : (
+            <View style={{ gap: 8 }}>
+              {[...new Set([...locations, ...(locationSuggestions.data ?? [])])].map((location) => (
+                <Button
+                  key={location}
+                  title={location}
+                  accessibilityLabel={`Filter location ${location}`}
+                  selected={locations.includes(location)}
+                  variant="secondary"
+                  onPress={() =>
+                    setLocations((current) =>
+                      current.includes(location)
+                        ? current.filter((value) => value !== location)
+                        : [...current, location],
+                    )
+                  }
+                />
+              ))}
+              {!locationSuggestions.data?.length && <Label muted>No matching locations.</Label>}
+            </View>
+          )}
+          <View
+            style={{ flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8 }}
+          >
+            <Button
+              title="Clear"
+              variant="secondary"
+              onPress={() => {
+                setLocations([]);
+                setLocationSearch('');
+              }}
+            />
+            <Button title="Close" variant="secondary" onPress={() => setLocationPicker(false)} />
+          </View>
+        </Card>
+      )}
       {query.isPending ? (
         <Loading />
       ) : query.isError ? (
@@ -223,7 +308,7 @@ export function ProgressScreen() {
                     <Label key={`${x.date}:${x.exerciseId}:${x.side}`} small>
                       {x.name}
                       {x.side !== 'Both' ? ` · ${x.side}` : ''} · {count(x.maxWeightKg)} kg ·{' '}
-                      {x.date}
+                      {displayDate(x.date)}
                     </Label>
                   ))
                 ) : (
@@ -271,8 +356,8 @@ export function ProgressScreen() {
                     )}
                     {choosing && (
                       <>
-                      <SearchField
-                        scrollRef={scrollRef}
+                        <SearchField
+                          scrollRef={scrollRef}
                           label="Search exercises"
                           value={search}
                           onChangeText={setSearch}
@@ -358,6 +443,9 @@ export function ProgressScreen() {
                 selected={environment}
                 onChange={setEnvironment}
               />
+              <Label small muted>
+                Grade ranges use the middle grade, rounded down.
+              </Label>
               <ProgressChart
                 key={`${type}:${system}:${environment}:${range}`}
                 title="Hardest grade sent"
@@ -437,3 +525,4 @@ export function ProgressScreen() {
     </Page>
   );
 }
+import { displayDate } from '../../lib/dates';

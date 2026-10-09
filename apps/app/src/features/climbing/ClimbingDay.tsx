@@ -16,6 +16,11 @@ export function ClimbingDay({
   error,
   onRetry,
   restDay,
+  marked = false,
+  onMark,
+  markBusy = false,
+  markUnavailable = false,
+  markError,
 }: {
   date: string;
   logs: ClimbLog[];
@@ -23,6 +28,11 @@ export function ClimbingDay({
   error?: unknown;
   onRetry: () => void;
   restDay: boolean;
+  marked?: boolean;
+  onMark?: (marked: boolean) => void;
+  markBusy?: boolean;
+  markUnavailable?: boolean;
+  markError?: unknown;
 }) {
   const c = useTheme();
   const router = useRouter();
@@ -53,7 +63,9 @@ export function ClimbingDay({
         </>
       ) : (
         <>
-          {!logs.length && <Label muted>No climbs logged.</Label>}
+          {!logs.length && (
+            <Label muted>{marked ? 'Climbing day · No climbs logged.' : 'No climbs logged.'}</Label>
+          )}
           {logs.map((log) => (
             <Link key={log.id} href={{ pathname: '/climbs', params: { climb: log.id } }} asChild>
               <Pressable
@@ -70,6 +82,16 @@ export function ClimbingDay({
             disabled={restDay}
             onPress={() => router.push({ pathname: '/climbs/new', params: { date } })}
           />
+          {!logs.length && onMark && (
+            <Button
+              title={marked ? 'Remove climbing day' : 'Mark climbing day'}
+              variant="secondary"
+              busy={markBusy}
+              disabled={restDay || markUnavailable}
+              onPress={() => onMark(!marked)}
+            />
+          )}
+          {markError != null && <ErrorNotice message={errorMessage(markError)} />}
           {restDay && (
             <Label small muted>
               Remove the rest day to log a climb.

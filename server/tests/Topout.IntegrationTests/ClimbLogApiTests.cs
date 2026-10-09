@@ -19,6 +19,424 @@ public class ClimbLogApiTests(ApiFixture fixture)
 {
     private const string Path = "/api/climb-logs";
     private const string Range = "?from=2026-10-01&to=2026-10-31";
+
+    [Fact]
+    public async Task Multiple_wall_angles_roundtrip_and_legacy_edits_preserve_them()
+    {
+        using var client = await Client();
+        var response = await client.PostAsJsonAsync(
+            Path,
+            Input with
+            {
+                WallAngles = ["Slab", "Overhang"],
+            }
+        );
+        response.EnsureSuccessStatusCode();
+        var created = (await response.Content.ReadFromJsonAsync<ClimbLogResponse>())!;
+        Assert.Equal(new[] { "Slab", "Overhang" }, created.WallAngles);
+        foreach (var angle in new[] { "Slab", "Overhang" })
+        {
+            var history = (
+                await client.GetFromJsonAsync<ClimbHistoryResponse>(
+                    Path + "/history?wallAngle=" + angle
+                )
+            )!;
+            Assert.Equal(created.Id, Assert.Single(history.Items).Id);
+        }
+        var edit = await client.PutAsJsonAsync(
+            Path + "/" + created.Id,
+            Input with
+            {
+                WallAngle = "Slab",
+            }
+        );
+        edit.EnsureSuccessStatusCode();
+        var updated = (await edit.Content.ReadFromJsonAsync<ClimbLogResponse>())!;
+        Assert.Equal(new[] { "Slab", "Overhang" }, updated.WallAngles);
+        var invalid = await client.PutAsJsonAsync(
+            Path + "/" + created.Id,
+            Input with
+            {
+                WallAngles = ["Slab", "Slab"],
+            }
+        );
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+
+    [Fact]
+    public async Task Climbing_days_are_private_removable_and_conflict_with_rest_days_and_logs()
+    {
+        using var client = await Client();
+        using var other = await Client();
+        var endpoint = Path + "/days/2026-10-03";
+        (await client.PutAsync(endpoint, null)).EnsureSuccessStatusCode();
+        (await client.PutAsync(endpoint, null)).EnsureSuccessStatusCode();
+        Assert.Single((await client.GetFromJsonAsync<DateOnly[]>(Path + "/days" + Range))!);
+        Assert.Empty((await other.GetFromJsonAsync<DateOnly[]>(Path + "/days" + Range))!);
+        (await other.DeleteAsync(endpoint)).EnsureSuccessStatusCode();
+        Assert.Single((await client.GetFromJsonAsync<DateOnly[]>(Path + "/days" + Range))!);
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (
+                await client.PostAsJsonAsync(
+                    "/api/workout-schedule",
+                    new { date = "2026-10-03", templateId = (int?)null }
+                )
+            ).StatusCode
+        );
+        (await client.DeleteAsync(endpoint)).EnsureSuccessStatusCode();
+        Assert.Empty((await client.GetFromJsonAsync<DateOnly[]>(Path + "/days" + Range))!);
+        (await client.PostAsJsonAsync(Path, Input)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsync(endpoint, null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync(endpoint)).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (await client.PutAsync(Path + "/days/not-a-date", null)).StatusCode
+        );
+    }
+
+    [Fact]
+    public async Task Unknown_project_attempts_preserve_known_totals_as_more_than()
+    {
+        using var client = await Client();
+        var first = (
+            await (
+                await client.PostAsJsonAsync(
+                    Path,
+                    Input with
+                    {
+                        IsProject = true,
+                        Outcome = "Attempted",
+                        Attempts = 5,
+                    }
+                )
+            ).Content.ReadFromJsonAsync<ClimbLogResponse>()
+        )!;
+        var unknownResponse = await client.PostAsJsonAsync(
+            Path,
+            Input with
+            {
+                ProjectId = first.ProjectId,
+                IsProject = true,
+                Outcome = "Attempted",
+                Attempts = null,
+                AttemptsMode = "Unknown",
+                Date = Input.Date.AddDays(1),
+            }
+        );
+        unknownResponse.EnsureSuccessStatusCode();
+        var unknown = (await unknownResponse.Content.ReadFromJsonAsync<ClimbLogResponse>())!;
+        Assert.Null(unknown.Attempts);
+        Assert.Equal(5, unknown.TotalAttempts);
+        Assert.True(unknown.TotalAttemptsIsLowerBound);
+        var restored = (await client.GetFromJsonAsync<ClimbLogResponse>($"{Path}/{unknown.Id}"))!;
+        Assert.Equal("Unknown", restored.AttemptsMode);
+        Assert.True(restored.TotalAttemptsIsLowerBound);
+        var moreResponse = await client.PostAsJsonAsync(
+            Path,
+            Input with
+            {
+                Attempts = 1,
+                AttemptsMode = "MoreThan",
+            }
+        );
+        moreResponse.EnsureSuccessStatusCode();
+        var more = (await moreResponse.Content.ReadFromJsonAsync<ClimbLogResponse>())!;
+        Assert.Equal("Redpoint", more.Outcome);
+        Assert.True(more.TotalAttemptsIsLowerBound);
+    }
+
+    [Fact]
+    public async Task Project_first_attempt_outcomes_respect_previous_days_and_same_day_attempts()
+    {
+        using var client = await Client();
+        using var other = await Client();
+        var input = Input with
+        {
+            IsProject = true,
+            Outcome = "Attempted",
+            Date = new DateOnly(2026, 10, 3),
+        };
+        var original = (
+            await (
+                await client.PostAsJsonAsync(Path, input)
+            ).Content.ReadFromJsonAsync<ClimbLogResponse>()
+        )!;
+        var projectId = original.ProjectId!.Value;
+        var attempts = (
+            await client.GetFromJsonAsync<ProjectAttempt[]>($"{Path}/projects/{projectId}/attempts")
+        )!;
+        Assert.Equal(original.Id, Assert.Single(attempts).Id);
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await other.GetAsync($"{Path}/projects/{projectId}/attempts")).StatusCode
+        );
+        foreach (var outcome in new[] { "Flash", "Onsight", "DayFlash" })
+            Assert.Equal(
+                HttpStatusCode.BadRequest,
+                (
+                    await client.PostAsJsonAsync(
+                        Path,
+                        input with
+                        {
+                            ProjectId = projectId,
+                            Outcome = outcome,
+                            Attempts = 1,
+                        }
+                    )
+                ).StatusCode
+            );
+        var tomorrow = input with
+        {
+            Date = new DateOnly(2026, 10, 4),
+            ProjectId = projectId,
+            Attempts = 1,
+        };
+        foreach (var outcome in new[] { "Flash", "Onsight" })
+            Assert.Equal(
+                HttpStatusCode.BadRequest,
+                (await client.PostAsJsonAsync(Path, tomorrow with { Outcome = outcome })).StatusCode
+            );
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (
+                await client.PostAsJsonAsync(
+                    Path,
+                    tomorrow with
+                    {
+                        Outcome = "DayFlash",
+                        Attempts = 2,
+                    }
+                )
+            ).StatusCode
+        );
+        var dayFlashResponse = await client.PostAsJsonAsync(
+            Path,
+            tomorrow with
+            {
+                Outcome = "Redpoint",
+            }
+        );
+        dayFlashResponse.EnsureSuccessStatusCode();
+        var dayFlash = (await dayFlashResponse.Content.ReadFromJsonAsync<ClimbLogResponse>())!;
+        Assert.True(dayFlash.ProjectCompleted);
+        Assert.Equal("DayFlash", dayFlash.Outcome);
+        Assert.Equal(original.Attempts + 1, dayFlash.TotalAttempts);
+        var restored = (await client.GetFromJsonAsync<ClimbLogResponse>($"{Path}/{dayFlash.Id}"))!;
+        Assert.Equal(dayFlash.TotalAttempts, restored.TotalAttempts);
+        var history = (await client.GetFromJsonAsync<ClimbHistoryResponse>(Path + "/history"))!;
+        Assert.Equal(
+            dayFlash.TotalAttempts,
+            history.Items.Single(x => x.Id == dayFlash.Id).TotalAttempts
+        );
+        Assert.Single(
+            (
+                await client.GetFromJsonAsync<ClimbHistoryResponse>(
+                    Path + "/history?outcome=DayFlash"
+                )
+            )!.Items
+        );
+        // Editing the same record must not count itself as an earlier attempt.
+        (
+            await client.PutAsJsonAsync(
+                $"{Path}/{dayFlash.Id}",
+                tomorrow with
+                {
+                    Outcome = "DayFlash",
+                }
+            )
+        ).EnsureSuccessStatusCode();
+        var progress = await client.GetFromJsonAsync<Topout.Application.Progress.ProgressResponse>(
+            "/api/progress"
+        );
+        Assert.Equal(1, progress!.Climbing.Sum(x => x.Sends));
+        Assert.Equal(0, progress.Climbing.Sum(x => x.Flashes));
+    }
+
+    [Fact]
+    public async Task Projects_link_attempts_complete_on_send_and_reopen_when_send_is_removed()
+    {
+        using var client = await Client();
+        using var other = await Client();
+        var attempted = Input with { IsProject = true, Outcome = "Attempted" };
+        var firstResponse = await client.PostAsJsonAsync(Path, attempted);
+        firstResponse.EnsureSuccessStatusCode();
+        var first = (await firstResponse.Content.ReadFromJsonAsync<ClimbLogResponse>())!;
+        Assert.NotNull(first.ProjectId);
+        Assert.False(first.ProjectCompleted);
+        var projectId = first.ProjectId!.Value;
+        var projects = (await client.GetFromJsonAsync<ClimbProjectResponse[]>(Path + "/projects"))!;
+        Assert.Equal(projectId, Assert.Single(projects).Id);
+        Assert.Empty((await other.GetFromJsonAsync<ClimbProjectResponse[]>(Path + "/projects"))!);
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await other.PostAsJsonAsync(Path, attempted with { ProjectId = projectId })).StatusCode
+        );
+
+        var secondResponse = await client.PostAsJsonAsync(
+            Path,
+            attempted with
+            {
+                ProjectId = projectId,
+                Date = new DateOnly(2026, 10, 4),
+            }
+        );
+        secondResponse.EnsureSuccessStatusCode();
+        var second = (await secondResponse.Content.ReadFromJsonAsync<ClimbLogResponse>())!;
+        Assert.Equal(projectId, second.ProjectId);
+        Assert.Equal(
+            2,
+            (
+                await client.GetFromJsonAsync<ClimbHistoryResponse>(
+                    Path + "/history?project=unfinished"
+                )
+            )!
+                .Items
+                .Count
+        );
+
+        var sentResponse = await client.PostAsJsonAsync(
+            Path,
+            attempted with
+            {
+                ProjectId = projectId,
+                Outcome = "Redpoint",
+                Date = new DateOnly(2026, 10, 5),
+            }
+        );
+        sentResponse.EnsureSuccessStatusCode();
+        var sent = (await sentResponse.Content.ReadFromJsonAsync<ClimbLogResponse>())!;
+        Assert.True(sent.ProjectCompleted);
+        Assert.Empty((await client.GetFromJsonAsync<ClimbProjectResponse[]>(Path + "/projects"))!);
+        Assert.True(
+            (
+                await client.GetFromJsonAsync<ClimbLogResponse>($"{Path}/{first.Id}")
+            )!.ProjectCompleted
+        );
+        Assert.Equal(
+            3,
+            (
+                await client.GetFromJsonAsync<ClimbHistoryResponse>(
+                    Path + "/history?project=completed"
+                )
+            )!
+                .Items
+                .Count
+        );
+        Assert.Empty(
+            (
+                await client.GetFromJsonAsync<ClimbHistoryResponse>(Path + "/history?project=none")
+            )!.Items
+        );
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (
+                await client.PostAsJsonAsync(Path, attempted with { ProjectId = projectId })
+            ).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (
+                await client.PostAsJsonAsync(
+                    Path,
+                    attempted with
+                    {
+                        IsProject = false,
+                        ProjectId = projectId,
+                    }
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (await client.GetAsync(Path + "/history?project=unknown")).StatusCode
+        );
+
+        // Editing the send back to an attempt reopens the project.
+        (
+            await client.PutAsJsonAsync(
+                $"{Path}/{sent.Id}",
+                attempted with
+                {
+                    ProjectId = projectId,
+                }
+            )
+        ).EnsureSuccessStatusCode();
+        Assert.Single((await client.GetFromJsonAsync<ClimbProjectResponse[]>(Path + "/projects"))!);
+        (
+            await client.PutAsJsonAsync(
+                $"{Path}/{sent.Id}",
+                attempted with
+                {
+                    ProjectId = projectId,
+                    Outcome = "Redpoint",
+                }
+            )
+        ).EnsureSuccessStatusCode();
+        (await client.DeleteAsync($"{Path}/{sent.Id}")).EnsureSuccessStatusCode();
+        Assert.Single((await client.GetFromJsonAsync<ClimbProjectResponse[]>(Path + "/projects"))!);
+        (await client.DeleteAsync($"{Path}/{first.Id}")).EnsureSuccessStatusCode();
+        (await client.DeleteAsync($"{Path}/{second.Id}")).EnsureSuccessStatusCode();
+        Assert.Empty((await client.GetFromJsonAsync<ClimbProjectResponse[]>(Path + "/projects"))!);
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (
+                await client.PostAsJsonAsync(Path, attempted with { ProjectId = projectId })
+            ).StatusCode
+        );
+    }
+
+    [Fact]
+    public async Task Grade_ranges_persist_filter_and_sort_by_the_lower_midpoint()
+    {
+        using var client = await Client();
+        var response = await client.PostAsJsonAsync(Path, Input with { Grade = "6B-6C" });
+        response.EnsureSuccessStatusCode();
+        var range = (await response.Content.ReadFromJsonAsync<ClimbLogResponse>())!;
+        Assert.Equal(
+            "6B-6C",
+            (await client.GetFromJsonAsync<ClimbLogResponse>($"{Path}/{range.Id}"))!.Grade
+        );
+        foreach (var grade in new[] { "6B", "6B+", "6C" })
+            Assert.Single(
+                (
+                    await client.GetFromJsonAsync<ClimbHistoryResponse>(
+                        $"{Path}/history?gradeSystem=Font&grade={Uri.EscapeDataString(grade)}"
+                    )
+                )!.Items
+            );
+        (await client.PostAsJsonAsync(Path, Input with { Grade = "6C" })).EnsureSuccessStatusCode();
+        var sorted = (
+            await client.GetFromJsonAsync<ClimbHistoryResponse>(Path + "/history?sort=grade-asc")
+        )!.Items;
+        Assert.Equal(range.Id, sorted[0].Id);
+        var hardest = (
+            await client.GetFromJsonAsync<ClimbHistoryResponse>(Path + "/history?sort=grade-desc")
+        )!.Items;
+        Assert.Equal("6C", hardest[0].Grade);
+        foreach (var grade in new[] { "7A-7A", "7B-7A", "7A-7B-7C", "6B-7A" })
+            Assert.Equal(
+                HttpStatusCode.BadRequest,
+                (await client.PostAsJsonAsync(Path, Input with { Grade = grade })).StatusCode
+            );
+        (
+            await client.PutAsJsonAsync(
+                $"{Path}/{range.Id}",
+                Input with
+                {
+                    GradeSystem = "YDS",
+                    ClimbingType = "Sport",
+                    Environment = "Indoor",
+                    Grade = "5.10a-5.10d",
+                }
+            )
+        ).EnsureSuccessStatusCode();
+        Assert.Equal(
+            "5.10a-5.10d",
+            (await client.GetFromJsonAsync<ClimbLogResponse>($"{Path}/{range.Id}"))!.Grade
+        );
+    }
+
     private static ClimbLogInput Input =>
         new(
             new DateOnly(2026, 10, 3),

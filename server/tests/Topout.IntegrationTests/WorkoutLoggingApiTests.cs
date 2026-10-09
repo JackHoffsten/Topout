@@ -21,22 +21,85 @@ public class WorkoutLoggingApiTests(ApiFixture fixture)
         using var other = await Client();
         var (plan, _, exercise) = await Plan(client);
         var url = $"/api/workout-schedule/{plan.Id}/log";
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync(url + "/location", new { location = "  Central Gym  " })).StatusCode);
-        var log = (await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json))!;
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await client.PutAsJsonAsync(url + "/location", new { location = "  Central Gym  " })
+            ).StatusCode
+        );
+        var log = (
+            await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+        )!;
         Assert.Equal("Central Gym", log.Log!.Location);
-        var suggestions = (await client.GetFromJsonAsync<string[]>("/api/log-locations?activity=workout&search=central"))!;
+        var suggestions = (
+            await client.GetFromJsonAsync<string[]>(
+                "/api/log-locations?activity=workout&search=central"
+            )
+        )!;
         Assert.Equal("Central Gym", Assert.Single(suggestions));
-        Assert.Empty((await other.GetFromJsonAsync<string[]>("/api/log-locations?activity=workout"))!);
-        Assert.Equal(HttpStatusCode.NotFound, (await other.PutAsJsonAsync(url + "/location", new { location = "Other" })).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(url + "/location", new { location = new string('x', 201) })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync(url + "/sets", new RecordSetInput(exercise.Id, 1, 8, 20, false, null, Location: "East Gym"), ExerciseApiTests.Json)).StatusCode);
-        var complete = new CompleteWorkoutInput(null, [new(exercise.Id, [new(8, 20, false, null)])], "East Gym");
-        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync(url, complete, ExerciseApiTests.Json)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync(url, complete with { Location = "West Gym" }, ExerciseApiTests.Json)).StatusCode);
-        Assert.Equal("West Gym", (await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json))!.Log!.Location);
+        Assert.Empty(
+            (await other.GetFromJsonAsync<string[]>("/api/log-locations?activity=workout"))!
+        );
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await other.PutAsJsonAsync(url + "/location", new { location = "Other" })).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (
+                await client.PutAsJsonAsync(
+                    url + "/location",
+                    new { location = new string('x', 201) }
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await client.PutAsJsonAsync(
+                    url + "/sets",
+                    new RecordSetInput(exercise.Id, 1, 8, 20, false, null, Location: "East Gym"),
+                    ExerciseApiTests.Json
+                )
+            ).StatusCode
+        );
+        var complete = new CompleteWorkoutInput(
+            null,
+            [new(exercise.Id, [new(8, 20, false, null)])],
+            "East Gym"
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PostAsJsonAsync(url, complete, ExerciseApiTests.Json)).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await client.PutAsJsonAsync(
+                    url,
+                    complete with
+                    {
+                        Location = "West Gym",
+                    },
+                    ExerciseApiTests.Json
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            "West Gym",
+            (await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json))!
+                .Log!
+                .Location
+        );
         await client.PutAsJsonAsync(url + "/location", new { location = (string?)null });
-        Assert.Null((await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json))!.Log!.Location);
-        Assert.Empty((await client.GetFromJsonAsync<string[]>("/api/log-locations?activity=workout"))!);
+        Assert.Null(
+            (await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json))!
+                .Log!
+                .Location
+        );
+        Assert.Empty(
+            (await client.GetFromJsonAsync<string[]>("/api/log-locations?activity=workout"))!
+        );
     }
 
     [Fact]
@@ -237,11 +300,22 @@ public class WorkoutLoggingApiTests(ApiFixture fixture)
             url + "/sets",
             new RecordSetInput(exercise.Id, 1, 12, 60, false, null)
         );
+        (
+            await client.PutAsJsonAsync(
+                $"/api/workout-schedule/{plan.Id}/log/location",
+                new { location = "Central Gym" }
+            )
+        ).EnsureSuccessStatusCode();
         var context = (
             await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
         )!;
         Assert.Equal(9, context.PreviousSets!.Single(x => x.Order == 1).Reps);
         Assert.Equal(45.5m, context.PreviousSets!.Single(x => x.Order == 1).WeightKg);
+        Assert.Equal("Central Gym", context.PreviousSets!.Single(x => x.Order == 1).Location);
+        Assert.Equal(
+            completed ? "Set notes" : null,
+            context.PreviousSets!.Single(x => x.Order == 1).Notes
+        );
         Assert.Equal(plan.Date, context.PreviousSets![0].Date);
         Assert.All(context.PreviousSets!, x => Assert.Equal(exercise.Id, x.ExerciseId));
         await client.DeleteAsync($"/api/workout-schedule/{plan.Id}/log");

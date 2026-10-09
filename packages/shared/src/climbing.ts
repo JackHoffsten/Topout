@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const climbingTypes = ['Bouldering', 'Sport', 'TopRope'] as const;
 export const climbingEnvironments = ['Indoor', 'Outdoor', 'Board'] as const;
-export const climbingOutcomes = ['Attempted', 'Redpoint', 'Flash', 'Onsight'] as const;
+export const climbingOutcomes = ['Attempted', 'Redpoint', 'Flash', 'Onsight', 'DayFlash'] as const;
 export const wallAngles = ['Slab', 'Vertical', 'Overhang', 'Roof'] as const;
 export const climbingStyles = [
   'Crimpy',
@@ -62,9 +62,38 @@ export function climbingLabel(value: string): string {
         French: 'French',
         YDS: 'YDS',
         Redpoint: 'Redpoint / sent',
+        DayFlash: 'Day flash',
+        MoreThan: 'More than',
+        projects: 'Projects',
+        unfinished: 'Unfinished projects',
+        completed: 'Completed projects',
+        none: 'Not projects',
       } as Record<string, string>
     )[value] ?? value
   );
+}
+
+/** One grade, or two distinct endpoints in ascending scale order. */
+export function gradeEndpoints(system: GradeSystem, grade: string): string[] {
+  const parts = grade.split('-');
+  const scale = climbingGrades[system];
+  if (parts.length === 1 && scale.includes(parts[0]!)) return parts;
+  if (
+    parts.length === 2 &&
+    scale.indexOf(parts[0]!) >= 0 &&
+    scale.indexOf(parts[1]!) > scale.indexOf(parts[0]!) &&
+    scale.indexOf(parts[1]!) - scale.indexOf(parts[0]!) <= 3
+  )
+    return parts;
+  return [];
+}
+
+/** Use the middle scale step, rounding toward the easier grade. */
+export function representativeGrade(system: GradeSystem, grade: string): string {
+  const endpoints = gradeEndpoints(system, grade);
+  if (!endpoints.length) return '';
+  const scale = climbingGrades[system];
+  return scale[Math.floor((scale.indexOf(endpoints[0]!) + scale.indexOf(endpoints.at(-1)!)) / 2)]!;
 }
 
 const optionalText = (max: number) => z.string().trim().max(max).nullable();
@@ -74,24 +103,40 @@ const climbFields = {
   gradeSystem: z.enum(gradeSystems),
   grade: z.string().trim(),
   environment: z.enum(climbingEnvironments),
-  attempts: z.number().int().min(1).max(1000),
+  attempts: z.number().int().min(1).max(1000).nullable(),
+  attemptsMode: z.enum(['Exact', 'MoreThan', 'Unknown']).optional(),
   outcome: z.enum(climbingOutcomes),
   wallAngle: z.enum(wallAngles).nullable(),
+  wallAngles: z
+    .array(z.enum(wallAngles))
+    .max(wallAngles.length)
+    .refine((values) => new Set(values).size === values.length, 'Choose distinct wall angles.')
+    .optional(),
   styles: z
     .array(z.enum(climbingStyles))
     .max(climbingStyles.length)
     .refine((values) => new Set(values).size === values.length, 'Choose distinct styles.'),
   name: optionalText(100),
   location: optionalText(200),
+  isProject: z.boolean().optional(),
+  projectId: z.number().int().positive().nullish(),
 };
 function validateClimb(value: z.infer<z.ZodObject<typeof climbFields>>, ctx: z.RefinementCtx) {
+  if ((value.attemptsMode === 'Unknown') !== (value.attempts === null))
+    ctx.addIssue({
+      code: 'custom',
+      path: ['attempts'],
+      message: 'Enter a number of attempts or choose Unknown.',
+    });
+  if (value.projectId != null && value.isProject === false)
+    ctx.addIssue({ code: 'custom', path: ['projectId'], message: 'Choose a valid project.' });
   if (!systemsForType(value.climbingType).includes(value.gradeSystem))
     ctx.addIssue({
       code: 'custom',
       path: ['gradeSystem'],
       message: 'Choose a grade system for this climbing type.',
     });
-  if (!climbingGrades[value.gradeSystem].includes(value.grade))
+  if (!gradeEndpoints(value.gradeSystem, value.grade).length)
     ctx.addIssue({ code: 'custom', path: ['grade'], message: 'Choose a valid grade.' });
   if (value.environment === 'Board' && value.climbingType !== 'Bouldering')
     ctx.addIssue({
@@ -99,18 +144,33 @@ function validateClimb(value: z.infer<z.ZodObject<typeof climbFields>>, ctx: z.R
       path: ['environment'],
       message: 'Board climbing is available for bouldering only.',
     });
-  if ((value.outcome === 'Flash' || value.outcome === 'Onsight') && value.attempts !== 1)
+  if (
+    ['Flash', 'Onsight', 'DayFlash'].includes(value.outcome) &&
+    (value.attempts !== 1 || (value.attemptsMode ?? 'Exact') !== 'Exact')
+  )
     ctx.addIssue({
       code: 'custom',
       path: ['attempts'],
-      message: 'Flash and onsight require one attempt.',
+      message: 'Flash, onsight and day flash require one attempt.',
     });
 }
 export const climbLogInputSchema = z.object(climbFields).superRefine(validateClimb);
 export const climbLogSchema = z
-  .object({ id: z.number().int().positive(), ...climbFields })
+  .object({
+    id: z.number().int().positive(),
+    ...climbFields,
+    projectCompleted: z.boolean().optional(),
+    totalAttempts: z.number().int().positive().nullish(),
+    totalAttemptsIsLowerBound: z.boolean().optional(),
+  })
   .superRefine(validateClimb);
 export const climbLogsSchema = z.array(climbLogSchema);
+export const climbProjectsSchema = z.array(
+  z.object({ id: z.number().int().positive(), climb: climbLogSchema }),
+);
+export const projectAttemptsSchema = z.array(
+  z.object({ id: z.number().int().positive(), date: z.iso.date() }),
+);
 export const climbHistorySchema = z.object({
   totalCount: z.number().int().nonnegative(),
   items: climbLogsSchema,
@@ -119,16 +179,20 @@ export const climbHistorySchema = z.object({
 export function climbOutcomeLabel(outcome: string): string {
   return (
     (
-      { Attempted: 'Not sent', Redpoint: 'Sent', Flash: 'Flashed', Onsight: 'Onsighted' } as Record<
-        string,
-        string
-      >
+      {
+        Attempted: 'Not sent',
+        Redpoint: 'Sent',
+        Flash: 'Flashed',
+        Onsight: 'Onsighted',
+        DayFlash: 'Day flashed',
+      } as Record<string, string>
     )[outcome] ?? outcome
   );
 }
 export type ClimbLogInput = z.infer<typeof climbLogInputSchema>;
 export type ClimbLog = z.infer<typeof climbLogSchema>;
 export type ClimbHistoryFilters = {
+  project?: 'projects' | 'unfinished' | 'completed' | 'none';
   grade?: string | string[];
   sort?: 'date-desc' | 'date-asc' | 'grade-desc' | 'grade-asc';
   climbingType?: ClimbingType | ClimbingType[];

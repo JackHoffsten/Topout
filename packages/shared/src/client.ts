@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { climbHistorySchema } from './climbing';
+import { climbHistorySchema, climbProjectsSchema, projectAttemptsSchema } from './climbing';
 import { progressSchema } from './progress';
 import {
   climbLogInputSchema,
@@ -219,10 +219,11 @@ export class ApiClient {
     await this.forget();
   }
 
-  getProgress(from?: string, to?: string) {
+  getProgress(from?: string, to?: string, locations?: string[]) {
     const params = new URLSearchParams();
     if (from) params.set('from', from);
     if (to) params.set('to', to);
+    for (const location of locations ?? []) params.append('location', location);
     return this.request('/api/progress' + (params.size ? '?' + params : ''), progressSchema);
   }
 
@@ -231,6 +232,24 @@ export class ApiClient {
       `/api/climb-logs?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
       climbLogsSchema,
     );
+  }
+
+  listClimbingDays(from: string, to: string) {
+    return this.request(
+      `/api/climb-logs/days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      z.array(z.iso.date()),
+    );
+  }
+  setClimbingDay(date: string, marked: boolean) {
+    z.iso.date().parse(date);
+    return this.request(`/api/climb-logs/days/${date}`, z.undefined(), marked ? 'PUT' : 'DELETE');
+  }
+
+  listClimbProjects() {
+    return this.request('/api/climb-logs/projects', climbProjectsSchema);
+  }
+  getProjectAttempts(id: number) {
+    return this.request(`/api/climb-logs/projects/${id}/attempts`, projectAttemptsSchema);
   }
 
   createClimbLog(input: ClimbLogInput) {

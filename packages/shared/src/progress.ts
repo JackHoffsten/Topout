@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { climbingTypes, gradeSystems, climbingEnvironments, climbingGrades } from './climbing';
+import {
+  climbingTypes,
+  gradeSystems,
+  climbingEnvironments,
+  climbingGrades,
+  gradeEndpoints,
+  representativeGrade,
+} from './climbing';
 
 export const progressSchema = z.object({
   exercises: z.array(
@@ -29,7 +36,7 @@ export const progressSchema = z.object({
       })
       .refine(
         (x) =>
-          climbingGrades[x.gradeSystem].includes(x.grade) &&
+          gradeEndpoints(x.gradeSystem, x.grade).length > 0 &&
           x.flashes <= x.sends &&
           x.sends <= x.climbs,
         'Invalid climbing progress.',
@@ -88,7 +95,7 @@ export function hardestSends(
   return groupPoints(
     climbs.filter((x) => x.gradeSystem === system && x.sends > 0),
     (x) => x.date,
-    (x) => climbingGrades[system].indexOf(x.grade) + 1,
+    (x) => climbingGrades[system].indexOf(representativeGrade(system, x.grade)) + 1,
     'max',
   );
 }

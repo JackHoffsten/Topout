@@ -10,12 +10,16 @@ public sealed record ClimbLogInput(
     string GradeSystem,
     string Grade,
     string Environment,
-    int Attempts,
+    int? Attempts,
     string Outcome,
     string? WallAngle,
     string[] Styles,
     string? Name,
-    string? Location
+    string? Location,
+    bool? IsProject = null,
+    int? ProjectId = null,
+    string AttemptsMode = "Exact",
+    string[]? WallAngles = null
 );
 
 public sealed record ClimbLogResponse(
@@ -25,12 +29,18 @@ public sealed record ClimbLogResponse(
     string GradeSystem,
     string Grade,
     string Environment,
-    int Attempts,
+    int? Attempts,
     string Outcome,
     string? WallAngle,
     string[] Styles,
     string? Name,
-    string? Location
+    string? Location,
+    int? ProjectId = null,
+    bool ProjectCompleted = false,
+    int? TotalAttempts = null,
+    string AttemptsMode = "Exact",
+    bool TotalAttemptsIsLowerBound = false,
+    string[]? WallAngles = null
 )
 {
     public static ClimbLogResponse From(ClimbLog x) =>
@@ -46,7 +56,30 @@ public sealed record ClimbLogResponse(
             x.WallAngle,
             x.Styles,
             x.Name,
-            x.Location
+            x.Location,
+            x.ProjectId,
+            x.Project?.IsCompleted ?? false,
+            x.Project == null
+                ? x.Attempts
+                : (
+                    x
+                        .Project.Logs.Where(l =>
+                            l.Date < x.Date || (l.Date == x.Date && l.Id <= x.Id)
+                        )
+                        .Sum(l => l.Attempts)
+                        is var total
+                    && total > 0
+                        ? total
+                        : null
+                ),
+            x.AttemptsMode,
+            x.Project == null
+                ? x.AttemptsMode != "Exact"
+                : x.Project.Logs.Any(l =>
+                    (l.Date < x.Date || (l.Date == x.Date && l.Id <= x.Id))
+                    && l.AttemptsMode != "Exact"
+                ),
+            x.WallAngles
         );
 }
 
@@ -55,6 +88,10 @@ public sealed record ClimbHistoryResponse(
     int? NextPage,
     int TotalCount
 );
+
+public sealed record ClimbProjectResponse(int Id, ClimbLogResponse Climb);
+
+public sealed record ProjectAttempt(int Id, DateOnly Date);
 
 public sealed record ClimbHistoryQuery(
     string Sort = "date-desc",
@@ -67,11 +104,39 @@ public sealed record ClimbHistoryQuery(
     string? Search = null,
     DateOnly? From = null,
     DateOnly? To = null,
-    string[]? Grade = null
+    string[]? Grade = null,
+    string? Project = null
 );
 
 public sealed class ClimbLogHandler(IClimbLogRepository logs, ICurrentUser user)
 {
+    public Task<IReadOnlyList<DateOnly>> DaysAsync(DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        if (from == default || to < from || to.DayNumber - from.DayNumber > 366)
+            throw new RequestException(
+                ErrorKind.Validation,
+                "Choose a valid date range of at most 367 days."
+            );
+        return logs.ListDaysAsync(user.UserId, from, to, ct);
+    }
+
+    public Task SetDayAsync(DateOnly date, bool marked, CancellationToken ct)
+    {
+        if (date == default)
+            throw new RequestException(ErrorKind.Validation, "Choose a valid date.");
+        return logs.SetDayAsync(user.UserId, date, marked, ct);
+    }
+
+    public async Task<IReadOnlyList<ProjectAttempt>> ProjectAttemptsAsync(
+        int id,
+        CancellationToken ct
+    ) =>
+        await logs.ProjectAttemptsAsync(user.UserId, id, ct)
+        ?? throw new RequestException(ErrorKind.NotFound, "Climbing project not found.");
+
+    public Task<IReadOnlyList<ClimbProjectResponse>> ProjectsAsync(CancellationToken ct) =>
+        logs.ListProjectsAsync(user.UserId, ct);
+
     public async Task<ClimbLogResponse> GetAsync(int id, CancellationToken ct) =>
         ClimbLogResponse.From(
             await logs.GetAsync(user.UserId, id, ct)
@@ -98,7 +163,7 @@ public sealed class ClimbLogHandler(IClimbLogRepository logs, ICurrentUser user)
             || !Valid(query.ClimbingType, ["Bouldering", "Sport", "TopRope"])
             || !Valid(query.GradeSystem, ["Font", "V", "French", "YDS"])
             || !Valid(query.Environment, ["Indoor", "Outdoor", "Board"])
-            || !Valid(query.Outcome, ["Attempted", "Redpoint", "Flash", "Onsight"])
+            || !Valid(query.Outcome, ["Attempted", "Redpoint", "Flash", "Onsight", "DayFlash"])
             || !Valid(query.WallAngle, ["Slab", "Vertical", "Overhang", "Roof"])
             || !Valid(
                 query.Style,
@@ -116,6 +181,7 @@ public sealed class ClimbLogHandler(IClimbLogRepository logs, ICurrentUser user)
             )
             || query.Search?.Length > 200
             || query.From > query.To
+            || query.Project is not (null or "projects" or "unfinished" or "completed" or "none")
         )
             throw new RequestException(
                 ErrorKind.Validation,
@@ -183,8 +249,13 @@ public sealed class ClimbLogHandler(IClimbLogRepository logs, ICurrentUser user)
                             input.WallAngle,
                             input.Styles,
                             input.Name,
-                            input.Location
+                            input.Location,
+                            input.AttemptsMode,
+                            input.WallAngles
+                                ?? (x.WallAngle == input.WallAngle ? x.WallAngles : null)
                         ),
+                    input.IsProject,
+                    input.ProjectId,
                     ct
                 )
             );

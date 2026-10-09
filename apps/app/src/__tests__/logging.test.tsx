@@ -356,11 +356,21 @@ test('shows the latest matching set instead of planned targets without filling a
   mockApi.getWorkoutLogging.mockResolvedValue({
     ...workout,
     previousSets: [
-      { exerciseId: 1, order: 1, date: '2026-09-29', reps: 10, weightKg: 35, isWarmup: false },
+      {
+        exerciseId: 1,
+        order: 1,
+        date: '2026-09-29',
+        reps: 10,
+        weightKg: 35,
+        isWarmup: false,
+        notes: 'Keep elbows close',
+        location: 'Central Gym',
+      },
     ],
   });
   await mount();
-  expect(screen.getByText(/Last logged \(2026-09-29\)/)).toBeTruthy();
+  expect(screen.getByText(/Last logged \(2026-09-29 · Central Gym\)/)).toBeTruthy();
+  expect(screen.getByText('Previous note: Keep elbows close')).toBeTruthy();
   expect(screen.queryByText(/Planned:/)).toBeNull();
   expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('');
   expect(screen.getByLabelText('Row set 1 reps').props.placeholder).toBe('10');
@@ -439,6 +449,12 @@ test('records one set without requiring the remaining sets and allows editing a 
   };
   mockApi.recordWorkoutSet.mockResolvedValue(progress);
   await fireEventAsync.press(screen.getByRole('button', { name: 'Log Row set 1' }));
+  await screen.findByText('Logged');
+  expect(screen.queryByText('Remove logged results before changing the set type.')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Split Row set 1 left/right' })).toBeDisabled();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Split Row set 1 left/right' }));
+  expect(screen.queryByText('Remove logged results before changing the set type.')).toBeNull();
+  expect(screen.queryByLabelText('Row set 1 left reps')).toBeNull();
   await waitFor(() =>
     expect(mockApi.recordWorkoutSet).toHaveBeenCalledWith(2, {
       location: '',
@@ -457,6 +473,7 @@ test('records one set without requiring the remaining sets and allows editing a 
   await fireEventAsync.press(screen.getByRole('button', { name: 'Finish workout' }));
   await screen.findByText('Completed');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Edit workout' }));
+  expect(screen.getByRole('button', { name: 'Split Row set 1 left/right' })).toBeDisabled();
   expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('9');
   await fireEventAsync.changeText(screen.getByLabelText('Row set 1 reps'), '11');
   mockApi.updateWorkout.mockResolvedValue(completed);

@@ -117,7 +117,9 @@ public sealed record PreviousSetResponse(
     int Reps,
     decimal WeightKg,
     bool IsWarmup,
-    SetSide Side = SetSide.Both
+    SetSide Side = SetSide.Both,
+    string? Notes = null,
+    string? Location = null
 );
 
 public sealed class WorkoutLoggingHandler(
@@ -287,10 +289,17 @@ public sealed class WorkoutLoggingHandler(
     public Task DeleteAsync(int scheduleId, CancellationToken ct) =>
         logs.DeleteAsync(user.UserId, scheduleId, ct);
 
-    public async Task<WorkoutLoggingResponse> SetLocationAsync(int scheduleId, string? location, CancellationToken ct)
+    public async Task<WorkoutLoggingResponse> SetLocationAsync(
+        int scheduleId,
+        string? location,
+        CancellationToken ct
+    )
     {
         if (location?.Trim().Length > 200)
-            throw new RequestException(ErrorKind.Validation, "Location may contain up to 200 characters.");
+            throw new RequestException(
+                ErrorKind.Validation,
+                "Location may contain up to 200 characters."
+            );
         await logs.SetLocationAsync(user.UserId, scheduleId, location, ct);
         return await GetAsync(scheduleId, ct);
     }

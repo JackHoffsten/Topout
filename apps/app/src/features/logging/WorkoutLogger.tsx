@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, View, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -163,6 +163,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
   const [items, setItems] = useState<DraftExercise[]>(() => initialItems(workout));
   const [notes, setNotes] = useState(workout.log?.notes ?? '');
   const [location, setLocation] = useState(workout.log?.location ?? '');
+  const scrollRef = useRef<ScrollView>(null);
   const saveLocation = useMutation({
     mutationFn: (value: string) => api.setWorkoutLocation(workout.scheduleId, value.trim() || null),
     onSuccess: async (response) => {
@@ -410,13 +411,13 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     save.mutate(parsed.data);
   };
   return (
-    <Page>
+    <Page scrollRef={scrollRef}>
       <Heading large>
         {workout.log?.completedAt ? (editing ? 'Edit workout' : 'Workout log') : 'Log workout'}
       </Heading>
       <Heading name>{workout.templateName ?? 'Workout'}</Heading>
       <Label muted>
-        {new Date(`${workout.date}T12:00:00`).toLocaleDateString(undefined, {
+        {displayDate(workout.date, {
           weekday: 'long',
           year: 'numeric',
           month: 'long',
@@ -533,6 +534,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
         <>
           <Label muted>Enter the sets you completed. Use 0 kg for bodyweight exercises.</Label>
           <LocationField
+            scrollRef={scrollRef}
             activity="workout"
             value={location}
             disabled={busy || saveLocation.isPending}
@@ -611,10 +613,9 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                             title={set.side === 'Both' ? 'Split left/right' : 'Use normal set'}
                             accessibilityLabel={`${set.side === 'Both' ? 'Split' : 'Unsplit'} ${basePrefix} left/right`}
                             variant="secondary"
-                            disabled={
-                              busy || (group.some((s) => !!s.saved) && !workout.log?.completedAt)
-                            }
+                            disabled={busy || group.some((s) => !!s.saved)}
                             onPress={() => {
+                              if (group.some((s) => !!s.saved)) return;
                               if (set.side !== 'Both') {
                                 const left = group.find((s) => s.side === 'Left') ?? group[0]!;
                                 const right = group.find((s) => s.side === 'Right');
@@ -649,28 +650,33 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                             }}
                           />
                         )}
-                        {firstSide && group.some((s) => !!s.saved) && !workout.log?.completedAt && (
-                          <Label small muted>
-                            Remove logged results before changing the set type.
-                          </Label>
-                        )}
                         {firstSide && modeChanged && workout.log?.completedAt && (
                           <Label small muted>
                             Save changes to apply the set type.
                           </Label>
                         )}
                         {previous ? (
-                          <Label small muted>
-                            Last logged ({previous.date}):{' '}
-                            <Label syntax="number" small>
-                              {previous.reps}
-                            </Label>{' '}
-                            reps ·{' '}
-                            <Label syntax="number" small>
-                              {previous.weightKg}
-                            </Label>{' '}
-                            kg{previous.isWarmup ? ' · Warm-up' : ''}
-                          </Label>
+                          <View style={{ gap: 4 }}>
+                            <Label small muted>
+                              Last logged ({displayDate(previous.date)}
+                              {previous.location?.trim()
+                                ? ` · ${previous.location.trim()}`
+                                : ''}):{' '}
+                              <Label syntax="number" small>
+                                {previous.reps}
+                              </Label>{' '}
+                              reps ·{' '}
+                              <Label syntax="number" small>
+                                {previous.weightKg}
+                              </Label>{' '}
+                              kg{previous.isWarmup ? ' · Warm-up' : ''}
+                            </Label>
+                            {!!previous.notes?.trim() && (
+                              <Label small muted>
+                                Previous note: {previous.notes}
+                              </Label>
+                            )}
+                          </View>
                         ) : (
                           set.target?.targetRepsMin != null && (
                             <Label small muted>
@@ -1011,3 +1017,4 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     </Page>
   );
 }
+import { displayDate } from '../../lib/dates';

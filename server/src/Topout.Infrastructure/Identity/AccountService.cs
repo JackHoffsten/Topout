@@ -36,6 +36,8 @@ internal sealed class AccountService(
         await db.WorkoutDays.Where(x => x.UserId == userId).ExecuteDeleteAsync(ct);
         await db.Exercises.Where(x => x.UserId == userId).ExecuteDeleteAsync(ct);
         await db.ClimbLogs.Where(x => x.UserId == userId).ExecuteDeleteAsync(ct);
+        await db.ClimbingDayMarks.Where(x => x.UserId == userId).ExecuteDeleteAsync(ct);
+        await db.ClimbProjects.Where(x => x.UserId == userId).ExecuteDeleteAsync(ct);
         await db.Users.Where(x => x.Id == userId).ExecuteDeleteAsync(ct);
         await transaction.CommitAsync(ct);
     }

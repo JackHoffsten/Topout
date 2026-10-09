@@ -9,6 +9,49 @@ namespace Topout.Api.Controllers;
 [Route("api/climb-logs")]
 public sealed class ClimbLogsController : ControllerBase
 {
+    [HttpGet("days")]
+    public async Task<IActionResult> Days(
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        [FromServices] ClimbLogHandler handler,
+        CancellationToken ct
+    ) => Ok(await handler.DaysAsync(from, to, ct));
+
+    [HttpPut("days/{date}")]
+    public async Task<IActionResult> MarkDay(
+        DateOnly date,
+        [FromServices] ClimbLogHandler handler,
+        CancellationToken ct
+    )
+    {
+        await handler.SetDayAsync(date, true, ct);
+        return NoContent();
+    }
+
+    [HttpDelete("days/{date}")]
+    public async Task<IActionResult> RemoveDay(
+        DateOnly date,
+        [FromServices] ClimbLogHandler handler,
+        CancellationToken ct
+    )
+    {
+        await handler.SetDayAsync(date, false, ct);
+        return NoContent();
+    }
+
+    [HttpGet("projects/{id:int:min(1)}/attempts")]
+    public async Task<IActionResult> ProjectAttempts(
+        int id,
+        [FromServices] ClimbLogHandler handler,
+        CancellationToken ct
+    ) => Ok(await handler.ProjectAttemptsAsync(id, ct));
+
+    [HttpGet("projects")]
+    public async Task<IActionResult> Projects(
+        [FromServices] ClimbLogHandler handler,
+        CancellationToken ct
+    ) => Ok(await handler.ProjectsAsync(ct));
+
     [HttpGet("history")]
     public async Task<IActionResult> History(
         [FromServices] ClimbLogHandler handler,

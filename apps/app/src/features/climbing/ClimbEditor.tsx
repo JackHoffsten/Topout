@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -8,6 +8,7 @@ import {
   climbingStyles,
   wallAngles,
   climbingGrades,
+  gradeEndpoints,
   climbingLabel,
   systemsForType,
   climbLogInputSchema,
@@ -17,9 +18,12 @@ import {
 } from '@topout/shared';
 import { useSession } from '../../lib/providers';
 import { Button } from '../../ui/components/Button';
+import { Card } from '../../ui/components/Card';
 import { Field } from '../../ui/components/Field';
+import { SearchField } from '../../ui/components/SearchField';
 import { LocationField } from '../../ui/components/LocationField';
 import { Label } from '../../ui/components/Label';
+import { Heading } from '../../ui/components/Heading';
 import { ErrorNotice } from '../../ui/components/ErrorNotice';
 import { useTheme } from '../../ui/theme';
 import { pickClimbPhoto, type ClimbPhotoDraft } from './pickClimbPhoto';
@@ -31,12 +35,14 @@ function Choices<T extends string>({
   value,
   onChange,
   disabled,
+  disabledOptions = [],
 }: {
   label: string;
   options: readonly T[];
   value: T;
   onChange: (value: T) => void;
   disabled: boolean;
+  disabledOptions?: readonly T[];
 }) {
   const c = useTheme();
   return (
@@ -52,10 +58,13 @@ function Choices<T extends string>({
             key={option}
             accessibilityRole="radio"
             accessibilityLabel={`${label}: ${climbingLabel(option)}`}
-            accessibilityState={{ checked: value === option, disabled }}
+            accessibilityState={{
+              checked: value === option,
+              disabled: disabled || disabledOptions.includes(option),
+            }}
             aria-checked={value === option}
-            aria-disabled={disabled}
-            disabled={disabled}
+            aria-disabled={disabled || disabledOptions.includes(option)}
+            disabled={disabled || disabledOptions.includes(option)}
             onPress={() => onChange(option)}
             {...(Platform.OS === 'web'
               ? {
@@ -65,7 +74,7 @@ function Choices<T extends string>({
                     preventDefault: () => void;
                     currentTarget: HTMLElement;
                   }) => {
-                    if (disabled) return;
+                    if (disabled || disabledOptions.includes(option)) return;
                     // React Native Web only activates button-role Pressables with Space.
                     if (event.key === ' ') {
                       event.preventDefault();
@@ -78,8 +87,13 @@ function Choices<T extends string>({
                         : 0;
                     if (direction) {
                       event.preventDefault();
-                      const index =
-                        (options.indexOf(option) + direction + options.length) % options.length;
+                      let index = options.indexOf(option);
+                      do {
+                        index = (index + direction + options.length) % options.length;
+                      } while (
+                        disabledOptions.includes(options[index]!) &&
+                        index !== options.indexOf(option)
+                      );
                       onChange(options[index]!);
                       event.currentTarget.parentElement
                         ?.querySelectorAll<HTMLElement>('[role="radio"]')
@@ -96,6 +110,7 @@ function Choices<T extends string>({
               borderWidth: 1,
               borderColor: value === option ? c.focus : c.line,
               backgroundColor: value === option ? c.soft : c.input,
+              opacity: disabled || disabledOptions.includes(option) ? 0.5 : 1,
             }}
           >
             <Label small syntax={value === option ? 'keyword' : undefined}>
@@ -113,18 +128,21 @@ export function ClimbEditor({
   log,
   onClose,
   showHeading = true,
+  scrollRef,
 }: {
   date: string;
   log?: ClimbLog;
   onClose: (date?: string) => void;
   showHeading?: boolean;
+  scrollRef?: RefObject<ScrollView | null>;
 }) {
   const { api } = useSession();
   const cache = useQueryClient();
   const c = useTheme();
+  const fallbackScroll = useRef<ScrollView>(null);
   const [draft, setDraft] = useState<ClimbLogInput>(() =>
     log
-      ? { ...log }
+      ? { ...log, isProject: !!log.projectId }
       : {
           date,
           climbingType: 'Bouldering',
@@ -139,10 +157,40 @@ export function ClimbEditor({
           location: null,
         },
   );
-  const [attempts, setAttempts] = useState(String(draft.attempts));
+  const [attempts, setAttempts] = useState(draft.attempts == null ? '' : String(draft.attempts));
   const [gradeSearch, setGradeSearch] = useState('');
+  const [projectPicker, setProjectPicker] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<ClimbLog | undefined>(
+    log?.projectId ? log : undefined,
+  );
+  const [projectSearch, setProjectSearch] = useState('');
+  const projects = useQuery({
+    queryKey: ['climb-projects'],
+    queryFn: () => api.listClimbProjects(),
+    enabled: !log && projectPicker,
+  });
   const [validation, setValidation] = useState<string>();
   const [savedId, setSavedId] = useState(log?.id);
+  const projectAttempts = useQuery({
+    queryKey: ['climb-projects', draft.projectId, 'attempts'],
+    queryFn: () => api.getProjectAttempts(draft.projectId!),
+    enabled: !!draft.isProject && !!draft.projectId,
+  });
+  const priorAttempts = (projectAttempts.data ?? []).filter(
+    (entry) =>
+      entry.date < draft.date || (entry.date === draft.date && (!savedId || entry.id < savedId)),
+  );
+  const uncertainHistory = !!draft.isProject && !!draft.projectId && !projectAttempts.data;
+  const restrictedOutcomes: ClimbLogInput['outcome'][] = [
+    ...(uncertainHistory || (draft.isProject && priorAttempts.length > 0)
+      ? ['Flash' as const, 'Onsight' as const]
+      : []),
+    ...(uncertainHistory ||
+    (draft.isProject && priorAttempts.some((entry) => entry.date === draft.date))
+      ? ['DayFlash' as const]
+      : []),
+  ];
+  const firstAttempt = ['Flash', 'Onsight', 'DayFlash'].includes(draft.outcome);
   const [photo, setPhoto] = useState<ClimbPhotoDraft | null | undefined>();
   const [picking, setPicking] = useState(false);
   const [photoError, setPhotoError] = useState<string>();
@@ -160,6 +208,8 @@ export function ClimbEditor({
         : await api.createClimbLog(input);
       // Preserve the created ID if a photo upload fails, so retry cannot create duplicates.
       setSavedId(result.id);
+      if (result.projectId)
+        setDraft((current) => ({ ...current, projectId: result.projectId, isProject: true }));
       if (photo !== undefined) {
         try {
           if (photo) await api.saveClimbPhoto(result.id, photo.base64);
@@ -177,6 +227,7 @@ export function ClimbEditor({
       await cache.invalidateQueries({ queryKey: ['climb-logs'] });
       await cache.invalidateQueries({ queryKey: ['log-locations', 'climb'] });
       await cache.invalidateQueries({ queryKey: ['climb-photo'] });
+      await cache.invalidateQueries({ queryKey: ['climb-projects'] });
       onClose(input.date);
     },
   });
@@ -200,6 +251,140 @@ export function ClimbEditor({
   return (
     <View testID="climb-editor" style={{ gap: 16 }}>
       {showHeading && <Label syntax="name">{log ? 'Edit climb' : 'Log climb'}</Label>}
+      {!!draft.isProject && selectedProject && (
+        <Card style={{ borderLeftWidth: 4, borderLeftColor: c.accent, gap: 6 }}>
+          <Label small syntax="property">
+            Selected project
+          </Label>
+          <Heading name>
+            {selectedProject.name ||
+              (selectedProject.climbingType === 'Bouldering'
+                ? 'Boulder'
+                : climbingLabel(selectedProject.climbingType))}
+          </Heading>
+          <Label syntax="number">{selectedProject.grade.replace('-', ' - ')}</Label>
+          <Label small muted>
+            {climbingLabel(selectedProject.climbingType)} ·{' '}
+            {climbingLabel(selectedProject.environment)}
+          </Label>
+          {!!selectedProject.location && <Label>{selectedProject.location}</Label>}
+        </Card>
+      )}
+      {!log && (
+        <>
+          <Button
+            title={
+              draft.projectId && draft.isProject ? 'Change project' : 'Choose unfinished project'
+            }
+            accessibilityLabel="Choose unfinished project"
+            variant="secondary"
+            disabled={save.isPending}
+            onPress={() => setProjectPicker(!projectPicker)}
+          />
+          {projectPicker && (
+            <View style={{ gap: 8 }}>
+              <SearchField
+                scrollRef={scrollRef ?? fallbackScroll}
+                label="Search projects"
+                placeholder="Name, grade or location"
+                value={projectSearch}
+                onChangeText={setProjectSearch}
+                editable={!save.isPending}
+              />
+              {projects.isPending ? (
+                <Label muted>Loading projects…</Label>
+              ) : projects.isError ? (
+                <>
+                  <ErrorNotice message={errorMessage(projects.error)} />
+                  <Button title="Retry projects" onPress={() => void projects.refetch()} />
+                </>
+              ) : (
+                <>
+                  {projects.data
+                    .filter(({ climb }) =>
+                      [
+                        climb.name,
+                        climb.grade,
+                        climb.location,
+                        climbingLabel(climb.climbingType),
+                      ].some((text) =>
+                        text?.toLowerCase().includes(projectSearch.trim().toLowerCase()),
+                      ),
+                    )
+                    .map((project) => (
+                      <Button
+                        key={project.id}
+                        title={`${project.climb.name || (project.climb.climbingType === 'Bouldering' ? 'Boulder' : climbingLabel(project.climb.climbingType))} · ${project.climb.grade.replace('-', ' - ')}${project.climb.location ? ` · ${project.climb.location}` : ''}`}
+                        accessibilityLabel={`Choose project ${project.climb.name || project.climb.grade}`}
+                        variant="secondary"
+                        selected={draft.isProject && draft.projectId === project.id}
+                        disabled={save.isPending}
+                        onPress={() => {
+                          setSelectedProject(project.climb);
+                          const {
+                            id: _id,
+                            projectCompleted: _completed,
+                            ...details
+                          } = project.climb;
+                          setDraft({
+                            ...details,
+                            date: draft.date,
+                            attempts: 1,
+                            attemptsMode: 'Exact',
+                            outcome: 'Attempted',
+                            isProject: true,
+                            projectId: project.id,
+                          });
+                          setAttempts('1');
+                          setGradeSearch('');
+                          setProjectPicker(false);
+                          setProjectSearch('');
+                          setValidation(undefined);
+                          save.reset();
+                        }}
+                      />
+                    ))}
+                  {!projects.data.length && <Label muted>No unfinished projects.</Label>}
+                  {!!projects.data.length &&
+                    !projects.data.some(({ climb }) =>
+                      [
+                        climb.name,
+                        climb.grade,
+                        climb.location,
+                        climbingLabel(climb.climbingType),
+                      ].some((text) =>
+                        text?.toLowerCase().includes(projectSearch.trim().toLowerCase()),
+                      ),
+                    ) && <Label muted>No matching projects.</Label>}
+                </>
+              )}
+              <Button
+                title="Close projects"
+                variant="secondary"
+                onPress={() => setProjectPicker(false)}
+              />
+            </View>
+          )}
+        </>
+      )}
+      <Button
+        title={draft.isProject ? 'Project: on' : 'Mark as project'}
+        accessibilityLabel="Mark climb as project"
+        selected={!!draft.isProject}
+        variant={draft.isProject ? 'primary' : 'secondary'}
+        disabled={save.isPending}
+        onPress={() => {
+          setSelectedProject(undefined);
+          patch({ isProject: !draft.isProject, projectId: null });
+        }}
+      />
+      {!!draft.isProject && (
+        <Label small muted>
+          {draft.outcome === 'Attempted'
+            ? 'This project stays unfinished until you log a send.'
+            : 'Saving a send completes this project.'}
+        </Label>
+      )}
       {!log && (
         <Field
           label="Date"
@@ -238,11 +423,17 @@ export function ClimbEditor({
           setGradeSearch('');
         }}
       />
-      {!!draft.grade && (
-        <Label small syntax="number">
-          Grade: {draft.grade}
+      <View style={{ gap: 4 }}>
+        <Label syntax="property">Selected grade</Label>
+        {draft.grade ? (
+          <Heading>{draft.grade.replace('-', ' - ')}</Heading>
+        ) : (
+          <Label muted>No grade selected</Label>
+        )}
+        <Label small muted>
+          Choose up to two grades, at most three steps apart. Tap a selected grade to remove it.
         </Label>
-      )}
+      </View>
       {
         <View style={{ gap: 8 }}>
           <Field
@@ -251,15 +442,7 @@ export function ClimbEditor({
             onChangeText={setGradeSearch}
             editable={!save.isPending}
             autoCapitalize="none"
-            placeholder={
-              draft.gradeSystem === 'Font'
-                ? '7A'
-                : draft.gradeSystem === 'French'
-                  ? '7a'
-                  : draft.gradeSystem === 'V'
-                    ? 'V5'
-                    : '5.10a'
-            }
+            placeholder="Search grades"
           />
           <ScrollView
             style={{ maxHeight: 220 }}
@@ -274,10 +457,37 @@ export function ClimbEditor({
                     key={grade}
                     title={grade}
                     accessibilityLabel={`Choose grade ${grade}`}
-                    variant={draft.grade === grade ? 'primary' : 'secondary'}
-                    disabled={save.isPending}
+                    variant={
+                      gradeEndpoints(draft.gradeSystem, draft.grade).includes(grade)
+                        ? 'primary'
+                        : 'secondary'
+                    }
+                    selected={gradeEndpoints(draft.gradeSystem, draft.grade).includes(grade)}
+                    disabled={
+                      save.isPending ||
+                      (gradeEndpoints(draft.gradeSystem, draft.grade).length === 2 &&
+                        !gradeEndpoints(draft.gradeSystem, draft.grade).includes(grade)) ||
+                      (gradeEndpoints(draft.gradeSystem, draft.grade).length === 1 &&
+                        Math.abs(
+                          climbingGrades[draft.gradeSystem].indexOf(grade) -
+                            climbingGrades[draft.gradeSystem].indexOf(draft.grade),
+                        ) > 3)
+                    }
                     onPress={() => {
-                      patch({ grade });
+                      const selected = gradeEndpoints(draft.gradeSystem, draft.grade);
+                      const next = selected.includes(grade)
+                        ? selected.filter((x) => x !== grade)
+                        : [...selected, grade];
+                      if (next.length > 2) return;
+                      const scale = climbingGrades[draft.gradeSystem];
+                      if (
+                        next.length === 2 &&
+                        Math.abs(scale.indexOf(next[0]!) - scale.indexOf(next[1]!)) > 3
+                      )
+                        return;
+                      patch({
+                        grade: next.sort((a, b) => scale.indexOf(a) - scale.indexOf(b)).join('-'),
+                      });
                     }}
                   />
                 ))}
@@ -300,36 +510,98 @@ export function ClimbEditor({
         options={climbingOutcomes}
         value={draft.outcome}
         disabled={save.isPending}
+        disabledOptions={restrictedOutcomes}
         onChange={(outcome) => {
           patch({ outcome });
-          if (outcome === 'Flash' || outcome === 'Onsight') setAttempts('1');
+          if (['Flash', 'Onsight', 'DayFlash'].includes(outcome)) {
+            setAttempts('1');
+            patch({ outcome, attemptsMode: 'Exact' });
+          }
         }}
       />
-      <Field
-        label="Attempts this day"
-        value={attempts}
-        keyboardType="number-pad"
-        editable={!save.isPending}
-        onChangeText={(value) => {
-          setAttempts(value);
-          setValidation(undefined);
-        }}
-      />
+      {!firstAttempt && (
+        <Choices
+          label="Attempt count"
+          options={['Exact', 'MoreThan', 'Unknown'] as const}
+          value={draft.attemptsMode ?? 'Exact'}
+          disabled={save.isPending}
+          onChange={(attemptsMode) => patch({ attemptsMode })}
+        />
+      )}
+      {!firstAttempt && draft.attemptsMode !== 'Unknown' && (
+        <Field
+          label="Attempts this day"
+          value={attempts}
+          keyboardType="number-pad"
+          editable={!save.isPending}
+          onChangeText={(value) => {
+            setAttempts(value);
+            setValidation(undefined);
+          }}
+        />
+      )}
+      {!firstAttempt && draft.attemptsMode === 'MoreThan' && (
+        <Label small muted>
+          More than 5 displays as 5+ attempts.
+        </Label>
+      )}
+      {!!draft.isProject && priorAttempts.length > 0 && (
+        <Label small muted>
+          Flash and onsight are unavailable after previous project attempts.
+        </Label>
+      )}
+      {!!draft.isProject && priorAttempts.some((entry) => entry.date === draft.date) && (
+        <Label small muted>
+          Day flash is unavailable after an earlier attempt today.
+        </Label>
+      )}
+      {!!draft.isProject && !!draft.projectId && projectAttempts.isPending && (
+        <Label small muted>
+          Checking previous attempts…
+        </Label>
+      )}
+      {!!draft.isProject && projectAttempts.isError && (
+        <>
+          <ErrorNotice message={errorMessage(projectAttempts.error)} />
+          <Button title="Retry project attempts" onPress={() => void projectAttempts.refetch()} />
+        </>
+      )}
       <Label muted small>
-        Flash: first attempt with prior information. Onsight: first attempt without prior
-        information. Redpoint / sent: completed after practice or previous attempts.
-      </Label>
-      <Choices
-        label="Wall angle"
-        options={['Unspecified', ...wallAngles]}
-        value={draft.wallAngle ?? 'Unspecified'}
-        disabled={save.isPending}
-        onChange={(value) =>
-          patch({
-            wallAngle: value === 'Unspecified' ? null : (value as ClimbLogInput['wallAngle']),
-          })
+        {
+          {
+            Attempted: 'Not sent yet. Record the attempts made this day.',
+            Flash: 'Sent on the first attempt with prior information.',
+            Onsight: 'Sent on the first attempt without prior information.',
+            DayFlash: 'Sent on the first attempt of the day, after attempts on an earlier day.',
+            Redpoint:
+              'Sent after practice or previous attempts. An exact one-attempt send is automatically classified as flashed or day flashed when eligible.',
+          }[draft.outcome]
         }
-      />
+      </Label>
+      <View style={{ gap: 8 }}>
+        <Label small>Wall angles (optional, select multiple)</Label>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {wallAngles.map((angle) => {
+            const selected = draft.wallAngles ?? (draft.wallAngle ? [draft.wallAngle] : []);
+            return (
+              <Button
+                key={angle}
+                title={angle}
+                accessibilityLabel={`Wall angle: ${angle}`}
+                selected={selected.includes(angle)}
+                variant={selected.includes(angle) ? 'primary' : 'secondary'}
+                disabled={save.isPending}
+                onPress={() => {
+                  const next = selected.includes(angle)
+                    ? selected.filter((value) => value !== angle)
+                    : [...selected, angle];
+                  patch({ wallAngles: next, wallAngle: next[0] ?? null });
+                }}
+              />
+            );
+          })}
+        </View>
+      </View>
       <Label small>Styles (optional, select multiple)</Label>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {climbingStyles.map((style) => (
@@ -385,6 +657,7 @@ export function ClimbEditor({
         onChangeText={(name) => patch({ name })}
       />
       <LocationField
+        scrollRef={scrollRef}
         activity="climb"
         value={draft.location ?? ''}
         disabled={save.isPending}
@@ -440,13 +713,35 @@ export function ClimbEditor({
         busy={save.isPending}
         disabled={picking}
         onPress={() => {
-          if (!/^\d+$/.test(attempts) || Number(attempts) < 1 || Number(attempts) > 1000) {
+          if (restrictedOutcomes.includes(draft.outcome)) {
+            setValidation('Choose an outcome available for this project’s previous attempts.');
+            return;
+          }
+          const actualAttempts = firstAttempt ? '1' : attempts;
+          const attemptsMode = firstAttempt ? 'Exact' : (draft.attemptsMode ?? 'Exact');
+          if (
+            attemptsMode !== 'Unknown' &&
+            (!/^\d+$/.test(actualAttempts) ||
+              Number(actualAttempts) < 1 ||
+              Number(actualAttempts) > 1000)
+          ) {
             setValidation('Enter attempts as a whole number from 1 to 1000.');
             return;
           }
           const result = climbLogInputSchema.safeParse({
             ...draft,
-            attempts: Number(attempts),
+            attempts: attemptsMode === 'Unknown' ? null : Number(actualAttempts),
+            attemptsMode,
+            outcome:
+              draft.outcome === 'Redpoint' &&
+              attemptsMode === 'Exact' &&
+              Number(actualAttempts) === 1 &&
+              !priorAttempts.some((entry) => entry.date === draft.date) &&
+              !uncertainHistory
+                ? priorAttempts.length
+                  ? 'DayFlash'
+                  : 'Flash'
+                : draft.outcome,
           });
           if (!result.success) {
             setValidation(result.error.issues[0]?.message ?? 'Check the climb details.');

@@ -194,6 +194,8 @@ export const workoutLoggingSchema = z.object({
         weightKg: z.number().min(0).max(2000),
         isWarmup: z.boolean(),
         side: z.enum(['Both', 'Left', 'Right']).default('Both'),
+        notes: z.string().nullable().optional(),
+        location: z.string().nullable().optional(),
       }),
     )
     .default([]),

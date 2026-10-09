@@ -1,10 +1,11 @@
 import { expect, it, vi } from 'vitest';
-import { climbHistorySchema, climbOutcomeLabel } from './climbing';
+import { climbHistorySchema, climbOutcomeLabel, climbProjectsSchema } from './climbing';
 import { ApiClient, ApiError, type SessionTransport } from './client';
 import {
   climbLogInputSchema,
   climbLogSchema,
   climbingGrades,
+  representativeGrade,
   systemsForType,
   type ClimbLogInput,
 } from './climbing';
@@ -22,6 +23,57 @@ const input: ClimbLogInput = {
   name: null,
   location: null,
 };
+
+it('supports exact, unknown and more-than counts without claiming a flash', () => {
+  expect(
+    climbLogInputSchema.safeParse({ ...input, attempts: null, attemptsMode: 'Unknown' }).success,
+  ).toBe(true);
+  expect(
+    climbLogInputSchema.safeParse({ ...input, attempts: 5, attemptsMode: 'MoreThan' }).success,
+  ).toBe(true);
+  expect(climbLogInputSchema.safeParse({ ...input, attempts: null }).success).toBe(false);
+  expect(
+    climbLogInputSchema.safeParse({
+      ...input,
+      attempts: 1,
+      attemptsMode: 'MoreThan',
+      outcome: 'Flash',
+    }).success,
+  ).toBe(false);
+});
+
+it('validates project links and fetches unfinished projects through the shared client', async () => {
+  expect(climbLogInputSchema.safeParse({ ...input, isProject: false, projectId: 3 }).success).toBe(
+    false,
+  );
+  expect(climbLogInputSchema.safeParse({ ...input, isProject: true, projectId: 3 }).success).toBe(
+    true,
+  );
+  const projects = [{ id: 3, climb: { ...input, id: 7, projectId: 3, projectCompleted: false } }];
+  expect(climbProjectsSchema.parse(projects)).toEqual(projects);
+  const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(projects)));
+  const transport = {
+    refresh: vi
+      .fn()
+      .mockResolvedValue({ accessToken: 'token', accessTokenExpiresAt: '2099-01-01T00:00:00Z' }),
+  } as unknown as SessionTransport;
+  const api = new ApiClient('https://example.com', transport, fetcher);
+  await api.initialize();
+  expect(await api.listClimbProjects()).toEqual(projects);
+  expect(fetcher.mock.calls[0]![0]).toBe('https://example.com/api/climb-logs/projects');
+});
+
+it('accepts distinct ascending grade ranges and rounds their midpoint down', () => {
+  expect(climbLogInputSchema.parse({ ...input, grade: '6B-6C' }).grade).toBe('6B-6C');
+  expect(representativeGrade('Font', '6B-6C')).toBe('6B+');
+  expect(representativeGrade('Font', '6B-6B+')).toBe('6B');
+  expect(climbLogInputSchema.safeParse({ ...input, grade: '6B-6C+' }).success).toBe(true);
+  expect(climbLogInputSchema.safeParse({ ...input, grade: '6B-7A' }).success).toBe(false);
+  expect(representativeGrade('YDS', '5.9-5.10b')).toBe('5.10a');
+  for (const grade of ['7A-7A', '7B-7A', '7A-7B-7C', '7A-nope']) {
+    expect(climbLogInputSchema.safeParse({ ...input, grade }).success).toBe(false);
+  }
+});
 
 it('validates private photo responses and uses the authenticated photo endpoints', async () => {
   const transport = {
@@ -89,6 +141,7 @@ it('keeps climbing grades independent and validates type, environment, attempts,
     { attempts: 1001 },
     { attempts: 1.5 },
     { outcome: 'Flash' },
+    { outcome: 'DayFlash' },
     { styles: ['Crimpy', 'Crimpy'] },
     { styles: ['Unknown'] },
     { date: '2026-02-30' },
@@ -102,6 +155,10 @@ it('keeps climbing grades independent and validates type, environment, attempts,
     true,
   );
   expect(climbLogInputSchema.safeParse({ ...input, outcome: 'Attempted' }).success).toBe(true);
+  expect(
+    climbLogInputSchema.safeParse({ ...input, outcome: 'DayFlash', attempts: 1 }).success,
+  ).toBe(true);
+  expect(climbOutcomeLabel('DayFlash')).toBe('Day flashed');
 });
 
 it('sends scoped CRUD requests and validates responses at runtime', async () => {

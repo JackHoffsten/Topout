@@ -1,4 +1,5 @@
 import React from 'react';
+import { ActivityIndicator, StyleSheet } from 'react-native';
 import { jest, beforeEach, test, expect } from '@jest/globals';
 import { renderAsync, screen, fireEventAsync, waitFor, act } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -26,6 +27,8 @@ const mockApi = {
   updateClimbLog: jest.fn<(...args: any[]) => Promise<any>>(),
   deleteClimbLog: jest.fn<(...args: any[]) => Promise<void>>(),
   listClimbHistory: jest.fn<(...args: any[]) => Promise<any>>(),
+  listClimbProjects: jest.fn<(...args: any[]) => Promise<any>>(),
+  getProjectAttempts: jest.fn<(...args: any[]) => Promise<any>>(),
   getClimbLog: jest.fn<(...args: any[]) => Promise<any>>(),
   getClimbPhoto: jest.fn<(...args: any[]) => Promise<any>>(),
   saveClimbPhoto: jest.fn<(...args: any[]) => Promise<any>>(),
@@ -78,6 +81,8 @@ beforeEach(() => {
   mockApi.updateClimbLog.mockResolvedValue(log);
   mockApi.deleteClimbLog.mockResolvedValue(undefined);
   mockApi.listClimbHistory.mockResolvedValue({ items: [log], nextPage: null, totalCount: 1 });
+  mockApi.listClimbProjects.mockResolvedValue([]);
+  mockApi.getProjectAttempts.mockResolvedValue([]);
   mockApi.getClimbLog.mockResolvedValue(log);
   mockApi.getClimbPhoto.mockResolvedValue(null);
   mockApi.saveClimbPhoto.mockResolvedValue({ base64: 'photo', width: 800, height: 600 });
@@ -155,6 +160,42 @@ test.each([
   expect(screen.queryByRole('button', { name: 'Edit climb Problem' })).toBeNull();
   await fireEventAsync.press(screen.getByRole('link', { name: 'View climb Problem' }));
   expect(mockPush).toHaveBeenCalledWith({ pathname: '/climbs', params: { climb: 7 } });
+});
+
+test('unknown project attempts omit the total suffix', async () => {
+  await mount({
+    logs: [
+      {
+        ...log,
+        projectId: 4,
+        attempts: null,
+        attemptsMode: 'Unknown',
+        totalAttempts: null,
+        totalAttemptsIsLowerBound: true,
+      },
+    ],
+  });
+  expect(screen.getByText('Attempts unknown · Sent')).toBeTruthy();
+  expect(screen.queryByText('Attempts unknown total · Sent')).toBeNull();
+});
+
+test('history shows one spinner while the list and selected climb load together', async () => {
+  mockClimb = String(log.id);
+  let resolveHistory!: (value: any) => void;
+  mockApi.listClimbHistory.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        resolveHistory = resolve;
+      }),
+  );
+  mockApi.getClimbLog.mockImplementation(() => new Promise(() => {}));
+  await mountHistory();
+  expect(screen.UNSAFE_getAllByType(ActivityIndicator)).toHaveLength(1);
+  expect(screen.getByText('Loading climbs…')).toBeTruthy();
+  expect(screen.queryByText('Loading selected climb…')).toBeNull();
+  await act(async () => resolveHistory({ items: [], nextPage: null, totalCount: 0 }));
+  await waitFor(() => expect(screen.getByText('Loading selected climb…')).toBeTruthy());
+  expect(screen.UNSAFE_getAllByType(ActivityIndicator)).toHaveLength(1);
 });
 
 test('history automatically loads an older selected climb in its sorted position without duplicating it', async () => {
@@ -347,18 +388,94 @@ test('failed loading offers retry', async () => {
   expect(mockRetry).toHaveBeenCalled();
 });
 
+test('grade selection orders two distinct grades and prevents a third selection', async () => {
+  await mountCreate();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 6C' }));
+  expect(
+    screen.getByRole('button', { name: 'Choose grade 6A+' }).props.accessibilityState.disabled,
+  ).toBe(false);
+  expect(
+    screen.getByRole('button', { name: 'Choose grade 6A' }).props.accessibilityState.disabled,
+  ).toBe(true);
+  expect(
+    screen.getByRole('button', { name: 'Choose grade 7A+' }).props.accessibilityState.disabled,
+  ).toBe(false);
+  expect(
+    screen.getByRole('button', { name: 'Choose grade 7B' }).props.accessibilityState.disabled,
+  ).toBe(true);
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 6B' }));
+  expect(screen.getByRole('header', { name: '6B - 6C' })).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Choose grade 7A' }).props.accessibilityState.disabled,
+  ).toBe(true);
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 6B' }));
+  expect(screen.getByRole('header', { name: '6C' })).toBeTruthy();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 6C' }));
+  expect(screen.getByText('No grade selected')).toBeTruthy();
+});
+
+test('saves a grade range', async () => {
+  mockApi.createClimbLog.mockResolvedValue({ ...log, grade: '6B-6C' });
+  await mountCreate();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 6C' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 6B' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
+  await waitFor(() =>
+    expect(mockApi.createClimbLog).toHaveBeenCalledWith(
+      expect.objectContaining({ grade: '6B-6C' }),
+    ),
+  );
+});
+
+test('restores both endpoints when editing a grade range', async () => {
+  mockApi.listClimbHistory.mockResolvedValue({
+    items: [{ ...log, grade: '6B-6C' }],
+    nextPage: null,
+  });
+  await mountHistory();
+  await fireEventAsync.press(await screen.findByRole('button', { name: 'Expand climb Problem' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Edit climb Problem' }));
+  expect(screen.getByRole('header', { name: '6B - 6C' })).toBeTruthy();
+  for (const grade of ['6B', '6C'])
+    expect(
+      screen.getByRole('button', { name: `Choose grade ${grade}` }).props.accessibilityState
+        .selected,
+    ).toBe(true);
+});
+
 test('creates a graded climb with multiple styles and optional details', async () => {
   await mountCreate();
+  expect(screen.getByText('No grade selected')).toBeTruthy();
+  expect(screen.getByLabelText('Search grades').props.placeholder).toBe('Search grades');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
   expect(mockApi.createClimbLog).not.toHaveBeenCalled();
   await screen.findByText('Choose a valid grade.');
   await fireEventAsync.changeText(screen.getByLabelText('Search grades'), '7A');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 7A' }));
   expect(screen.getByLabelText('Search grades')).toBeTruthy();
-  expect(screen.getByText('Grade: 7A')).toBeTruthy();
+  expect(screen.getByRole('header', { name: '7A' })).toBeTruthy();
+  expect(screen.queryByText('No grade selected')).toBeNull();
+  expect(
+    screen.getByRole('button', { name: 'Choose grade 7A' }).props.accessibilityState.selected,
+  ).toBe(true);
   expect(screen.queryByRole('button', { name: 'Choose grade' })).toBeNull();
   await fireEventAsync.press(screen.getByRole('radio', { name: 'Environment: Board' }));
-  await fireEventAsync.press(screen.getByRole('radio', { name: 'Wall angle: Overhang' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Wall angle: Slab' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Wall angle: Overhang' }));
+  expect(
+    screen.getByRole('button', { name: 'Wall angle: Slab' }).props.accessibilityState.selected,
+  ).toBe(true);
+  expect(
+    screen.getByRole('button', { name: 'Wall angle: Overhang' }).props.accessibilityState.selected,
+  ).toBe(true);
+  expect(
+    StyleSheet.flatten(screen.getByRole('button', { name: 'Wall angle: Overhang' }).props.style)
+      .backgroundColor,
+  ).not.toBe(
+    StyleSheet.flatten(screen.getByRole('button', { name: 'Wall angle: Roof' }).props.style)
+      .backgroundColor,
+  );
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Wall angle: Slab' }));
   await fireEventAsync.press(screen.getByRole('checkbox', { name: 'Crimpy' }));
   await fireEventAsync.press(screen.getByRole('checkbox', { name: 'Slopy' }));
   await fireEventAsync.changeText(screen.getByLabelText('Attempts this day'), '3');
@@ -366,10 +483,84 @@ test('creates a graded climb with multiple styles and optional details', async (
   await fireEventAsync.changeText(screen.getByLabelText('Location (optional)'), ' Gym ');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
   await waitFor(() =>
-    expect(mockApi.createClimbLog).toHaveBeenCalledWith({ ...log, id: undefined }),
+    expect(mockApi.createClimbLog).toHaveBeenCalledWith({
+      ...log,
+      id: undefined,
+      attemptsMode: 'Exact',
+      wallAngles: ['Overhang'],
+    }),
   );
   await waitFor(() =>
     expect(mockReplace).toHaveBeenCalledWith({ pathname: '/calendar', params: { date: log.date } }),
+  );
+});
+
+test('selects an unfinished project and pre-fills a separate attempt log', async () => {
+  mockApi.listClimbProjects.mockResolvedValue([
+    { id: 4, climb: { ...log, projectId: 4, outcome: 'Attempted' } },
+  ]);
+  await mountCreate();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose unfinished project' }));
+  await fireEventAsync.changeText(await screen.findByLabelText('Search projects'), 'gym');
+  await fireEventAsync.press(await screen.findByRole('button', { name: 'Choose project Problem' }));
+  expect(screen.queryByLabelText('Search projects')).toBeNull();
+  expect(screen.getByText('Selected project')).toBeTruthy();
+  expect(screen.getByRole('header', { name: 'Problem' })).toBeTruthy();
+  expect(screen.getByText('Gym')).toBeTruthy();
+  expect(screen.getByText('Change project')).toBeTruthy();
+  expect(screen.getByRole('header', { name: '7A' })).toBeTruthy();
+  expect(screen.getByLabelText('Attempts this day').props.value).toBe('1');
+  expect(
+    screen.getByRole('button', { name: 'Mark climb as project' }).props.accessibilityState.selected,
+  ).toBe(true);
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
+  await waitFor(() =>
+    expect(mockApi.createClimbLog).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 4, isProject: true, outcome: 'Attempted', attempts: 1 }),
+    ),
+  );
+});
+
+test('marks a new climb as a project and explains automatic completion', async () => {
+  await mountCreate();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Mark climb as project' }));
+  expect(screen.getByText('Saving a send completes this project.')).toBeTruthy();
+  await fireEventAsync.press(screen.getByRole('radio', { name: 'Outcome: Attempted' }));
+  expect(screen.getByText('This project stays unfinished until you log a send.')).toBeTruthy();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 7A' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
+  await waitFor(() =>
+    expect(mockApi.createClimbLog).toHaveBeenCalledWith(
+      expect.objectContaining({ isProject: true, projectId: null, outcome: 'Attempted' }),
+    ),
+  );
+});
+
+test('project picker has empty and retry states and history has project filters', async () => {
+  mockApi.listClimbProjects
+    .mockRejectedValueOnce(new ApiError(500, 'Projects unavailable.'))
+    .mockResolvedValue([]);
+  await mountCreate();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose unfinished project' }));
+  await screen.findByText('Projects unavailable.');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Retry projects' }));
+  await screen.findByText('No unfinished projects.');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Close projects' }));
+  expect(screen.queryByLabelText('Search projects')).toBeNull();
+});
+
+test('applies unfinished project filters to history queries', async () => {
+  await mountHistory();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Filters' }));
+  await fireEventAsync.press(
+    screen.getByRole('button', { name: 'Filter projects: Unfinished projects' }),
+  );
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Apply' }));
+  await waitFor(() =>
+    expect(mockApi.listClimbHistory).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ project: 'unfinished' }),
+    ),
   );
 });
 
@@ -421,12 +612,7 @@ test('changing climbing type resets incompatible grades and board environment', 
   await fireEventAsync.changeText(screen.getByLabelText('Search grades'), '7a');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 7a' }));
   await fireEventAsync.press(screen.getByRole('radio', { name: 'Outcome: Onsight' }));
-  expect(screen.getByLabelText('Attempts this day').props.value).toBe('1');
-  await fireEventAsync.changeText(screen.getByLabelText('Attempts this day'), '2');
-  await fireEventAsync.press(screen.getByRole('button', { name: 'Save changes' }));
-  await screen.findByText('Flash and onsight require one attempt.');
-  expect(mockApi.updateClimbLog).not.toHaveBeenCalled();
-  await fireEventAsync.changeText(screen.getByLabelText('Attempts this day'), '1');
+  expect(screen.queryByLabelText('Attempts this day')).toBeNull();
   await fireEventAsync.press(screen.getByRole('button', { name: 'Save changes' }));
   await waitFor(() =>
     expect(mockApi.updateClimbLog).toHaveBeenCalledWith(
@@ -442,6 +628,105 @@ test('changing climbing type resets incompatible grades and board environment', 
     ),
   );
   await screen.findByRole('button', { name: 'Edit climb Problem' });
+});
+
+test.each(['Flash', 'Onsight', 'Day flash'])(
+  'hides attempts and saves one for %s',
+  async (label) => {
+    await mountCreate();
+    await fireEventAsync.changeText(screen.getByLabelText('Attempts this day'), '5');
+    await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 7A' }));
+    await fireEventAsync.press(screen.getByRole('radio', { name: `Outcome: ${label}` }));
+    const descriptions = {
+      Flash: 'Sent on the first attempt with prior information.',
+      Onsight: 'Sent on the first attempt without prior information.',
+      'Day flash': 'Sent on the first attempt of the day, after attempts on an earlier day.',
+    };
+    for (const [outcome, description] of Object.entries(descriptions)) {
+      if (outcome === label) expect(screen.getByText(description)).toBeTruthy();
+      else expect(screen.queryByText(description)).toBeNull();
+    }
+    expect(screen.queryByLabelText('Attempts this day')).toBeNull();
+    await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
+    await waitFor(() =>
+      expect(mockApi.createClimbLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attempts: 1,
+          outcome: label === 'Day flash' ? 'DayFlash' : label,
+        }),
+      ),
+    );
+  },
+);
+
+test('a single-attempt send automatically becomes a flash', async () => {
+  await mountCreate();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 7A' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
+  await waitFor(() =>
+    expect(mockApi.createClimbLog).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'Flash', attempts: 1 }),
+    ),
+  );
+});
+
+test.each(['Unknown', 'More than'])(
+  'saves %s attempts without automatically flashing',
+  async (mode) => {
+    await mountCreate();
+    await fireEventAsync.press(screen.getByRole('button', { name: 'Choose grade 7A' }));
+    await fireEventAsync.press(screen.getByRole('radio', { name: `Attempt count: ${mode}` }));
+    if (mode === 'Unknown') expect(screen.queryByLabelText('Attempts this day')).toBeNull();
+    await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
+    await waitFor(() =>
+      expect(mockApi.createClimbLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attempts: mode === 'Unknown' ? null : 1,
+          attemptsMode: mode === 'Unknown' ? 'Unknown' : 'MoreThan',
+          outcome: 'Redpoint',
+        }),
+      ),
+    );
+  },
+);
+
+test('earlier project attempts disable flash and onsight and automatically classify a new-day send', async () => {
+  mockApi.listClimbProjects.mockResolvedValue([
+    { id: 4, climb: { ...log, projectId: 4, outcome: 'Attempted' } },
+  ]);
+  mockApi.getProjectAttempts.mockResolvedValue([{ id: 2, date: '2026-10-02' }]);
+  await mountCreate();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose unfinished project' }));
+  await fireEventAsync.press(await screen.findByRole('button', { name: 'Choose project Problem' }));
+  await screen.findByText('Flash and onsight are unavailable after previous project attempts.');
+  for (const outcome of ['Flash', 'Onsight'])
+    expect(
+      screen.getByRole('radio', { name: `Outcome: ${outcome}` }).props.accessibilityState.disabled,
+    ).toBe(true);
+  expect(
+    screen.getByRole('radio', { name: 'Outcome: Day flash' }).props.accessibilityState.disabled,
+  ).toBe(false);
+  await fireEventAsync.press(screen.getByRole('radio', { name: 'Outcome: Redpoint / sent' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
+  await waitFor(() =>
+    expect(mockApi.createClimbLog).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 4, outcome: 'DayFlash', attempts: 1 }),
+    ),
+  );
+});
+
+test('same-day project history disables day flash as well', async () => {
+  mockApi.listClimbProjects.mockResolvedValue([
+    { id: 4, climb: { ...log, projectId: 4, outcome: 'Attempted' } },
+  ]);
+  mockApi.getProjectAttempts.mockResolvedValue([{ id: 2, date: log.date }]);
+  await mountCreate();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Choose unfinished project' }));
+  await fireEventAsync.press(await screen.findByRole('button', { name: 'Choose project Problem' }));
+  await screen.findByText('Day flash is unavailable after an earlier attempt today.');
+  expect(
+    screen.getByRole('radio', { name: 'Outcome: Day flash' }).props.accessibilityState.disabled,
+  ).toBe(true);
 });
 
 test('unsent attempts can be saved, errors keep the draft, and cancel does not save', async () => {
@@ -467,7 +752,7 @@ test('shows recorded details and confirms deletion without losing errors', async
   mockApi.deleteClimbLog.mockRejectedValueOnce(new ApiError(404, 'Climbing log not found.'));
   await mountHistory();
   await fireEventAsync.press(await screen.findByRole('button', { name: 'Expand climb Problem' }));
-  expect(screen.getByText('Wall angle: Overhang')).toBeTruthy();
+  expect(screen.getByText('Wall angles: Overhang')).toBeTruthy();
   expect(screen.getByText('Crimpy · Slopy')).toBeTruthy();
   expect(screen.getByText('Gym')).toBeTruthy();
   await fireEventAsync.press(screen.getByRole('button', { name: 'Delete climb Problem' }));
