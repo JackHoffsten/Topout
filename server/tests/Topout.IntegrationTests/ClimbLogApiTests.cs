@@ -1,11 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ImageMagick;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Metadata.Profiles.Exif;
-using SixLabors.ImageSharp.PixelFormats;
 using Topout.Application.Abstractions;
 using Topout.Application.Climbing;
 using Topout.Application.WorkoutSchedule;
@@ -478,11 +476,12 @@ public class ClimbLogApiTests(ApiFixture fixture)
         Assert.Equal("null", await client.GetStringAsync(path));
         Assert.Equal(HttpStatusCode.NotFound, (await other.GetAsync(path)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(path)).StatusCode);
-        using var image = new Image<Rgb24>(40, 60);
-        image.Metadata.ExifProfile = new ExifProfile();
-        image.Metadata.ExifProfile.SetValue(ExifTag.Artist, "Private metadata");
+        using var image = new MagickImage(MagickColors.Black, 40, 60);
+        var exif = new ExifProfile();
+        exif.SetValue(ExifTag.Artist, "Private metadata");
+        image.SetProfile(exif);
         using var output = new MemoryStream();
-        await image.SaveAsJpegAsync(output);
+        await image.WriteAsync(output, MagickFormat.Jpeg);
         var payload = new { Base64 = Convert.ToBase64String(output.ToArray()) };
         Assert.Equal(
             HttpStatusCode.NotFound,
@@ -493,8 +492,10 @@ public class ClimbLogApiTests(ApiFixture fixture)
         var photo = (await response.Content.ReadFromJsonAsync<ClimbPhotoResponse>())!;
         Assert.Equal(40, photo.Width);
         Assert.Equal(60, photo.Height);
-        using var decoded = Image.Load(Convert.FromBase64String(photo.Base64));
-        Assert.Null(decoded.Metadata.ExifProfile);
+        using var decoded = new MagickImage(Convert.FromBase64String(photo.Base64));
+        Assert.Null(decoded.GetExifProfile());
+        Assert.Empty(decoded.ProfileNames);
+        Assert.Equal(MagickFormat.Jpeg, decoded.Format);
         var read = await client.GetAsync(path);
         Assert.True(read.Headers.CacheControl!.NoStore);
         Assert.Equal(photo, await read.Content.ReadFromJsonAsync<ClimbPhotoResponse>());
@@ -504,6 +505,8 @@ public class ClimbLogApiTests(ApiFixture fixture)
             {
                 "invalid",
                 Convert.ToBase64String("Not a photo"u8.ToArray()),
+                Convert.ToBase64String(new byte[] { 0xff, 0xd8, 0xff, 0x00 }),
+                Convert.ToBase64String(image.ToByteArray(MagickFormat.Png)),
                 new string('A', 2796208),
             }
         )
@@ -512,6 +515,36 @@ public class ClimbLogApiTests(ApiFixture fixture)
             Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
             Assert.Equal(photo, await client.GetFromJsonAsync<ClimbPhotoResponse>(path));
         }
+        using var oversized = new MagickImage(MagickColors.Black, 2561, 1);
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (
+                await client.PutAsJsonAsync(
+                    path,
+                    new
+                    {
+                        Base64 = Convert.ToBase64String(oversized.ToByteArray(MagickFormat.Jpeg)),
+                    }
+                )
+            ).StatusCode
+        );
+        Assert.Equal(photo, await client.GetFromJsonAsync<ClimbPhotoResponse>(path));
+        using var rotated = new MagickImage(MagickColors.Black, 2000, 1000);
+        var orientation = new ExifProfile();
+        orientation.SetValue(ExifTag.Orientation, (ushort)6);
+        rotated.SetProfile(orientation);
+        var resizedResponse = await client.PutAsJsonAsync(
+            path,
+            new { Base64 = Convert.ToBase64String(rotated.ToByteArray(MagickFormat.Jpeg)) }
+        );
+        resizedResponse.EnsureSuccessStatusCode();
+        var resized = (await resizedResponse.Content.ReadFromJsonAsync<ClimbPhotoResponse>())!;
+        Assert.Equal(800, resized.Width);
+        Assert.Equal(1600, resized.Height);
+        using var normalized = new MagickImage(Convert.FromBase64String(resized.Base64));
+        Assert.Equal((uint)800, normalized.Width);
+        Assert.Equal((uint)1600, normalized.Height);
+        Assert.Empty(normalized.ProfileNames);
         await client.PutAsJsonAsync(path, payload);
         using (var scope = fixture.Services.CreateScope())
         {

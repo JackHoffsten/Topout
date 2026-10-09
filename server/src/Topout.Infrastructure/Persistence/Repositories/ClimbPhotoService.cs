@@ -1,8 +1,5 @@
+using ImageMagick;
 using Microsoft.EntityFrameworkCore;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Processing;
 using Topout.Application.Abstractions;
 using Topout.Application.Common;
 using Topout.Domain.Entities;
@@ -63,41 +60,28 @@ internal sealed class ClimbPhotoService(AppDbContext db) : IClimbPhotoService
         try
         {
             // Decode only normalized JPEG uploads, with bounded dimensions and one frame.
-            if (Image.DetectFormat(bytes).Name != "JPEG")
+            if (bytes.Length < 3 || bytes[0] != 0xff || bytes[1] != 0xd8 || bytes[2] != 0xff)
                 throw Invalid();
-            var options = new DecoderOptions { MaxFrames = 1 };
-            var info = Image.Identify(options, bytes);
+            var options = new MagickReadSettings { Format = MagickFormat.Jpeg, FrameCount = 1 };
+            using var info = new MagickImage();
+            info.Ping(bytes, options);
             if (info.Width < 1 || info.Height < 1 || info.Width > 2560 || info.Height > 2560)
                 throw Invalid();
-            using var image = Image.Load(options, bytes);
-            image.Mutate(x => x.AutoOrient());
+            using var image = new MagickImage(bytes, options);
+            image.AutoOrient();
             if (image.Width > 1600 || image.Height > 1600)
-                image.Mutate(x =>
-                    x.Resize(
-                        new ResizeOptions { Size = new Size(1600, 1600), Mode = ResizeMode.Max }
-                    )
-                );
-            image.Metadata.ExifProfile = null;
-            image.Metadata.IccProfile = null;
-            image.Metadata.XmpProfile = null;
-            image.Metadata.IptcProfile = null;
-            width = image.Width;
-            height = image.Height;
+                image.Resize(new MagickGeometry(1600, 1600));
+            image.Strip();
+            width = checked((int)image.Width);
+            height = checked((int)image.Height);
+            image.Quality = 85;
             using var output = new MemoryStream();
-            await image.SaveAsJpegAsync(
-                output,
-                new JpegEncoder { Quality = 85, SkipMetadata = true },
-                ct
-            );
+            await image.WriteAsync(output, MagickFormat.Jpeg, ct);
             jpeg = output.ToArray();
             if (jpeg.Length > MaxBytes)
                 throw Invalid();
         }
-        catch (UnknownImageFormatException)
-        {
-            throw Invalid();
-        }
-        catch (InvalidImageContentException)
+        catch (MagickException)
         {
             throw Invalid();
         }
