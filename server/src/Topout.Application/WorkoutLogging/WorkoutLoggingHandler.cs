@@ -15,6 +15,44 @@ public sealed class WorkoutLoggingHandler(
     TimeProvider clock
 )
 {
+    public async Task<WorkoutLoggingResponse> ReplaceExerciseAsync(
+        int scheduleId,
+        int exerciseId,
+        ReplaceExerciseInput input,
+        CancellationToken ct
+    )
+    {
+        if (
+            input.Order is < 1 or > 100
+            || input.Sets is null
+            || input.Sets.Count is < 1 or > 200
+            || input.Sets.Any(s => s is null || s.Order is < 1 or > 100 || !Enum.IsDefined(s.Side))
+            || input
+                .Sets.GroupBy(s => s.Order)
+                .Any(g =>
+                    g.Select(s => s.Side).Distinct().Count() != g.Count()
+                    || (g.Count() > 1 && g.Any(s => s.Side == SetSide.Both))
+                )
+        )
+            throw new RequestException(
+                ErrorKind.Validation,
+                "Choose valid set positions and normal or left/right sets."
+            );
+        var replacement =
+            (await exercises.ListAsync(user.UserId, ct)).FirstOrDefault(e =>
+                e.Id == input.ReplacementExerciseId
+            ) ?? throw new RequestException(ErrorKind.NotFound, "Replacement exercise not found.");
+        await logs.ReplaceExerciseAsync(
+            user.UserId,
+            scheduleId,
+            exerciseId,
+            replacement,
+            input,
+            ct
+        );
+        return await GetAsync(scheduleId, ct);
+    }
+
     public async Task<WorkoutLoggingResponse> GetAsync(int scheduleId, CancellationToken ct)
     {
         var schedule =

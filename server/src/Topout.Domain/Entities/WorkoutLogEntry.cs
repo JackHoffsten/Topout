@@ -12,6 +12,29 @@ public class WorkoutLogEntry : Entity
     public Exercise Exercise { get; private set; } = null!;
     public int Order { get; private set; }
     public string? Notes { get; private set; }
+    public int? OriginalExerciseId { get; private set; }
+    public int? ReplacementOrder { get; private set; }
+    public int[] ReplacementSetOrders { get; private set; } = [];
+    public SetSide[] ReplacementSetSides { get; private set; } = [];
+    public bool[] ReplacementWarmups { get; private set; } = [];
+
+    internal void ReplaceExercise(
+        Exercise exercise,
+        int originalId,
+        int order,
+        int[] orders,
+        SetSide[] sides,
+        bool[] warmups
+    )
+    {
+        OriginalExerciseId ??= originalId;
+        Exercise = exercise;
+        ExerciseId = exercise.Id;
+        ReplacementOrder = order;
+        ReplacementSetOrders = orders;
+        ReplacementSetSides = sides;
+        ReplacementWarmups = warmups;
+    }
 
     private readonly List<WorkoutLogSet> _sets = [];
     public IReadOnlyList<WorkoutLogSet> Sets => _sets;
@@ -47,10 +70,60 @@ public class WorkoutLogEntry : Entity
             existing.ReplaceActual(reps, weight, warmup, notes);
         else
             _sets.Add(new WorkoutLogSet(this, order, reps, weight, warmup, notes, side));
+        if (OriginalExerciseId.HasValue)
+        {
+            var shape = ReplacementSetOrders
+                .Select(
+                    (position, index) =>
+                        (
+                            Order: position,
+                            Side: ReplacementSetSides[index],
+                            Warmup: ReplacementWarmups[index]
+                        )
+                )
+                .ToList();
+            if (
+                shape.Any(s =>
+                    s.Order == order && (s.Side == SetSide.Both) != (side == SetSide.Both)
+                )
+            )
+                shape.RemoveAll(s => s.Order == order);
+            var sides =
+                side == SetSide.Both
+                    ? new[] { SetSide.Both }
+                    : new[] { SetSide.Left, SetSide.Right };
+            foreach (var value in sides)
+                if (!shape.Any(s => s.Order == order && s.Side == value))
+                    shape.Add((order, value, warmup));
+            SetReplacementShape(shape);
+        }
     }
 
-    internal void RemoveRecordedSet(int order, SetSide side = SetSide.Both) =>
+    internal void RemoveRecordedSet(int order, SetSide side = SetSide.Both)
+    {
         _sets.RemoveAll(s => s.Order == order && s.Side == side);
+        if (OriginalExerciseId.HasValue)
+            SetReplacementShape(
+                ReplacementSetOrders
+                    .Select(
+                        (position, index) =>
+                            (
+                                Order: position,
+                                Side: ReplacementSetSides[index],
+                                Warmup: ReplacementWarmups[index]
+                            )
+                    )
+                    .Where(s => s.Order != order || s.Side != side)
+            );
+    }
+
+    private void SetReplacementShape(IEnumerable<(int Order, SetSide Side, bool Warmup)> sets)
+    {
+        var shape = sets.OrderBy(s => s.Order).ThenBy(s => s.Side).ToArray();
+        ReplacementSetOrders = shape.Select(s => s.Order).ToArray();
+        ReplacementSetSides = shape.Select(s => s.Side).ToArray();
+        ReplacementWarmups = shape.Select(s => s.Warmup).ToArray();
+    }
 
     public WorkoutLogSet AddSet(
         int reps,

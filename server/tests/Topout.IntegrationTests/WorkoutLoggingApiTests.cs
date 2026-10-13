@@ -12,7 +12,7 @@ using Topout.Infrastructure.Persistence;
 namespace Topout.IntegrationTests;
 
 [Collection("api")]
-public class WorkoutLoggingApiTests(ApiFixture fixture)
+public partial class WorkoutLoggingApiTests(ApiFixture fixture)
 {
     [Fact]
     public async Task Exercise_removal_persists_before_completion_deletes_sets_and_keeps_the_template()
