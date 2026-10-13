@@ -50,7 +50,7 @@ test('template CRUD persists targets, supports keyboard reordering and protects 
     true,
   );
   await page.getByRole('button', { name: 'Create template', exact: true }).click();
-  await expect(page.getByText('2 exercises · 4 sets')).toBeVisible();
+  await expect(page.getByText('2 exercises · 2 sets')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Edit Pull', exact: true })).toHaveCount(0);
   await page.getByLabel('Search templates', { exact: true }).fill('Barbell Row');
   await page.getByRole('button', { name: 'Name Z–A', exact: true }).click();

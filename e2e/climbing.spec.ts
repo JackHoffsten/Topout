@@ -105,7 +105,10 @@ test('logs multiple climbs, restores, edits and deletes them from the calendar',
     await page.getByLabel('Search grades', { exact: true }).fill(grade);
     await page.getByRole('button', { name: `Choose grade ${grade}`, exact: true }).click();
     await page.getByRole('radio', { name: 'Environment: Board', exact: true }).click();
-    await page.getByRole('radio', { name: 'Wall angle: Overhang', exact: true }).click();
+    await page.getByRole('button', { name: 'Wall angle: Overhang', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Wall angle: Overhang', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('checkbox', { name: 'Crimpy', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Slopy', exact: true }).click();
     await page.getByLabel('Attempts this day', { exact: true }).fill('3');
@@ -143,7 +146,7 @@ test('logs multiple climbs, restores, edits and deletes them from the calendar',
   await expect(page.getByRole('button', { name: /^Expand climb/ }).first()).toHaveAccessibleName(
     'Expand climb Problem 7A',
   );
-  await page.getByLabel('Search name or location', { exact: true }).fill('7B');
+  await page.getByLabel('Search climbs', { exact: true }).fill('7B');
   await expect(page.getByRole('button', { name: /^Expand climb/ })).toHaveCount(1);
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await page
@@ -167,7 +170,7 @@ test('logs multiple climbs, restores, edits and deletes them from the calendar',
   ).toBeVisible();
   await page.getByRole('button', { name: 'Reset filters', exact: true }).click();
   await expect(page.getByRole('button', { name: /^Expand climb/ })).toHaveCount(1);
-  await page.getByLabel('Search name or location', { exact: true }).fill('');
+  await page.getByLabel('Search climbs', { exact: true }).fill('');
   await expect(page.getByRole('button', { name: /^Expand climb/ })).toHaveCount(2);
   await navigate(page, 'Calendar');
   await page.getByRole('link', { name: 'View climb Problem 7A', exact: true }).click();

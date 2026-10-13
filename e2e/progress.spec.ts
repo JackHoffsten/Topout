@@ -4,6 +4,8 @@ import { navigate } from './navigation';
 test('progress overview and exercise/climbing graphs work on phone and desktop', async ({
   page,
 }, info) => {
+  const today = new Date();
+  await page.clock.setFixedTime(today);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
@@ -43,7 +45,7 @@ test('progress overview and exercise/climbing graphs work on phone and desktop',
   const template = await templateResponse.json();
   const dates: string[] = [];
   for (let i = 0; i < 7; i++) {
-    const day = new Date();
+    const day = new Date(today);
     day.setDate(day.getDate() - (6 - i) * 7);
     const date = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
     dates.push(date);
@@ -94,19 +96,24 @@ test('progress overview and exercise/climbing graphs work on phone and desktop',
   await page
     .getByRole('button', { name: 'Select progress exercise Progress curl', exact: true })
     .click();
+  await expect(page.getByRole('button', { name: 'Heaviest weight', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: 'Volume', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Volume', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
   await expect(
     page.getByRole('button', {
-      name: `Progress curl · Volume, Left, ${dates[6]}, 308 kg`,
+      name: 'Progress curl · Volume, Left, Today, 308 kg',
       exact: true,
     }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Heaviest weight', exact: true }).click();
   const latestLeft = page.getByRole('button', {
-    name: `Progress curl · Heaviest weight, Left, ${dates[6]}, 22 kg`,
+    name: 'Progress curl · Heaviest weight, Left, Today, 22 kg',
     exact: true,
   });
   await expect(latestLeft).toBeVisible();
@@ -125,7 +132,7 @@ test('progress overview and exercise/climbing graphs work on phone and desktop',
   await page.getByRole('button', { name: 'Volume', exact: true }).click();
   await expect(
     page.getByRole('button', {
-      name: `Progress curl · Volume, Left, ${dates[6]}, 308 kg`,
+      name: 'Progress curl · Volume, Left, Today, 308 kg',
       exact: true,
     }),
   ).toBeVisible();
@@ -134,7 +141,7 @@ test('progress overview and exercise/climbing graphs work on phone and desktop',
   await page.getByRole('button', { name: 'Climbing', exact: true }).click();
   await expect(
     page.getByRole('button', {
-      name: `Hardest grade sent, Fontainebleau, ${dates[6]}, 7A`,
+      name: 'Hardest grade sent, Fontainebleau, Today, 7A',
       exact: true,
     }),
   ).toBeVisible();
