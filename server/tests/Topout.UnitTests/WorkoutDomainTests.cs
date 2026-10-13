@@ -6,7 +6,7 @@ using Topout.Domain.ValueObjects;
 
 namespace Topout.UnitTests;
 
-public class GymDomainTests
+public class WorkoutDomainTests
 {
     [Fact]
     public void Workout_mutations_translate_domain_conflicts_without_changing_the_log()

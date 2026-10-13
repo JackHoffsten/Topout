@@ -1,3 +1,4 @@
+import { ProgressOverview } from './ProgressOverview';
 import { useRef, useState } from 'react';
 import { View, type ScrollView } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
@@ -10,9 +11,7 @@ import {
   systemsForType,
   groupPoints,
   hardestSends,
-  weeklyActivity,
   flashRates,
-  weightRecords,
   weekKey,
   errorMessage,
   type ClimbingType,
@@ -28,42 +27,19 @@ import { SearchField } from '../../ui/components/SearchField';
 import { Button } from '../../ui/components/Button';
 import { ErrorNotice } from '../../ui/components/ErrorNotice';
 import { Loading } from '../../ui/components/Loading';
-import { useDesktop, useTheme } from '../../ui/theme';
+import { useTheme } from '../../ui/theme';
 import { dateKey } from '../calendar/calendar';
 import { ProgressChart, type ChartSeries } from './ProgressChart';
 
+import { ProgressChoices } from './ProgressChoices';
+
 const count = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
-function Choices<T extends string>({
-  values,
-  selected,
-  onChange,
-  label = (x) => x,
-}: {
-  values: readonly T[];
-  selected: T;
-  onChange: (value: T) => void;
-  label?: (value: T) => string;
-}) {
-  return (
-    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-      {values.map((value) => (
-        <Button
-          key={value}
-          title={label(value)}
-          selected={selected === value}
-          variant={selected === value ? 'primary' : 'secondary'}
-          onPress={() => onChange(value)}
-        />
-      ))}
-    </View>
-  );
-}
 
 export function ProgressScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const { api } = useSession();
   const c = useTheme();
-  const wide = useDesktop();
+
   const today = dateKey(new Date());
   const [locations, setLocations] = useState<string[]>([]);
   const [locationPicker, setLocationPicker] = useState(false);
@@ -115,7 +91,7 @@ export function ProgressScreen() {
     exercises: all?.exercises.filter((x) => x.date >= from && x.date <= today) ?? [],
     climbing: all?.climbing.filter((x) => x.date >= from && x.date <= today) ?? [],
   };
-  const activity = weeklyActivity(data, from, today);
+
   const exercises = [
     ...new Map(
       all?.exercises.map((x) => [x.exerciseId, { id: x.exerciseId, name: x.name }]) ?? [],
@@ -154,22 +130,18 @@ export function ProgressScreen() {
     }))
     .filter((x) => x.sends);
   const gradeMax = Math.max(1, ...gradeCounts.map((x) => x.sends));
-  const records = weightRecords(all?.exercises ?? [])
-    .filter((x) => x.date >= from && x.date <= today)
-    .reverse()
-    .slice(0, 5);
+
   const hasData = data.exercises.length > 0 || data.climbing.length > 0;
-  const summary = [
-    ['Workout days', new Set(data.exercises.map((x) => x.date)).size],
-    ['Working sets', data.exercises.reduce((sum, x) => sum + x.sets, 0)],
-    ['Climbing days', new Set(data.climbing.map((x) => x.date)).size],
-    ['Climbs sent', data.climbing.reduce((sum, x) => sum + x.sends, 0)],
-  ] as const;
+
   return (
     <Page scrollRef={scrollRef}>
       <Heading large>Progress</Heading>
-      <Choices values={['Overview', 'Exercises', 'Climbing']} selected={tab} onChange={setTab} />
-      <Choices
+      <ProgressChoices
+        values={['Overview', 'Exercises', 'Climbing']}
+        selected={tab}
+        onChange={setTab}
+      />
+      <ProgressChoices
         values={['Month', '3 months', 'Year', 'All time']}
         selected={range}
         onChange={setRange}
@@ -258,85 +230,7 @@ export function ProgressScreen() {
             </Card>
           )}
           {tab === 'Overview' && (
-            <>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-                {summary.map(([label, value]) => (
-                  <Card key={label} style={{ flexGrow: 1, flexBasis: wide ? '22%' : '44%' }}>
-                    <Label small muted>
-                      {label}
-                    </Label>
-                    <Heading>{count(value)}</Heading>
-                  </Card>
-                ))}
-              </View>
-              <ProgressChart
-                title="Weekly activity"
-                subtitle="Active days per week · weeks start Monday"
-                ceiling={7}
-                series={[
-                  { name: 'Workouts', color: c.accent, points: hasData ? activity.workouts : [] },
-                  {
-                    name: 'Climbing',
-                    color: c.syntax.keyword,
-                    points: hasData ? activity.climbing : [],
-                  },
-                ]}
-              />
-              <ProgressChart
-                title="Working sets"
-                subtitle="Weekly totals · each logged side counts as one set"
-                bars
-                series={[
-                  {
-                    name: 'Sets',
-                    color: c.syntax.number,
-                    points: groupPoints(
-                      data.exercises,
-                      (x) => weekKey(x.date),
-                      (x) => x.sets,
-                    ),
-                  },
-                ]}
-              />
-              <Card>
-                <Label syntax="name">Recent weight records</Label>
-                <Label small muted>
-                  New lifetime heaviest working weights recorded in this period. Reps may differ.
-                </Label>
-                {records.length ? (
-                  records.map((x) => (
-                    <Label key={`${x.date}:${x.exerciseId}:${x.side}`} small>
-                      {x.name}
-                      {x.side !== 'Both' ? ` · ${x.side}` : ''} · {count(x.maxWeightKg)} kg ·{' '}
-                      {displayDate(x.date)}
-                    </Label>
-                  ))
-                ) : (
-                  <Label muted>No new weight records in this period.</Label>
-                )}
-              </Card>
-              <Card>
-                <Label syntax="name">Hardest climbs sent</Label>
-                {climbingTypes.flatMap((t) =>
-                  systemsForType(t).map((s) => {
-                    const points = hardestSends(
-                      data.climbing.filter((x) => x.climbingType === t),
-                      s,
-                    );
-                    if (!points.length) return null;
-                    const best = Math.max(...points.map((x) => x.value));
-                    return (
-                      <Label key={`${t}:${s}`} small>
-                        {climbingLabel(t)} · {climbingLabel(s)} · {climbingGrades[s][best - 1]}
-                      </Label>
-                    );
-                  }),
-                )}
-                {!data.climbing.some((x) => x.sends > 0) && (
-                  <Label muted>No sends in this period.</Label>
-                )}
-              </Card>
-            </>
+            <ProgressOverview data={data} all={all} from={from} today={today} />
           )}
           {tab === 'Exercises' && (
             <>
@@ -384,12 +278,12 @@ export function ProgressScreen() {
                       </>
                     )}
                   </Card>
-                  <Choices
+                  <ProgressChoices
                     values={['Heaviest weight', 'Reps', 'Volume']}
                     selected={metric}
                     onChange={setMetric}
                   />
-                  <Choices
+                  <ProgressChoices
                     values={['All sides', 'Both', 'Left', 'Right']}
                     selected={side}
                     onChange={setSide}
@@ -418,7 +312,7 @@ export function ProgressScreen() {
           )}
           {tab === 'Climbing' && (
             <>
-              <Choices
+              <ProgressChoices
                 values={climbingTypes}
                 selected={type}
                 onChange={(value) => {
@@ -429,13 +323,13 @@ export function ProgressScreen() {
                 }}
                 label={climbingLabel}
               />
-              <Choices
+              <ProgressChoices
                 values={systemsForType(type)}
                 selected={system}
                 onChange={setSystem}
                 label={climbingLabel}
               />
-              <Choices
+              <ProgressChoices
                 values={[
                   'All environments',
                   ...climbingEnvironments.filter((x) => x !== 'Board' || type === 'Bouldering'),
@@ -525,4 +419,3 @@ export function ProgressScreen() {
     </Page>
   );
 }
-import { displayDate } from '../../lib/dates';

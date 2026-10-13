@@ -4,31 +4,6 @@ using Topout.Domain.Entities;
 
 namespace Topout.Application.WorkoutSchedule;
 
-public sealed record ScheduleWorkoutInput(DateOnly Date, int? TemplateId);
-
-public sealed record ScheduledWorkoutResponse(
-    int Id,
-    DateOnly Date,
-    int? TemplateId,
-    string? TemplateName,
-    bool IsRestDay,
-    string Status
-)
-{
-    public static ScheduledWorkoutResponse From(ScheduledWorkout workout) =>
-        new(
-            workout.Id,
-            workout.Date,
-            workout.WorkoutDayId,
-            workout.WorkoutDay?.Name,
-            workout.IsRestDay,
-            workout.Status == Topout.Domain.Enums.ScheduledStatus.Planned
-            && workout.WorkoutLogId.HasValue
-                ? "InProgress"
-                : workout.Status.ToString()
-        );
-}
-
 public sealed class WorkoutScheduleHandler(IWorkoutScheduleRepository schedule, ICurrentUser user)
 {
     public async Task<IReadOnlyList<ScheduledWorkoutResponse>> ListAsync(

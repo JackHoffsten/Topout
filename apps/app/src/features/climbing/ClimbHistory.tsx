@@ -1,3 +1,4 @@
+import { ClimbHistoryFilterEditor } from './ClimbHistoryFilterEditor';
 import { refreshTraining } from '../training/queries';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
@@ -6,15 +7,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import {
   climbingLabel,
   errorMessage,
-  climbingTypes,
-  gradeSystems,
-  climbingEnvironments,
-  climbingOutcomes,
-  wallAngles,
-  climbingStyles,
-  climbingGrades,
   filterValues,
-  toggleFilter,
   type ClimbLog,
   type ClimbHistoryFilters,
 } from '@topout/shared';
@@ -30,7 +23,7 @@ import { Page } from '../../ui/components/Page';
 import { ClimbEditor } from './ClimbEditor';
 import { ClimbPhoto } from './ClimbPhoto';
 import { ClimbSummary } from './ClimbSummary';
-import { Field } from '../../ui/components/Field';
+
 import { SearchField } from '../../ui/components/SearchField';
 import { TotalCard } from '../../ui/components/TotalCard';
 
@@ -47,12 +40,13 @@ export function ClimbHistory() {
   const [editing, setEditing] = useState<number>();
   const [removing, setRemoving] = useState<ClimbLog>();
   const [filters, setFilters] = useState<ClimbHistoryFilters>({});
+
   const [draft, setDraft] = useState<ClimbHistoryFilters>({});
-  const [showFilters, setShowFilters] = useState(false);
   const [filterError, setFilterError] = useState<string>();
+  const [showFilters, setShowFilters] = useState(false);
+
   const [search, setSearch] = useState('');
-  const [gradeOpen, setGradeOpen] = useState(false);
-  const [gradeSearch, setGradeSearch] = useState('');
+
   const [totalCount, setTotalCount] = useState<number>();
   const scroll = useRef<ScrollView>(null);
   const pendingScroll = useRef(selectedId);
@@ -232,206 +226,25 @@ export function ClimbHistory() {
           />
         </View>
       )}
-      {showFilters && (
-        <Card>
-          <View style={{ gap: 6 }}>
-            <Label small>Projects</Label>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-              {(
-                [
-                  [undefined, 'All climbs'],
-                  ['projects', 'Projects'],
-                  ['unfinished', 'Unfinished projects'],
-                  ['completed', 'Completed projects'],
-                  ['none', 'Not projects'],
-                ] as const
-              ).map(([value, label]) => (
-                <Button
-                  key={value ?? 'all'}
-                  title={label}
-                  accessibilityLabel={`Filter projects: ${label}`}
-                  selected={draft.project === value}
-                  variant={draft.project === value ? 'primary' : 'secondary'}
-                  onPress={() => setDraft({ ...draft, project: value })}
-                />
-              ))}
-            </View>
-          </View>
-          {(
-            [
-              ['climbingType', 'Climbing type', climbingTypes],
-              ['gradeSystem', 'Grade system', gradeSystems],
-              ['environment', 'Environment', climbingEnvironments],
-              ['outcome', 'Outcome', climbingOutcomes],
-              ['wallAngle', 'Wall angle', wallAngles],
-              ['style', 'Style', climbingStyles],
-            ] as const
-          ).map(([key, label, options]) => (
-            <View key={key} style={{ gap: 6 }}>
-              <Label small>{label}</Label>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                {[undefined, ...options].map((value) => (
-                  <Button
-                    key={value ?? 'all'}
-                    title={value ? climbingLabel(value) : 'All'}
-                    accessibilityLabel={`Filter ${label}: ${value ? climbingLabel(value) : 'All'}`}
-                    selected={
-                      value
-                        ? filterValues(draft[key]).includes(value)
-                        : filterValues(draft[key]).length === 0
-                    }
-                    variant={
-                      (
-                        value
-                          ? filterValues(draft[key]).includes(value)
-                          : filterValues(draft[key]).length === 0
-                      )
-                        ? 'primary'
-                        : 'secondary'
-                    }
-                    onPress={() => {
-                      setDraft({
-                        ...draft,
-                        [key]: value ? toggleFilter(filterValues(draft[key]), value) : undefined,
-                        ...(key === 'gradeSystem' ? { grade: undefined } : {}),
-                      });
-                      if (key === 'gradeSystem') {
-                        setGradeOpen(false);
-                        setGradeSearch('');
-                      }
-                    }}
-                  />
-                ))}
-              </View>
-            </View>
-          ))}
-          <View style={{ gap: 6 }}>
-            <Label small>Grade</Label>
-            {filterValues(draft.gradeSystem).length === 0 && (
-              <Label small muted>
-                Choose a grade system to filter by grade.
-              </Label>
-            )}
-            <Button
-              title={filterValues(draft.grade).join(', ') || 'All grades'}
-              accessibilityLabel="Select grade filter"
-              variant="secondary"
-              disabled={filterValues(draft.gradeSystem).length === 0}
-              onPress={() => {
-                setGradeOpen(!gradeOpen);
-                setGradeSearch('');
-              }}
-            />
-            {gradeOpen && filterValues(draft.gradeSystem).length > 0 && (
-              <View style={{ gap: 6 }}>
-                <SearchField
-                  label="Search filter grades"
-                  value={gradeSearch}
-                  onChangeText={setGradeSearch}
-                />
-                <ScrollView style={{ maxHeight: 180 }} keyboardShouldPersistTaps="handled">
-                  <View style={{ gap: 6 }}>
-                    <Button
-                      title="All grades"
-                      accessibilityLabel="Filter grade: All"
-                      variant="secondary"
-                      onPress={() => {
-                        setDraft({ ...draft, grade: undefined });
-                        setGradeOpen(false);
-                      }}
-                    />
-                    {Array.from(
-                      new Set(
-                        filterValues(draft.gradeSystem).flatMap(
-                          (system) => climbingGrades[system as keyof typeof climbingGrades],
-                        ),
-                      ),
-                    )
-                      .filter((grade) =>
-                        grade.toLowerCase().includes(gradeSearch.trim().toLowerCase()),
-                      )
-                      .map((grade) => (
-                        <Button
-                          key={grade}
-                          title={grade}
-                          accessibilityLabel={`Filter grade: ${grade}`}
-                          selected={filterValues(draft.grade).includes(grade)}
-                          variant={
-                            filterValues(draft.grade).includes(grade) ? 'primary' : 'secondary'
-                          }
-                          onPress={() => {
-                            setDraft({
-                              ...draft,
-                              grade: toggleFilter(filterValues(draft.grade), grade),
-                            });
-                          }}
-                        />
-                      ))}
-                  </View>
-                </ScrollView>
-              </View>
-            )}
-          </View>
-          <Field
-            label="From date"
-            placeholder="YYYY-MM-DD"
-            value={draft.from ?? ''}
-            onChangeText={(from) => setDraft({ ...draft, from })}
-          />
-          <Field
-            label="To date"
-            placeholder="YYYY-MM-DD"
-            value={draft.to ?? ''}
-            onChangeText={(to) => setDraft({ ...draft, to })}
-          />
-          {filterError && <ErrorNotice message={filterError} />}
-          <View
-            testID="climb-filter-actions"
-            style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}
-          >
-            <Button
-              title="Apply"
-              accessibilityLabel="Apply filters"
-              onPress={() => {
-                const validDate = (value?: string) =>
-                  !value ||
-                  (/^\d{4}-\d{2}-\d{2}$/.test(value) &&
-                    value >= '0001-01-01' &&
-                    !Number.isNaN(Date.parse(value)) &&
-                    new Date(value).toISOString().slice(0, 10) === value);
-                if (
-                  !validDate(draft.from) ||
-                  !validDate(draft.to) ||
-                  (draft.from && draft.to && draft.from > draft.to)
-                ) {
-                  setFilterError('Choose valid dates with the end on or after the start.');
-                  return;
-                }
-                setFilterError(undefined);
-                setFilters({ ...draft, sort: filters.sort, search: filters.search });
-                setExpanded(undefined);
-                setEditing(undefined);
-                setShowFilters(false);
-              }}
-            />
-            <Button
-              title="Clear"
-              accessibilityLabel="Clear filters"
-              variant="secondary"
-              onPress={() => {
-                setDraft({});
-                setFilters({ sort: filters.sort, search: filters.search });
-                setFilterError(undefined);
-                setExpanded(undefined);
-                setEditing(undefined);
-              }}
-            />
-            <View style={{ marginLeft: 'auto' }}>
-              <Button title="Close" variant="secondary" onPress={() => setShowFilters(false)} />
-            </View>
-          </View>
-        </Card>
-      )}
+      <ClimbHistoryFilterEditor
+        draft={draft}
+        setDraft={setDraft}
+        filterError={filterError}
+        setFilterError={setFilterError}
+        visible={showFilters}
+        onApply={(draft) => {
+          setFilters({ ...draft, sort: filters.sort, search: filters.search });
+          setExpanded(undefined);
+          setEditing(undefined);
+          setShowFilters(false);
+        }}
+        onClear={() => {
+          setFilters({ sort: filters.sort, search: filters.search });
+          setExpanded(undefined);
+          setEditing(undefined);
+        }}
+        onClose={() => setShowFilters(false)}
+      />
       {climb && !selectedId && <ErrorNotice message="Choose a valid climb." />}
       {selectedId && selected.isPending && !history.isPending && (
         <Loading text="Loading selected climb…" />

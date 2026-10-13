@@ -1,5 +1,4 @@
 import { Modal, StyleSheet, View } from 'react-native';
-import { useTheme } from '../theme';
 import { Card } from './Card';
 import { Heading } from './Heading';
 import { Label } from './Label';
@@ -27,7 +26,6 @@ export function ConfirmDialog({
   confirmLabel?: string;
   cancelLabel?: string;
 }) {
-  const c = useTheme();
   return (
     <Modal
       visible={visible}

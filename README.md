@@ -4,7 +4,7 @@
 
 # Topout
 
-Track gym workouts and climbing in one app for Android, iOS, and web.
+Track workouts and climbing in one app for Android, iOS, and web.
 
 [Web app](https://topout.jackhoffsten.se) · [Getting started](#run-locally) · [Architecture](#architecture) · [Tests](#checks)
 
@@ -103,6 +103,8 @@ dotnet test server/Topout.sln -m:1
 
 See [frontend development](docs/frontend.md) for mobile setup and browser tests, and
 [backend development](docs/backend.md) for database configuration and migrations.
+See [formatting and tooling checks](docs/tooling.md) for formatter commands and
+deployment-script tests.
 
 ## Feedback
 

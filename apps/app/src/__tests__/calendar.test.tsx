@@ -1,4 +1,3 @@
-import React from 'react';
 import { jest, beforeEach, test, expect } from '@jest/globals';
 import {
   renderAsync,

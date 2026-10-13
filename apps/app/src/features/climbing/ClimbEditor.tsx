@@ -1,3 +1,4 @@
+import { ClimbGradePicker } from './ClimbGradePicker';
 import { createClimbSave, ClimbPhotoSaveError } from './climbSave';
 import { refreshTraining } from '../training/queries';
 import { useRef, useState, type RefObject } from 'react';
@@ -9,8 +10,6 @@ import {
   climbingOutcomes,
   climbingStyles,
   wallAngles,
-  climbingGrades,
-  gradeEndpoints,
   climbingLabel,
   systemsForType,
   climbLogInputSchema,
@@ -30,100 +29,7 @@ import { ErrorNotice } from '../../ui/components/ErrorNotice';
 import { useTheme } from '../../ui/theme';
 import { pickClimbPhoto, type ClimbPhotoDraft } from './pickClimbPhoto';
 import { PhotoPreview } from './ClimbPhoto';
-
-function Choices<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-  disabled,
-  disabledOptions = [],
-}: {
-  label: string;
-  options: readonly T[];
-  value: T;
-  onChange: (value: T) => void;
-  disabled: boolean;
-  disabledOptions?: readonly T[];
-}) {
-  const c = useTheme();
-  return (
-    <View style={{ gap: 8 }}>
-      <Label small>{label}</Label>
-      <View
-        accessibilityRole="radiogroup"
-        accessibilityLabel={label}
-        style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}
-      >
-        {options.map((option) => (
-          <Pressable
-            key={option}
-            accessibilityRole="radio"
-            accessibilityLabel={`${label}: ${climbingLabel(option)}`}
-            accessibilityState={{
-              checked: value === option,
-              disabled: disabled || disabledOptions.includes(option),
-            }}
-            aria-checked={value === option}
-            aria-disabled={disabled || disabledOptions.includes(option)}
-            disabled={disabled || disabledOptions.includes(option)}
-            onPress={() => onChange(option)}
-            {...(Platform.OS === 'web'
-              ? {
-                  tabIndex: value === option ? (0 as const) : (-1 as const),
-                  onKeyDown: (event: {
-                    key: string;
-                    preventDefault: () => void;
-                    currentTarget: HTMLElement;
-                  }) => {
-                    if (disabled || disabledOptions.includes(option)) return;
-                    // React Native Web only activates button-role Pressables with Space.
-                    if (event.key === ' ') {
-                      event.preventDefault();
-                      onChange(option);
-                    }
-                    const direction = ['ArrowRight', 'ArrowDown'].includes(event.key)
-                      ? 1
-                      : ['ArrowLeft', 'ArrowUp'].includes(event.key)
-                        ? -1
-                        : 0;
-                    if (direction) {
-                      event.preventDefault();
-                      let index = options.indexOf(option);
-                      do {
-                        index = (index + direction + options.length) % options.length;
-                      } while (
-                        disabledOptions.includes(options[index]!) &&
-                        index !== options.indexOf(option)
-                      );
-                      onChange(options[index]!);
-                      event.currentTarget.parentElement
-                        ?.querySelectorAll<HTMLElement>('[role="radio"]')
-                        [index]?.focus();
-                    }
-                  },
-                }
-              : {})}
-            style={{
-              minHeight: 42,
-              justifyContent: 'center',
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderWidth: 1,
-              borderColor: value === option ? c.focus : c.line,
-              backgroundColor: value === option ? c.soft : c.input,
-              opacity: disabled || disabledOptions.includes(option) ? 0.5 : 1,
-            }}
-          >
-            <Label small syntax={value === option ? 'keyword' : undefined}>
-              {climbingLabel(option)}
-            </Label>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
-}
+import { ClimbingChoices } from './ClimbingChoices';
 
 export function ClimbEditor({
   date,
@@ -392,7 +298,7 @@ export function ClimbEditor({
           onChangeText={(date) => patch({ date })}
         />
       )}
-      <Choices
+      <ClimbingChoices
         label="Climbing type"
         options={climbingTypes}
         value={draft.climbingType}
@@ -411,7 +317,7 @@ export function ClimbEditor({
           setGradeSearch('');
         }}
       />
-      <Choices
+      <ClimbingChoices
         label="Grade system"
         options={systemsForType(draft.climbingType)}
         value={draft.gradeSystem}
@@ -433,77 +339,23 @@ export function ClimbEditor({
         </Label>
       </View>
       {
-        <View style={{ gap: 8 }}>
-          <SearchField
-            label="Search grades"
-            value={gradeSearch}
-            onChangeText={setGradeSearch}
-            editable={!save.isPending}
-            autoCapitalize="none"
-            placeholder="Search grades"
-          />
-          <ScrollView
-            style={{ maxHeight: 220 }}
-            nestedScrollEnabled
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-              {climbingGrades[draft.gradeSystem]
-                .filter((grade) => grade.toLowerCase().includes(gradeSearch.trim().toLowerCase()))
-                .map((grade) => (
-                  <Button
-                    key={grade}
-                    title={grade}
-                    accessibilityLabel={`Choose grade ${grade}`}
-                    variant={
-                      gradeEndpoints(draft.gradeSystem, draft.grade).includes(grade)
-                        ? 'primary'
-                        : 'secondary'
-                    }
-                    selected={gradeEndpoints(draft.gradeSystem, draft.grade).includes(grade)}
-                    disabled={
-                      save.isPending ||
-                      (gradeEndpoints(draft.gradeSystem, draft.grade).length === 2 &&
-                        !gradeEndpoints(draft.gradeSystem, draft.grade).includes(grade)) ||
-                      (gradeEndpoints(draft.gradeSystem, draft.grade).length === 1 &&
-                        Math.abs(
-                          climbingGrades[draft.gradeSystem].indexOf(grade) -
-                            climbingGrades[draft.gradeSystem].indexOf(draft.grade),
-                        ) > 3)
-                    }
-                    onPress={() => {
-                      const selected = gradeEndpoints(draft.gradeSystem, draft.grade);
-                      const next = selected.includes(grade)
-                        ? selected.filter((x) => x !== grade)
-                        : [...selected, grade];
-                      if (next.length > 2) return;
-                      const scale = climbingGrades[draft.gradeSystem];
-                      if (
-                        next.length === 2 &&
-                        Math.abs(scale.indexOf(next[0]!) - scale.indexOf(next[1]!)) > 3
-                      )
-                        return;
-                      patch({
-                        grade: next.sort((a, b) => scale.indexOf(a) - scale.indexOf(b)).join('-'),
-                      });
-                    }}
-                  />
-                ))}
-            </View>
-          </ScrollView>
-          {!climbingGrades[draft.gradeSystem].some((grade) =>
-            grade.toLowerCase().includes(gradeSearch.trim().toLowerCase()),
-          ) && <Label muted>No grades found.</Label>}
-        </View>
+        <ClimbGradePicker
+          system={draft.gradeSystem}
+          value={draft.grade}
+          search={gradeSearch}
+          onSearch={setGradeSearch}
+          disabled={save.isPending}
+          onChange={(grade) => patch({ grade })}
+        />
       }
-      <Choices
+      <ClimbingChoices
         label="Environment"
         options={draft.climbingType === 'Bouldering' ? climbingEnvironments : ['Indoor', 'Outdoor']}
         value={draft.environment}
         disabled={save.isPending}
         onChange={(environment) => patch({ environment })}
       />
-      <Choices
+      <ClimbingChoices
         label="Outcome"
         options={climbingOutcomes}
         value={draft.outcome}
@@ -518,7 +370,7 @@ export function ClimbEditor({
         }}
       />
       {!firstAttempt && (
-        <Choices
+        <ClimbingChoices
           label="Attempt count"
           options={['Exact', 'MoreThan', 'Unknown'] as const}
           value={draft.attemptsMode ?? 'Exact'}

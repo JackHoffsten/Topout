@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { jest, test, expect, beforeEach } from '@jest/globals';
 import { renderAsync, screen, fireEventAsync, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

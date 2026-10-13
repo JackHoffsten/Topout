@@ -1,4 +1,3 @@
-import React from 'react';
 import { Text } from 'react-native';
 import { test, expect } from '@jest/globals';
 import { renderAsync, screen, act } from '@testing-library/react-native';

@@ -5,27 +5,6 @@ using Topout.Domain.ValueObjects;
 
 namespace Topout.Application.WorkoutTemplates;
 
-public sealed class ListWorkoutTemplatesHandler(
-    IWorkoutTemplateRepository templates,
-    ICurrentUser user
-)
-{
-    public async Task<IReadOnlyList<WorkoutTemplateResponse>> HandleAsync(CancellationToken ct) =>
-        (await templates.ListAsync(user.UserId, ct)).Select(WorkoutTemplateResponse.From).ToArray();
-}
-
-public sealed class GetWorkoutTemplateHandler(
-    IWorkoutTemplateRepository templates,
-    ICurrentUser user
-)
-{
-    public async Task<WorkoutTemplateResponse> HandleAsync(int id, CancellationToken ct) =>
-        WorkoutTemplateResponse.From(
-            await templates.FindAsync(user.UserId, id, ct)
-                ?? throw new RequestException(ErrorKind.NotFound, "Workout template not found.")
-        );
-}
-
 public sealed class SaveWorkoutTemplateHandler(
     IWorkoutTemplateRepository templates,
     IExerciseRepository exercises,
@@ -76,13 +55,4 @@ public sealed class SaveWorkoutTemplateHandler(
         }
         return WorkoutTemplateResponse.From(await templates.SaveAsync(id, draft, ct));
     }
-}
-
-public sealed class DeleteWorkoutTemplateHandler(
-    IWorkoutTemplateRepository templates,
-    ICurrentUser user
-)
-{
-    public Task HandleAsync(int id, CancellationToken ct) =>
-        templates.DeleteAsync(user.UserId, id, ct);
 }

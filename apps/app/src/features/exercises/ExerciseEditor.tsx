@@ -1,4 +1,3 @@
-import React from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';

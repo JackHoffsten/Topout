@@ -1,4 +1,3 @@
-import React from 'react';
 import { jest, test, expect, afterEach } from '@jest/globals';
 import { fireEventAsync, renderAsync, screen } from '@testing-library/react-native';
 import { Keyboard, type ScrollView } from 'react-native';
