@@ -22,23 +22,30 @@ export function createClimbSave<T extends CommittedClimb>(
 ) {
   let id = initialId;
   let committed: T | undefined;
+  let pendingPhoto: { base64: string } | null | undefined;
   return {
     get committed() {
       return committed;
+    },
+    // undefined explicitly cancels; a photo or null replaces the pending operation.
+    replacePendingPhoto(photo: { base64: string } | null | undefined) {
+      pendingPhoto = photo;
     },
     async save(
       input: ClimbLogInput,
       photo: { base64: string } | null | undefined,
       onCommitted?: (result: T) => void,
     ) {
+      if (photo !== undefined) pendingPhoto = photo;
       const result = id ? await api.updateClimbLog(id, input) : await api.createClimbLog(input);
       id = result.id;
       committed = result;
       onCommitted?.(result);
-      if (photo !== undefined) {
+      if (pendingPhoto !== undefined) {
         try {
-          if (photo) await api.saveClimbPhoto(id, photo.base64);
+          if (pendingPhoto) await api.saveClimbPhoto(id, pendingPhoto.base64);
           else await api.deleteClimbPhoto(id);
+          pendingPhoto = undefined;
         } catch (cause) {
           throw new ClimbPhotoSaveError(cause);
         }
