@@ -1,3 +1,16 @@
+import {
+  completionExercises,
+  restoreWorkoutDraft,
+  draftDefaults,
+  valueOrDefault,
+  blankSet,
+  signature,
+  reconcileRecordedSet,
+  splitDraftSet,
+  mergeDraftSet,
+  type DraftSet,
+  type DraftExercise,
+} from './workoutDraft';
 import { refreshTraining } from '../training/queries';
 import { useRef, useState } from 'react';
 import { Pressable, View, type ScrollView } from 'react-native';
@@ -32,84 +45,6 @@ import {
   type TemplateSetSelection,
 } from './templateFromLog';
 
-type DraftSet = {
-  side: 'Both' | 'Left' | 'Right';
-  reps: string;
-  weight: string;
-  warmup: boolean;
-  notes: string;
-  target?: PlannedSet;
-  order: number;
-  saved?: string;
-};
-type DraftExercise = { exercise: Exercise; sets: DraftSet[] };
-const blankSet = (target?: PlannedSet, order = 1): DraftSet => ({
-  side: 'Both',
-  reps: '',
-  weight: '',
-  warmup: target?.isWarmup ?? false,
-  notes: '',
-  target,
-  order,
-});
-const signature = (set: DraftSet) =>
-  JSON.stringify([set.reps, set.weight, set.warmup, set.notes, set.side]);
-function initialItems(workout: WorkoutLogging): DraftExercise[] {
-  const recorded = workout.log?.exercises ?? [];
-  const sources = workout.log?.completedAt
-    ? recorded
-    : [
-        ...(workout.template?.exercises ?? []),
-        ...recorded.filter(
-          (e) => !workout.template?.exercises.some((t) => t.exercise.id === e.exercise.id),
-        ),
-      ];
-  return sources.map((item) => {
-    const actual = recorded.find((e) => e.exercise.id === item.exercise.id)?.sets ?? [];
-    const targets = workout.log?.completedAt
-      ? []
-      : (workout.template?.exercises.find((e) => e.exercise.id === item.exercise.id)?.sets ?? []);
-    const orders = workout.log?.completedAt
-      ? [...new Set(actual.map((s) => s.order))]
-      : Array.from(
-          { length: Math.max(targets.length, ...actual.map((s) => s.order), 1) },
-          (_, i) => i + 1,
-        );
-    return {
-      exercise: item.exercise,
-      sets: orders.flatMap((order) => {
-        const results = actual.filter((s) => s.order === order);
-        const planned = targets[order - 1];
-        const sides: DraftSet['side'][] =
-          results.some((s) => (s.side ?? 'Both') !== 'Both') ||
-          (!results.length && !!planned?.rightTarget)
-            ? workout.log?.completedAt
-              ? results.map((s) => s.side)
-              : ['Left', 'Right']
-            : ['Both'];
-        return sides.map((side) => {
-          const target =
-            side === 'Right' && planned?.rightTarget
-              ? { ...planned, ...planned.rightTarget }
-              : planned;
-          const set = actual.find((s) => s.order === order && (s.side ?? 'Both') === side);
-          const draft = set
-            ? {
-                reps: String(set.reps),
-                side,
-                weight: String(set.weightKg),
-                warmup: set.isWarmup,
-                notes: set.notes ?? '',
-                order,
-                target,
-              }
-            : { ...blankSet(target, order), side };
-          return set ? { ...draft, saved: signature(draft) } : draft;
-        });
-      }),
-    };
-  });
-}
 const key = (id: number) => ['workout-logging', id];
 
 export function WorkoutLogger({ scheduleId }: { scheduleId: number }) {
@@ -145,24 +80,13 @@ export function WorkoutLogger({ scheduleId }: { scheduleId: number }) {
 }
 
 function LoggingForm({ workout }: { workout: WorkoutLogging }) {
-  const defaults = (exerciseId: number, set: DraftSet) => {
-    const previous = workout.previousSets?.find(
-      (s) =>
-        s.exerciseId === exerciseId && s.order === set.order && (s.side ?? 'Both') === set.side,
-    );
-    return {
-      reps: previous?.reps ?? set.target?.targetRepsMin,
-      weight: previous?.weightKg ?? set.target?.targetWeightKg,
-    };
-  };
-  const valueOrDefault = (value: string, fallback: number | null | undefined) =>
-    value.trim() ? Number(value.replace(',', '.')) : (fallback ?? NaN);
+  const defaults = (exerciseId: number, set: DraftSet) => draftDefaults(workout, exerciseId, set);
   const router = useRouter();
   const wide = useDesktop();
   const { api } = useSession();
   const cache = useQueryClient();
   const available = useExercises();
-  const [items, setItems] = useState<DraftExercise[]>(() => initialItems(workout));
+  const [items, setItems] = useState<DraftExercise[]>(() => restoreWorkoutDraft(workout));
   const [notes, setNotes] = useState(workout.log?.notes ?? '');
   const [location, setLocation] = useState(workout.log?.location ?? '');
   const scrollRef = useRef<ScrollView>(null);
@@ -238,27 +162,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     mutationFn: (input: Parameters<typeof api.recordWorkoutSet>[1]) =>
       api.recordWorkoutSet(workout.scheduleId, input),
     onSuccess: async (response, input) => {
-      setItems((current) =>
-        current.map((item) =>
-          item.exercise.id === input.exerciseId
-            ? {
-                ...item,
-                sets: item.sets.map((set) =>
-                  set.order === input.order && set.side === input.side
-                    ? (() => {
-                        const logged = {
-                          ...set,
-                          reps: String(input.reps),
-                          weight: String(input.weightKg),
-                        };
-                        return { ...logged, saved: signature(logged) };
-                      })()
-                    : set,
-                ),
-              }
-            : item,
-        ),
-      );
+      setItems((current) => reconcileRecordedSet(current, input));
       cache.setQueryData(key(workout.scheduleId), response);
       await refreshTraining(cache, 'workout');
     },
@@ -341,32 +245,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     changed();
   };
   const useNormalSet = (exerciseId: number, order: number) => {
-    setItems((current) =>
-      current.map((item) => {
-        if (item.exercise.id !== exerciseId) return item;
-        const group = item.sets.filter((set) => set.order === order);
-        const kept = group.find((set) => set.side === 'Left') ?? group[0];
-        if (!kept) return item;
-        const first = item.sets.findIndex((set) => set.order === order);
-        return {
-          ...item,
-          sets: item.sets.flatMap((set, index) =>
-            set.order !== order
-              ? [set]
-              : index === first
-                ? [
-                    {
-                      ...kept,
-                      side: 'Both' as const,
-                      saved: undefined,
-                      target: kept.target ? { ...kept.target, rightTarget: null } : undefined,
-                    },
-                  ]
-                : [],
-          ),
-        };
-      }),
-    );
+    setItems((current) => mergeDraftSet(current, exerciseId, order));
     setNormalSet(undefined);
     changed();
   };
@@ -374,27 +253,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     const parsed = completeWorkoutInputSchema.safeParse({
       notes: notes.trim() || null,
       location: location.trim() || null,
-      exercises: items
-        .map((item) => ({
-          exerciseId: item.exercise.id,
-          sets: item.sets
-            .filter(
-              (set) =>
-                set.saved ||
-                set.reps.trim() ||
-                set.weight.trim() ||
-                defaults(item.exercise.id, set).reps != null,
-            )
-            .map((set) => ({
-              reps: valueOrDefault(set.reps, defaults(item.exercise.id, set).reps),
-              order: set.order,
-              side: set.side,
-              weightKg: valueOrDefault(set.weight, defaults(item.exercise.id, set).weight),
-              isWarmup: set.warmup,
-              notes: set.notes.trim() || null,
-            })),
-        }))
-        .filter((item) => item.sets.length > 0),
+      exercises: completionExercises(workout, items),
     });
     if (!parsed.success) {
       setCollapsed(new Set());
@@ -483,7 +342,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
             title="Edit workout"
             disabled={busy || updateTemplate.isPending}
             onPress={() => {
-              setItems(initialItems(workout));
+              setItems(restoreWorkoutDraft(workout));
               setNotes(workout.log?.notes ?? '');
               setLocation(workout.log?.location ?? '');
               setEditing(true);
@@ -626,22 +485,8 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
                                 } else useNormalSet(item.exercise.id, set.order);
                                 return;
                               }
-                              setItems(
-                                items.map((entry, n) =>
-                                  n === i
-                                    ? {
-                                        ...entry,
-                                        sets: entry.sets.flatMap((s, k) =>
-                                          k === j
-                                            ? [
-                                                { ...s, side: 'Left' as const, saved: undefined },
-                                                { ...s, side: 'Right' as const, saved: undefined },
-                                              ]
-                                            : [s],
-                                        ),
-                                      }
-                                    : entry,
-                                ),
+                              setItems((current) =>
+                                splitDraftSet(current, item.exercise.id, set.order),
                               );
                               changed();
                             }}

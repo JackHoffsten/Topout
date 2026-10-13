@@ -1,3 +1,4 @@
+import { test, expect } from '@jest/globals';
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { refreshTraining } from '../features/training/queries';
 
