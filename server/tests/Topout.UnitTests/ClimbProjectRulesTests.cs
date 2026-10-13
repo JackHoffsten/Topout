@@ -1,5 +1,6 @@
 using Topout.Domain.Entities;
 namespace Topout.UnitTests;
+
 public class ClimbProjectRulesTests
 {
     [Fact]

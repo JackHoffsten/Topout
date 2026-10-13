@@ -96,6 +96,18 @@ export function representativeGrade(system: GradeSystem, grade: string): string 
   return scale[Math.floor((scale.indexOf(endpoints[0]!) + scale.indexOf(endpoints.at(-1)!)) / 2)]!;
 }
 
+export function gradeRank(system: GradeSystem, grade: string): number {
+  return climbingGrades[system].indexOf(representativeGrade(system, grade));
+}
+
+export function gradeContains(system: GradeSystem, interval: string, grade: string): boolean {
+  const endpoints = gradeEndpoints(system, interval);
+  if (!endpoints.length) return false;
+  const scale = climbingGrades[system];
+  const selected = scale.indexOf(grade);
+  return selected >= scale.indexOf(endpoints[0]!) && selected <= scale.indexOf(endpoints.at(-1)!);
+}
+
 const optionalText = (max: number) => z.string().trim().max(max).nullable();
 const climbFields = {
   date: z.iso.date().refine((value) => value >= '0001-01-01', 'Choose a valid date.'),

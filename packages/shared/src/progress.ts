@@ -5,7 +5,7 @@ import {
   climbingEnvironments,
   climbingGrades,
   gradeEndpoints,
-  representativeGrade,
+  gradeRank,
 } from './climbing';
 
 export const progressSchema = z.object({
@@ -95,7 +95,7 @@ export function hardestSends(
   return groupPoints(
     climbs.filter((x) => x.gradeSystem === system && x.sends > 0),
     (x) => x.date,
-    (x) => climbingGrades[system].indexOf(representativeGrade(system, x.grade)) + 1,
+    (x) => gradeRank(system, x.grade) + 1,
     'max',
   );
 }

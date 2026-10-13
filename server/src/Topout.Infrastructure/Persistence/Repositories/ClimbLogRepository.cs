@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Topout.Application.Abstractions;
 using Topout.Application.Climbing;
@@ -133,38 +132,7 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
         if (query.Grade is { Length: > 0 })
         {
             // Match any selected grade within the stored range, including its endpoints.
-            var matching = new[] { "Font", "V", "French", "YDS" }
-                .SelectMany(system =>
-                {
-                    var scale = ClimbingGrades.Values(system);
-                    return scale
-                        .SelectMany(
-                            (low, i) =>
-                                scale
-                                    .Skip(i)
-                                    .Select(
-                                        (high, offset) =>
-                                            new
-                                            {
-                                                low,
-                                                high,
-                                                i,
-                                                end = i + offset,
-                                            }
-                                    )
-                        )
-                        .Where(range =>
-                            scale
-                                .Skip(range.i)
-                                .Take(range.end - range.i + 1)
-                                .Any(query.Grade.Contains)
-                        )
-                        .Select(range =>
-                            range.low == range.high ? range.low : $"{range.low}-{range.high}"
-                        );
-                })
-                .Distinct()
-                .ToArray();
+            var matching = ClimbingGrades.MatchingIntervals(query.Grade);
             items = items.Where(x => matching.Contains(x.Grade));
         }
         if (query.Environment is { Length: > 0 })
@@ -194,42 +162,7 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
         if (query.Sort.StartsWith("grade"))
         {
             // Grade systems are distinct scales: group by system, then difficulty, never alphabetical grade text.
-            var parameter = Expression.Parameter(typeof(ClimbLog), "x");
-            Expression lower = Expression.Constant(-1);
-            Expression upper = Expression.Constant(-1);
-            foreach (var system in new[] { "Font", "V", "French", "YDS" })
-            foreach (
-                var (grade, index) in ClimbingGrades
-                    .Values(system)
-                    .Select((grade, index) => (grade, index))
-            )
-            {
-                var text = Expression.Property(parameter, nameof(ClimbLog.Grade));
-                Expression EndpointRank(Expression fallback, bool last) =>
-                    Expression.Condition(
-                        Expression.AndAlso(
-                            Expression.Equal(
-                                Expression.Property(parameter, nameof(ClimbLog.GradeSystem)),
-                                Expression.Constant(system)
-                            ),
-                            Expression.OrElse(
-                                Expression.Equal(text, Expression.Constant(grade)),
-                                Expression.Call(
-                                    text,
-                                    last ? nameof(string.EndsWith) : nameof(string.StartsWith),
-                                    Type.EmptyTypes,
-                                    Expression.Constant(last ? $"-{grade}" : $"{grade}-")
-                                )
-                            )
-                        ),
-                        Expression.Constant(index),
-                        fallback
-                    );
-                lower = EndpointRank(lower, false);
-                upper = EndpointRank(upper, true);
-            }
-            var rank = Expression.Divide(Expression.Add(lower, upper), Expression.Constant(2));
-            var key = Expression.Lambda<Func<ClimbLog, int>>(rank, parameter);
+            var key = ClimbingGrades.RankExpression();
             var grouped = items.OrderBy(x => x.GradeSystem);
             ordered =
                 query.Sort == "grade-asc" ? grouped.ThenBy(key) : grouped.ThenByDescending(key);

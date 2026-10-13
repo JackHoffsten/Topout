@@ -1,3 +1,5 @@
+import scales from './grade-scales.json';
+import { gradeRank, gradeContains, type GradeSystem } from './climbing';
 import { expect, it, vi } from 'vitest';
 import { climbHistorySchema, climbOutcomeLabel, climbProjectsSchema } from './climbing';
 import { ApiClient, ApiError, type SessionTransport } from './client';
@@ -229,4 +231,18 @@ it('encodes history filters and sorting without losing search punctuation', asyn
     search: 'Rock & roof',
     from: '2026-01-01',
   });
+});
+
+it('agrees with the shared scale contract and ranks inclusive intervals', () => {
+  for (const system of Object.keys(scales) as GradeSystem[])
+    expect(climbingGrades[system]).toEqual(scales[system]);
+  for (const [system, selected, interval, rank] of [
+    ['Font', '6B+', '6B-6C', 10],
+    ['V', 'V2', 'V1-V3', 3],
+    ['French', '6b', '6a+-6b+', 11],
+    ['YDS', '5.10a', '5.9-5.10b', 10],
+  ] as const) {
+    expect(gradeContains(system, interval, selected)).toBe(true);
+    expect(gradeRank(system, interval)).toBe(rank);
+  }
 });
