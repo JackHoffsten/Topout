@@ -1,3 +1,4 @@
+import { refreshTraining } from '../training/queries';
 import { useRef, useState, type RefObject } from 'react';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -215,7 +216,7 @@ export function ClimbEditor({
           if (photo) await api.saveClimbPhoto(result.id, photo.base64);
           else await api.deleteClimbPhoto(result.id);
         } catch (error) {
-          await cache.invalidateQueries({ queryKey: ['climb-logs'] });
+          await refreshTraining(cache, 'climb');
           setPhotoError('The climb was saved, but the photo change was not. Try saving again.');
           throw error;
         }
@@ -223,11 +224,7 @@ export function ClimbEditor({
       return result;
     },
     onSuccess: async (_, input) => {
-      await cache.invalidateQueries({ queryKey: ['progress'] });
-      await cache.invalidateQueries({ queryKey: ['climb-logs'] });
-      await cache.invalidateQueries({ queryKey: ['log-locations', 'climb'] });
-      await cache.invalidateQueries({ queryKey: ['climb-photo'] });
-      await cache.invalidateQueries({ queryKey: ['climb-projects'] });
+      await refreshTraining(cache, 'climb');
       onClose(input.date);
     },
   });

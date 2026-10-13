@@ -1,3 +1,4 @@
+import { refreshTraining } from '../training/queries';
 import { useRef, useState } from 'react';
 import { Pressable, View, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -169,7 +170,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
     mutationFn: (value: string) => api.setWorkoutLocation(workout.scheduleId, value.trim() || null),
     onSuccess: async (response) => {
       cache.setQueryData(key(workout.scheduleId), response);
-      await cache.invalidateQueries({ queryKey: ['log-locations', 'workout'] });
+      await refreshTraining(cache, 'workout');
     },
   });
   const [editing, setEditing] = useState(!workout.log?.completedAt);
@@ -230,9 +231,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
       cache.setQueryData(key(workout.scheduleId), response);
       setEditing(false);
       setDirty(false);
-      await cache.invalidateQueries({ queryKey: ['log-locations', 'workout'] });
-      await cache.invalidateQueries({ queryKey: ['progress'] });
-      await cache.invalidateQueries({ queryKey: ['workout-schedule'] });
+      await refreshTraining(cache, 'workout');
     },
   });
   const record = useMutation({
@@ -261,9 +260,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
         ),
       );
       cache.setQueryData(key(workout.scheduleId), response);
-      await cache.invalidateQueries({ queryKey: ['log-locations', 'workout'] });
-      await cache.invalidateQueries({ queryKey: ['progress'] });
-      await cache.invalidateQueries({ queryKey: ['workout-schedule'] });
+      await refreshTraining(cache, 'workout');
     },
   });
   const remove = useMutation({
@@ -290,8 +287,7 @@ function LoggingForm({ workout }: { workout: WorkoutLogging }) {
         ),
       );
       cache.setQueryData(key(workout.scheduleId), response);
-      await cache.invalidateQueries({ queryKey: ['progress'] });
-      await cache.invalidateQueries({ queryKey: ['workout-schedule'] });
+      await refreshTraining(cache, 'workout');
     },
   });
   const busy =
