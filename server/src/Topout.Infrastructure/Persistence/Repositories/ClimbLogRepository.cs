@@ -89,7 +89,7 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
             .Select(x => new ClimbProjectResponse(
                 x.Id,
                 ClimbLogResponse.From(
-                    x.Logs.OrderByDescending(l => l.Date).ThenByDescending(l => l.Id).First()
+                    x.LatestAttempt!
                 )
             ))
             .ToArray();
@@ -305,33 +305,13 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
         else
             log.SetProject(null);
         update(log);
-        var earlier = db.ClimbLogs.Where(x =>
-            x.UserId == userId
-            && x.ProjectId == log.ProjectId
-            && (x.Date < log.Date || (x.Date == log.Date && (!id.HasValue || x.Id < id.Value)))
-        );
-        log.ClassifySingleAttemptSend(
-            log.ProjectId != null && await earlier.AnyAsync(ct),
-            log.ProjectId != null && await earlier.AnyAsync(x => x.Date == log.Date, ct)
-        );
-        if (log.ProjectId != null && log.Outcome is "Flash" or "Onsight" or "DayFlash")
+        if (log.Project != null)
         {
-            var prior = db.ClimbLogs.Where(x =>
-                x.UserId == userId
-                && x.ProjectId == log.ProjectId
-                && (x.Date < log.Date || (x.Date == log.Date && (!id.HasValue || x.Id < id.Value)))
-            );
-            if (log.Outcome is "Flash" or "Onsight" && await prior.AnyAsync(ct))
-                throw new RequestException(
-                    ErrorKind.Validation,
-                    "Flash and onsight are not available after previous project attempts."
-                );
-            if (log.Outcome == "DayFlash" && await prior.AnyAsync(x => x.Date == log.Date, ct))
-                throw new RequestException(
-                    ErrorKind.Validation,
-                    "Day flash requires the first attempt of the day."
-                );
+            var history = await db.ClimbLogs.AsNoTracking().Where(x => x.UserId == userId && x.ProjectId == log.ProjectId).ToArrayAsync(ct);
+            log.Project.ClassifyAttempt(log, history.Where(x => ClimbProject.Precedes(x, log, id)));
         }
+        else
+            log.ClassifySingleAttemptSend(false, false);
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT pg_advisory_xact_lock({userId}, {log.Date.DayNumber})",
             ct
@@ -379,14 +359,10 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
     private async Task SynchronizeProject(int projectId, CancellationToken ct)
     {
         var project = await db.ClimbProjects.SingleAsync(x => x.Id == projectId, ct);
-        if (!await db.ClimbLogs.AnyAsync(x => x.ProjectId == projectId, ct))
+        await db.Entry(project).Collection(x => x.Logs).LoadAsync(ct);
+        if (project.Logs.Count == 0)
             db.ClimbProjects.Remove(project);
         else
-            project.SetCompleted(
-                await db.ClimbLogs.AnyAsync(
-                    x => x.ProjectId == projectId && x.Outcome != "Attempted",
-                    ct
-                )
-            );
+            project.SynchronizeCompletion();
     }
 }
