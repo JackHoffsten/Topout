@@ -43,8 +43,10 @@ public sealed record ClimbLogResponse(
     string[]? WallAngles = null
 )
 {
-    public static ClimbLogResponse From(ClimbLog x) =>
-        new(
+    public static ClimbLogResponse From(ClimbLog x)
+    {
+        var attempts = x.Project?.AttemptsThrough(x);
+        return new(
             x.Id,
             x.Date,
             x.ClimbingType,
@@ -59,11 +61,12 @@ public sealed record ClimbLogResponse(
             x.Location,
             x.ProjectId,
             x.Project?.IsCompleted ?? false,
-            x.Project?.AttemptsThrough(x).TotalAttempts ?? (x.Project == null ? x.Attempts : null),
+            attempts?.TotalAttempts ?? (x.Project == null ? x.Attempts : null),
             x.AttemptsMode,
-            x.Project?.AttemptsThrough(x).IsLowerBound ?? (x.AttemptsMode != "Exact"),
+            attempts?.IsLowerBound ?? (x.AttemptsMode != "Exact"),
             x.WallAngles
         );
+    }
 }
 
 public sealed record ClimbHistoryResponse(

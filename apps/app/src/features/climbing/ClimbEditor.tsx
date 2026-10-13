@@ -207,7 +207,7 @@ export function ClimbEditor({
   const save = useMutation({
     mutationFn: async (input: ClimbLogInput) => {
       try {
-        return await saveWorkflow.save(input, photo, (result) => {
+        return await saveWorkflow.save(input, undefined, (result) => {
           setSavedId(result.id);
           if (result.projectId)
             setDraft((current) => ({ ...current, projectId: result.projectId, isProject: true }));
@@ -236,7 +236,10 @@ export function ClimbEditor({
     setPhotoError(undefined);
     try {
       const selected = await pickClimbPhoto(source);
-      if (selected) setPhoto(selected);
+      if (selected) {
+        saveWorkflow.replacePendingPhoto(selected);
+        setPhoto(selected);
+      }
     } catch (error) {
       setPhotoError(error instanceof Error ? error.message : 'The photo could not be opened.');
     } finally {
@@ -692,7 +695,10 @@ export function ClimbEditor({
               title="Remove photo"
               variant="secondary"
               disabled={save.isPending || picking}
-              onPress={() => setPhoto(null)}
+              onPress={() => {
+                saveWorkflow.replacePendingPhoto(null);
+                setPhoto(null);
+              }}
             />
           )}
         </View>
