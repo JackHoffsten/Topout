@@ -1,5 +1,6 @@
 #!/usr/bin/python3 -I
 """Root-only encrypted backups of the running topout-prod PostgreSQL service."""
+
 import datetime as dt
 import os
 from pathlib import Path
@@ -17,9 +18,13 @@ KEY = Path('/etc/topout/secrets/backup.key')
 LOCK = Path('/var/lib/topout/operations.lock')
 RETENTION_DAYS = 14
 NAME = re.compile(r'topout-\d{8}T\d{6}Z-[0-9a-f]{8}\.dump\.gpg')
-ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'HOME': '/root',
-       'LANG': 'C.UTF-8', 'DOCKER_HOST': 'unix:///var/run/docker.sock',
-       'DOCKER_CONFIG': '/var/lib/topout/backup-docker-config'}
+ENV = {
+    'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+    'HOME': '/root',
+    'LANG': 'C.UTF-8',
+    'DOCKER_HOST': 'unix:///var/run/docker.sock',
+    'DOCKER_CONFIG': '/var/lib/topout/backup-docker-config',
+}
 
 
 def private_path(path, directory=False):
@@ -44,9 +49,22 @@ def init_key():
 
 def postgres_container():
     result = subprocess.run(
-        ['docker', 'ps', '--no-trunc', '--filter', 'label=com.docker.compose.project=topout-prod',
-         '--filter', 'label=com.docker.compose.service=postgres', '--format', '{{.ID}}'],
-        env=ENV, check=True, capture_output=True, text=True)
+        [
+            'docker',
+            'ps',
+            '--no-trunc',
+            '--filter',
+            'label=com.docker.compose.project=topout-prod',
+            '--filter',
+            'label=com.docker.compose.service=postgres',
+            '--format',
+            '{{.ID}}',
+        ],
+        env=ENV,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     ids = result.stdout.split()
     if len(ids) != 1 or not re.fullmatch('[0-9a-f]{64}', ids[0]):
         raise RuntimeError('Expected exactly one running topout-prod PostgreSQL container')
@@ -60,10 +78,27 @@ def encrypt_dump(command, output, key):
         dump = subprocess.Popen(command, stdout=subprocess.PIPE, env=ENV)
         try:
             encrypted = subprocess.run(
-                ['gpg', '--no-options', '--homedir', home, '--batch', '--yes',
-                 '--pinentry-mode', 'loopback', '--no-symkey-cache', '--passphrase-file', str(key),
-                 '--cipher-algo', 'AES256', '--symmetric', '--output', str(output)],
-                stdin=dump.stdout, env=ENV)
+                [
+                    'gpg',
+                    '--no-options',
+                    '--homedir',
+                    home,
+                    '--batch',
+                    '--yes',
+                    '--pinentry-mode',
+                    'loopback',
+                    '--no-symkey-cache',
+                    '--passphrase-file',
+                    str(key),
+                    '--cipher-algo',
+                    'AES256',
+                    '--symmetric',
+                    '--output',
+                    str(output),
+                ],
+                stdin=dump.stdout,
+                env=ENV,
+            )
             dump.stdout.close()
             result = dump.wait()
             if encrypted.returncode != 0 or result != 0:
@@ -74,8 +109,13 @@ def encrypt_dump(command, output, key):
             if dump.poll() is None:
                 dump.terminate()
                 dump.wait()
-            subprocess.run(['gpgconf', '--homedir', home, '--kill', 'gpg-agent'], env=ENV,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            subprocess.run(
+                ['gpgconf', '--homedir', home, '--kill', 'gpg-agent'],
+                env=ENV,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
 
 
 def prune(directory, now):
@@ -96,6 +136,7 @@ def prune(directory, now):
 
 def backup():
     import fcntl  # Linux only; permits the pure helper tests to run on Windows too.
+
     private_path(KEY)
     if not re.fullmatch('[0-9a-f]{64}\n?', KEY.read_text()):
         raise RuntimeError('Backup key is not a generated 256-bit secret')
@@ -114,9 +155,25 @@ def backup():
         os.close(fd)
         temporary = Path(temporary)
         try:
-            encrypt_dump(['docker', 'exec', '--user', 'postgres', container,
-                          'pg_dump', '-U', 'postgres', '-d', 'topout',
-                          '--format=custom', '--no-owner', '--no-acl'], temporary, KEY)
+            encrypt_dump(
+                [
+                    'docker',
+                    'exec',
+                    '--user',
+                    'postgres',
+                    container,
+                    'pg_dump',
+                    '-U',
+                    'postgres',
+                    '-d',
+                    'topout',
+                    '--format=custom',
+                    '--no-owner',
+                    '--no-acl',
+                ],
+                temporary,
+                KEY,
+            )
             if temporary.stat().st_size == 0:
                 raise RuntimeError('Encrypted backup is empty')
             os.chmod(temporary, 0o600)
@@ -129,7 +186,9 @@ def backup():
             finally:
                 os.close(directory_fd)
             removed = prune(BACKUPS, time.time())
-            print(f'Saved {final.name} ({final.stat().st_size} bytes); removed {removed} expired backups')
+            print(
+                f'Saved {final.name} ({final.stat().st_size} bytes); removed {removed} expired backups'
+            )
         finally:
             temporary.unlink(missing_ok=True)
 

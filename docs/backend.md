@@ -86,5 +86,5 @@ Check backend formatting with:
 
 ```powershell
 dotnet tool restore
-dotnet tool run csharpier -- check server/src/Topout.Api server/src/Topout.Application server/tests
+npm run format:backend:check
 ```

@@ -18,11 +18,20 @@ pipeline {
         }
         stage('Backend') {
             steps {
+                sh 'dotnet tool restore && dotnet tool run csharpier -- check server'
                 sh 'dotnet test server/Topout.sln -c Release -m:1'
             }
         }
         stage('Frontend') {
-            steps { sh 'npm ci && npm run typecheck && npm test && npm run build' }
+            steps { sh 'npm ci && npm run format:check && npm run typecheck && npm test && npm run build' }
+        }
+        stage('Deployment tooling') {
+            steps {
+                sh 'python3 -m venv .venv && .venv/bin/python -m pip install -r requirements-dev.txt'
+                sh '.venv/bin/python -m ruff format --check deploy'
+                sh '.venv/bin/python -m unittest discover -s deploy/tests'
+                sh 'sh -n deploy/postgres-init.sh'
+            }
         }
         stage('Build images and deploy') {
             steps {

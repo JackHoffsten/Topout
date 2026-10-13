@@ -17,8 +17,7 @@ public sealed class WebAuthController(
     IAntiforgery antiforgery,
     IConfiguration configuration,
     IWebHostEnvironment environment
-)
-    : ControllerBase
+) : ControllerBase
 {
     public const string RefreshCookie = "__Secure-topout-refresh";
     public const string CsrfCookie = "__Host-topout-csrf";

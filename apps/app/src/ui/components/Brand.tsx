@@ -6,9 +6,11 @@ export function Brand() {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
       <Image
-        source={c.bg === '#FFFFFF'
-          ? require('../../../assets/topout-icon-light.png')
-          : require('../../../assets/topout-icon.png')}
+        source={
+          c.bg === '#FFFFFF'
+            ? require('../../../assets/topout-icon-light.png')
+            : require('../../../assets/topout-icon.png')
+        }
         style={{ width: 34, height: 34 }}
         accessible={false}
       />

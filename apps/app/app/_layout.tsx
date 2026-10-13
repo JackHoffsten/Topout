@@ -17,7 +17,13 @@ function Routes() {
   return (
     <>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-      <Stack initialRouteName="index" screenOptions={{ headerShown: false, contentStyle: { backgroundColor: scheme === 'dark' ? '#121314' : '#FFFFFF' } }}>
+      <Stack
+        initialRouteName="index"
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: scheme === 'dark' ? '#121314' : '#FFFFFF' },
+        }}
+      >
         <Stack.Screen name="index" />
         <Stack.Screen name="privacy" />
         <Stack.Screen name="support" />
@@ -44,9 +50,11 @@ export default function Root() {
   return (
     <SafeAreaProvider>
       <KeyboardProvider>
-        <ThemeProvider><Providers>
-          <Routes />
-        </Providers></ThemeProvider>
+        <ThemeProvider>
+          <Providers>
+            <Routes />
+          </Providers>
+        </ThemeProvider>
       </KeyboardProvider>
     </SafeAreaProvider>
   );

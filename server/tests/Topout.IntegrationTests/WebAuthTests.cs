@@ -78,10 +78,7 @@ public class WebAuthTests(ApiFixture fixture)
         using var client = factory.CreateClient(
             new() { BaseAddress = new Uri("http://localhost"), HandleCookies = false }
         );
-        var browser = new Browser(client, "topout-dev-csrf")
-        {
-            Origin = "http://localhost:8081",
-        };
+        var browser = new Browser(client, "topout-dev-csrf") { Origin = "http://localhost:8081" };
         await browser.Csrf();
         var register = await browser.Post(
             "register",
@@ -192,10 +189,7 @@ public class WebAuthTests(ApiFixture fixture)
         }
     }
 
-    private sealed class Browser(
-        HttpClient client,
-        string csrfCookieName = "__Host-topout-csrf"
-    )
+    private sealed class Browser(HttpClient client, string csrfCookieName = "__Host-topout-csrf")
     {
         public Dictionary<string, string> Cookies { get; } = [];
         public string Token { get; set; } = "";

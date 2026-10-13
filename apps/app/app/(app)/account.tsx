@@ -32,9 +32,13 @@ export default function Account() {
         <Heading>Appearance</Heading>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {(['system', 'light', 'dark'] as ThemePreference[]).map((value) => (
-            <Button key={value} title={value === 'system' ? 'System' : value === 'light' ? 'Light' : 'Dark'}
-              selected={preference === value} variant={preference === value ? 'primary' : 'secondary'}
-              onPress={() => setPreference(value)} />
+            <Button
+              key={value}
+              title={value === 'system' ? 'System' : value === 'light' ? 'Light' : 'Dark'}
+              selected={preference === value}
+              variant={preference === value ? 'primary' : 'secondary'}
+              onPress={() => setPreference(value)}
+            />
           ))}
         </View>
         <Label muted>Saved on this device. System follows your device appearance.</Label>

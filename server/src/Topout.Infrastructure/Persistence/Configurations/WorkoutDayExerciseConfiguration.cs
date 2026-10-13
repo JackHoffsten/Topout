@@ -4,8 +4,7 @@ using Topout.Domain.Entities;
 
 namespace Topout.Infrastructure.Persistence.Configurations;
 
-internal sealed class WorkoutDayExerciseConfiguration
-    : IEntityTypeConfiguration<WorkoutDayExercise>
+internal sealed class WorkoutDayExerciseConfiguration : IEntityTypeConfiguration<WorkoutDayExercise>
 {
     public void Configure(EntityTypeBuilder<WorkoutDayExercise> builder)
     {

@@ -1,4 +1,5 @@
 """Run with python3 deploy/tests/test_backup.py; encryption tests need GnuPG."""
+
 import importlib.util
 import os
 from pathlib import Path
@@ -11,49 +12,140 @@ import shlex
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location('backup', Path(__file__).resolve().parents[1] / 'backup.py')
+spec = importlib.util.spec_from_file_location(
+    'backup', Path(__file__).resolve().parents[1] / 'backup.py'
+)
 backup = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(backup)
 
 
 class BackupTests(unittest.TestCase):
-    @unittest.skipUnless(os.name == 'posix' and os.geteuid() == 0 and shutil.which('pg_ctl') and shutil.which('gpg'), 'Linux PostgreSQL and GnuPG required')
+    @unittest.skipUnless(
+        os.name == 'posix' and os.geteuid() == 0 and shutil.which('pg_ctl') and shutil.which('gpg'),
+        'Linux PostgreSQL and GnuPG required',
+    )
     def test_real_postgres_dump_encrypt_decrypt_and_isolated_restore(self):
         import pwd
+
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             account = pwd.getpwnam('postgres')
             os.chown(root, account.pw_uid, account.pw_gid)
+
             def postgres(*args):
-                subprocess.run(['su', 'postgres', '-s', '/bin/sh', '-c', shlex.join(list(args))], check=True, stdout=subprocess.DEVNULL)
+                subprocess.run(
+                    ['su', 'postgres', '-s', '/bin/sh', '-c', shlex.join(list(args))],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                )
+
             data = root / 'data'
             postgres('initdb', '-D', str(data), '-A', 'trust')
-            postgres('pg_ctl', '-D', str(data), '-l', str(root / 'server.log'), '-o', f'-k {root} -c listen_addresses=', '-w', 'start')
+            postgres(
+                'pg_ctl',
+                '-D',
+                str(data),
+                '-l',
+                str(root / 'server.log'),
+                '-o',
+                f'-k {root} -c listen_addresses=',
+                '-w',
+                'start',
+            )
             try:
                 connection = ['-h', str(root), '-U', 'postgres']
                 subprocess.run(['createdb', *connection, 'topout'], check=True)
-                subprocess.run(['psql', *connection, '-d', 'topout', '-v', 'ON_ERROR_STOP=1', '-c',
-                    "CREATE TABLE training (id integer PRIMARY KEY, note text); INSERT INTO training VALUES (1, 'restore-check');"], check=True, stdout=subprocess.DEVNULL)
+                subprocess.run(
+                    [
+                        'psql',
+                        *connection,
+                        '-d',
+                        'topout',
+                        '-v',
+                        'ON_ERROR_STOP=1',
+                        '-c',
+                        "CREATE TABLE training (id integer PRIMARY KEY, note text); INSERT INTO training VALUES (1, 'restore-check');",
+                    ],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                )
                 key = root / 'key'
                 key.write_text('a' * 64 + '\n')
                 key.chmod(0o600)
                 archive = root / 'backup.dump.gpg'
-                backup.encrypt_dump([shutil.which('pg_dump'), *connection, '-d', 'topout', '--format=custom', '--no-owner', '--no-acl'], archive, key)
+                backup.encrypt_dump(
+                    [
+                        shutil.which('pg_dump'),
+                        *connection,
+                        '-d',
+                        'topout',
+                        '--format=custom',
+                        '--no-owner',
+                        '--no-acl',
+                    ],
+                    archive,
+                    key,
+                )
                 subprocess.run(['createdb', *connection, 'restored'], check=True)
                 home = root / 'gpg'
                 home.mkdir(mode=0o700)
-                decrypt = subprocess.Popen(['gpg', '--no-options', '--homedir', str(home), '--batch', '--pinentry-mode', 'loopback', '--no-symkey-cache', '--passphrase-file', str(key), '--decrypt', str(archive)], stdout=subprocess.PIPE)
+                decrypt = subprocess.Popen(
+                    [
+                        'gpg',
+                        '--no-options',
+                        '--homedir',
+                        str(home),
+                        '--batch',
+                        '--pinentry-mode',
+                        'loopback',
+                        '--no-symkey-cache',
+                        '--passphrase-file',
+                        str(key),
+                        '--decrypt',
+                        str(archive),
+                    ],
+                    stdout=subprocess.PIPE,
+                )
                 try:
-                    restored = subprocess.run(['pg_restore', *connection, '-d', 'restored', '--no-owner', '--no-acl', '--exit-on-error'], stdin=decrypt.stdout)
+                    restored = subprocess.run(
+                        [
+                            'pg_restore',
+                            *connection,
+                            '-d',
+                            'restored',
+                            '--no-owner',
+                            '--no-acl',
+                            '--exit-on-error',
+                        ],
+                        stdin=decrypt.stdout,
+                    )
                     decrypt.stdout.close()
                     self.assertEqual(decrypt.wait(), 0)
                     self.assertEqual(restored.returncode, 0)
-                    result = subprocess.run(['psql', *connection, '-d', 'restored', '-At', '-c', 'SELECT note FROM training WHERE id = 1'], check=True, capture_output=True, text=True)
+                    result = subprocess.run(
+                        [
+                            'psql',
+                            *connection,
+                            '-d',
+                            'restored',
+                            '-At',
+                            '-c',
+                            'SELECT note FROM training WHERE id = 1',
+                        ],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
                     self.assertEqual(result.stdout.strip(), 'restore-check')
                 finally:
-                    if not decrypt.stdout.closed: decrypt.stdout.close()
-                    if decrypt.poll() is None: decrypt.terminate(); decrypt.wait()
-                    subprocess.run(['gpgconf', '--homedir', str(home), '--kill', 'gpg-agent'], check=False)
+                    if not decrypt.stdout.closed:
+                        decrypt.stdout.close()
+                    if decrypt.poll() is None:
+                        decrypt.terminate()
+                        decrypt.wait()
+                    subprocess.run(
+                        ['gpgconf', '--homedir', str(home), '--kill', 'gpg-agent'], check=False
+                    )
             finally:
                 postgres('pg_ctl', '-D', str(data), '-m', 'fast', '-w', 'stop')
 
@@ -65,7 +157,9 @@ class BackupTests(unittest.TestCase):
             self.assertIn('label=com.docker.compose.project=topout-prod', command)
             self.assertIn('label=com.docker.compose.service=postgres', command)
         for output in ['', 'abc', 'a' * 64 + '\n' + 'b' * 64]:
-            with patch.object(backup.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, output)):
+            with patch.object(
+                backup.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, output)
+            ):
                 with self.assertRaises(RuntimeError):
                     backup.postgres_container()
 
@@ -147,19 +241,39 @@ class BackupTests(unittest.TestCase):
             self.assertNotIn(b'private-training-data', archive.read_bytes())
             home = root / 'gpg'
             home.mkdir(mode=0o700)
+
             def decrypt(secret):
-                return subprocess.run(['gpg', '--no-options', '--homedir', str(home), '--batch',
-                    '--pinentry-mode', 'loopback', '--no-symkey-cache', '--passphrase-file', str(secret),
-                    '--decrypt', str(archive)], capture_output=True)
+                return subprocess.run(
+                    [
+                        'gpg',
+                        '--no-options',
+                        '--homedir',
+                        str(home),
+                        '--batch',
+                        '--pinentry-mode',
+                        'loopback',
+                        '--no-symkey-cache',
+                        '--passphrase-file',
+                        str(secret),
+                        '--decrypt',
+                        str(archive),
+                    ],
+                    capture_output=True,
+                )
+
             try:
                 restored = decrypt(key)
                 self.assertEqual(restored.returncode, 0, restored.stderr)
                 self.assertEqual(restored.stdout, payload)
                 self.assertNotEqual(decrypt(wrong).returncode, 0)
             finally:
-                subprocess.run(['gpgconf', '--homedir', str(home), '--kill', 'gpg-agent'], check=False)
+                subprocess.run(
+                    ['gpgconf', '--homedir', str(home), '--kill', 'gpg-agent'], check=False
+                )
 
-    @unittest.skipUnless(os.name == 'posix' and os.geteuid() == 0, 'root POSIX backup orchestration')
+    @unittest.skipUnless(
+        os.name == 'posix' and os.geteuid() == 0, 'root POSIX backup orchestration'
+    )
     def test_failed_backup_preserves_old_archives_and_cleans_partial_output(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -169,10 +283,13 @@ class BackupTests(unittest.TestCase):
             old = root / 'topout-20260901T033000Z-1234abcd.dump.gpg'
             old.write_bytes(b'keep')
             os.utime(old, (0, 0))
-            with patch.object(backup, 'KEY', key), patch.object(backup, 'BACKUPS', root), \
-                 patch.object(backup, 'LOCK', root / 'lock'), \
-                 patch.object(backup, 'postgres_container', return_value='a' * 64), \
-                 patch.object(backup, 'encrypt_dump', side_effect=RuntimeError('dump failed')):
+            with (
+                patch.object(backup, 'KEY', key),
+                patch.object(backup, 'BACKUPS', root),
+                patch.object(backup, 'LOCK', root / 'lock'),
+                patch.object(backup, 'postgres_container', return_value='a' * 64),
+                patch.object(backup, 'encrypt_dump', side_effect=RuntimeError('dump failed')),
+            ):
                 with self.assertRaises(RuntimeError):
                     backup.backup()
             self.assertTrue(old.exists())

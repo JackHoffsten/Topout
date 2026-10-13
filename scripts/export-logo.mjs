@@ -14,8 +14,10 @@ try {
     ['topout-ios-icon.png', 1024, '#297AA0', true],
   ]) {
     const page = await browser.newPage({ viewport: { width: size, height: size } });
-    const source = svg.replace('width="512" height="512"', `width="${size}" height="${size}"`)
-      .replace('#297AA0', color).replace('rx="4"', square ? 'rx="0"' : 'rx="4"');
+    const source = svg
+      .replace('width="512" height="512"', `width="${size}" height="${size}"`)
+      .replace('#297AA0', color)
+      .replace('rx="4"', square ? 'rx="0"' : 'rx="4"');
     await page.setContent(`<style>html,body{margin:0}svg{display:block}</style>${source}`);
     await page.screenshot({ path: fileURLToPath(new URL(name, assets)), omitBackground: !square });
     await page.close();

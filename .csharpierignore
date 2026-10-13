@@ -1,3 +1,4 @@
 node_modules/
-bin/
-obj/
+**/bin/**
+**/obj/**
+server/src/Topout.Infrastructure/Persistence/Migrations/**

@@ -26,7 +26,11 @@
     "android": "npm run android --workspace @topout/app",
     "ios": "npm run ios --workspace @topout/app",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "format:backend": "dotnet tool run csharpier -- format server",
+    "format:backend:check": "dotnet tool run csharpier -- check server",
+    "format:python": "python -m ruff format deploy",
+    "format:python:check": "python -m ruff format --check deploy"
   },
   "overrides": {
     "react": "19.2.3",

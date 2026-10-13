@@ -1,5 +1,6 @@
 #!/usr/bin/python3 -I
 """Install root-owned as /usr/local/sbin/topout-deploy; accepts only current main."""
+
 import json
 import os
 from pathlib import Path
@@ -11,7 +12,12 @@ import urllib.request
 
 ROOT = Path('/var/lib/topout')
 REPO = 'https://github.com/JackHoffsten/Topout.git'
-ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'HOME': '/root', 'LANG': 'C.UTF-8', 'DOCKER_HOST': 'unix:///var/run/docker.sock'}
+ENV = {
+    'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+    'HOME': '/root',
+    'LANG': 'C.UTF-8',
+    'DOCKER_HOST': 'unix:///var/run/docker.sock',
+}
 
 
 def run(*args, **kwargs):
@@ -21,11 +27,22 @@ def run(*args, **kwargs):
 def release_directory(sha):
     return ROOT / 'releases' / sha
 
+
 def compose(sha, *args):
     release = release_directory(sha)
     return subprocess.run(
-        ['docker', 'compose', '--project-directory', str(release), '-f', str(release / 'compose.prod.yaml'), *args],
-        env={**ENV, 'RELEASE_SHA': sha}, check=True)
+        [
+            'docker',
+            'compose',
+            '--project-directory',
+            str(release),
+            '-f',
+            str(release / 'compose.prod.yaml'),
+            *args,
+        ],
+        env={**ENV, 'RELEASE_SHA': sha},
+        check=True,
+    )
 
 
 def remote_sha():
@@ -42,15 +59,24 @@ def save_state(state):
 def prepare_release(source, sha):
     release = release_directory(sha)
     release.mkdir(mode=0o700, parents=True, exist_ok=True)
-    for src, dest in [('compose.prod.yaml', 'compose.prod.yaml'),
-                      ('deploy/postgres-init.sh', 'postgres-init.sh')]:
+    for src, dest in [
+        ('compose.prod.yaml', 'compose.prod.yaml'),
+        ('deploy/postgres-init.sh', 'postgres-init.sh'),
+    ]:
         target = release / dest
         target.write_bytes((source / src).read_bytes())
         target.chmod(0o644)
-    for dockerfile, image in [('server/Dockerfile', 'backend'),
-                              ('apps/app/Dockerfile', 'gateway')]:
-        run('docker', 'build', '--pull', '-f', str(source / dockerfile),
-            '-t', f'topout-{image}:{sha}', str(source))
+    for dockerfile, image in [('server/Dockerfile', 'backend'), ('apps/app/Dockerfile', 'gateway')]:
+        run(
+            'docker',
+            'build',
+            '--pull',
+            '-f',
+            str(source / dockerfile),
+            '-t',
+            f'topout-{image}:{sha}',
+            str(source),
+        )
 
 
 class ProductionExecution:
@@ -68,7 +94,9 @@ class ProductionExecution:
         if not source.exists():
             run('git', 'clone', '--no-checkout', REPO, str(source))
         run('git', '-C', str(source), 'fetch', '--force', 'origin', 'main')
-        fetched = run('git', '-C', str(source), 'rev-parse', 'FETCH_HEAD', capture_output=True, text=True).stdout.strip()
+        fetched = run(
+            'git', '-C', str(source), 'rev-parse', 'FETCH_HEAD', capture_output=True, text=True
+        ).stdout.strip()
         if fetched == sha:
             run('git', '-C', str(source), 'checkout', '--detach', '--force', sha)
         return fetched
@@ -114,7 +142,9 @@ def deploy_release(sha, execution):
         execution.smoke_test()
     except Exception:
         if previous:
-            execution.compose(previous, 'up', '-d', '--wait', '--wait-timeout', '180', 'backend', 'gateway')
+            execution.compose(
+                previous, 'up', '-d', '--wait', '--wait-timeout', '180', 'backend', 'gateway'
+            )
             print(f'Rolled images back to {previous}; database was not restored', file=sys.stderr)
         else:
             execution.compose(sha, 'stop', 'backend', 'gateway')
@@ -124,9 +154,15 @@ def deploy_release(sha, execution):
 
 
 def main():
-    if not hasattr(os, 'geteuid') or os.geteuid() != 0 or len(sys.argv) != 2 or not re.fullmatch('[0-9a-f]{40}', sys.argv[1]):
+    if (
+        not hasattr(os, 'geteuid')
+        or os.geteuid() != 0
+        or len(sys.argv) != 2
+        or not re.fullmatch('[0-9a-f]{40}', sys.argv[1])
+    ):
         raise SystemExit('Usage (root): topout-deploy <full lowercase Git SHA>')
     import fcntl
+
     ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
     with (ROOT / 'operations.lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)

@@ -14,5 +14,5 @@ public enum MuscleGroup
     Glutes = 9,
     Calves = 10,
     Core = 11,
-    FullBody = 12
+    FullBody = 12,
 }
