@@ -327,6 +327,14 @@ export class ApiClient {
     );
   }
 
+  removeWorkoutExercise(scheduleId: number, exerciseId: number) {
+    return this.request(
+      `/api/workout-schedule/${scheduleId}/log/exercises/${exerciseId}`,
+      workoutLoggingSchema,
+      'DELETE',
+    );
+  }
+
   removeWorkoutSet(
     scheduleId: number,
     exerciseId: number,

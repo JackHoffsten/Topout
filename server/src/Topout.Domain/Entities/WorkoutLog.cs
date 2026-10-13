@@ -12,6 +12,7 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
     public DateTime? UpdatedAt { get; set; }
     public DateTime? CompletedAt { get; private set; }
     public bool IsCompleted => CompletedAt is not null;
+    public int[] RemovedExerciseIds { get; private set; } = [];
 
     private readonly List<WorkoutLogEntry> _entries = [];
     public IReadOnlyList<WorkoutLogEntry> Entries => _entries;
@@ -108,6 +109,19 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
             _entries.Add(entry);
         }
         entry.RecordSet(order, reps, weight, warmup, notes, side);
+        RemovedExerciseIds = RemovedExerciseIds.Where(id => id != exercise.Id).ToArray();
+    }
+
+    public void RemoveExercise(int exerciseId)
+    {
+        if (exerciseId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(exerciseId));
+        if (IsCompleted && !_entries.Any(e => e.ExerciseId != exerciseId && e.Sets.Count > 0))
+            throw new InvalidOperationException(
+                "A completed workout needs at least one exercise with a logged set."
+            );
+        _entries.RemoveAll(e => e.ExerciseId == exerciseId);
+        RemovedExerciseIds = [.. RemovedExerciseIds.Append(exerciseId).Distinct()];
     }
 
     public void RemoveRecordedSet(int exerciseId, int order, SetSide side = SetSide.Both)
@@ -147,6 +161,9 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
                 );
         }
         CompletedAt = completedAt;
+        RemovedExerciseIds = RemovedExerciseIds
+            .Where(id => !source.Entries.Any(e => e.ExerciseId == id))
+            .ToArray();
     }
 
     private void Reorder()

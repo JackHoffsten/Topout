@@ -28,7 +28,8 @@ public sealed record WorkoutLogResponse(
     string? Notes,
     DateTime? CompletedAt,
     IReadOnlyList<LoggedExerciseResponse> Exercises,
-    string? Location = null
+    string? Location = null,
+    IReadOnlyList<int>? RemovedExerciseIds = null
 )
 {
     public static WorkoutLogResponse From(WorkoutLog log) =>
@@ -53,6 +54,7 @@ public sealed record WorkoutLogResponse(
                         .ToArray()
                 ))
                 .ToArray(),
-            log.Location
+            log.Location,
+            log.RemovedExerciseIds
         );
 }

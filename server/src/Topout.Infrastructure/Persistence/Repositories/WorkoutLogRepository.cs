@@ -9,6 +9,27 @@ namespace Topout.Infrastructure.Persistence.Repositories;
 
 internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogRepository
 {
+    public async Task RemoveExerciseAsync(
+        int userId,
+        int scheduleId,
+        int exerciseId,
+        CancellationToken ct
+    )
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var schedule = await LockAsync(userId, scheduleId, ct);
+        var log = schedule.WorkoutLog;
+        if (log is null)
+        {
+            log = new WorkoutLog(userId, schedule.Date);
+            schedule.StartLog(log);
+            db.WorkoutLogs.Add(log);
+        }
+        WorkoutMutation.Apply(() => log.RemoveExercise(exerciseId));
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+    }
+
     public async Task SetLocationAsync(
         int userId,
         int scheduleId,

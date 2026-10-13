@@ -52,6 +52,7 @@ export const completeWorkoutInputSchema = z
 export type CompleteWorkoutInput = z.input<typeof completeWorkoutInputSchema>;
 
 export const workoutLogSchema = z.object({
+  removedExerciseIds: z.array(z.number().int().positive()).optional(),
   location: z.string().nullable().optional(),
   id: z.number().int().positive(),
   date: z.iso.date(),

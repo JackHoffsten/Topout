@@ -67,6 +67,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
   const [discard, setDiscard] = useState(false);
+  const [removingExercise, setRemovingExercise] = useState<DraftExercise>();
   const [normalSet, setNormalSet] = useState<{ exerciseId: number; order: number }>();
   const [picker, setPicker] = useState(false);
   const [search, setSearch] = useState('');
@@ -160,7 +161,18 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
       await refreshTraining(cache, 'workout');
     },
   });
+  const removeExercise = useMutation({
+    mutationFn: (exerciseId: number) => api.removeWorkoutExercise(workout.scheduleId, exerciseId),
+    onSuccess: async (response, exerciseId) => {
+      setItems((current) => current.filter((item) => item.exercise.id !== exerciseId));
+      setRemovingExercise(undefined);
+      setErrors({});
+      cache.setQueryData(workoutLoggingKey(workout.scheduleId), response);
+      await refreshTraining(cache, 'workout');
+    },
+  });
   const busy =
+    removeExercise.isPending ||
     save.isPending ||
     record.isPending ||
     remove.isPending ||
@@ -497,8 +509,8 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
                       variant="secondary"
                       disabled={busy}
                       onPress={() => {
-                        setItems(items.filter((_, n) => n !== i));
-                        changed();
+                        removeExercise.reset();
+                        setRemovingExercise(item);
                       }}
                     />
                   </View>
@@ -606,13 +618,13 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
           )}
           <Label small muted>
             {workout.log?.completedAt
-              ? 'Save set saves that set immediately. Save changes also saves notes and exercise changes.'
+              ? 'Save set and confirmed exercise removals save immediately. Save changes also saves notes and other exercise changes.'
               : 'Blank fields use the shown previous or planned values. Log each set to save it immediately. Remove sets you did not complete before finishing.'}
           </Label>
           <Button
             title={workout.log?.completedAt ? 'Save changes' : 'Finish workout'}
             busy={save.isPending}
-            disabled={record.isPending || remove.isPending || updateTemplateSet.isPending}
+            disabled={busy}
             onPress={finish}
           />
           <Button
@@ -620,6 +632,19 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
             variant="secondary"
             disabled={busy}
             onPress={() => (dirty ? setDiscard(true) : router.replace('/calendar'))}
+          />
+          <ConfirmDialog
+            visible={!!removingExercise}
+            title={`Remove ${removingExercise?.exercise.name ?? 'exercise'}?`}
+            description={`This exercise will be removed from this workout immediately.${workout.log?.exercises.some((entry) => entry.exercise.id === removingExercise?.exercise.id && entry.sets.length > 0) ? ' Its logged sets will also be deleted.' : ''}`}
+            confirmLabel="Confirm removal"
+            cancelLabel="Keep exercise"
+            busy={removeExercise.isPending}
+            error={removeExercise.isError ? errorMessage(removeExercise.error) : undefined}
+            onCancel={() => setRemovingExercise(undefined)}
+            onConfirm={() => {
+              if (removingExercise) removeExercise.mutate(removingExercise.exercise.id);
+            }}
           />
           <ConfirmDialog
             visible={discard}

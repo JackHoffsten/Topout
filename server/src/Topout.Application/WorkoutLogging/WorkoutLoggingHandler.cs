@@ -167,6 +167,18 @@ public sealed class WorkoutLoggingHandler(
     public Task DeleteAsync(int scheduleId, CancellationToken ct) =>
         logs.DeleteAsync(user.UserId, scheduleId, ct);
 
+    public async Task<WorkoutLoggingResponse> RemoveExerciseAsync(
+        int scheduleId,
+        int exerciseId,
+        CancellationToken ct
+    )
+    {
+        if (!(await exercises.ListAsync(user.UserId, ct)).Any(e => e.Id == exerciseId))
+            throw new RequestException(ErrorKind.NotFound, "Exercise not found.");
+        await logs.RemoveExerciseAsync(user.UserId, scheduleId, exerciseId, ct);
+        return await GetAsync(scheduleId, ct);
+    }
+
     public async Task<WorkoutLoggingResponse> SetLocationAsync(
         int scheduleId,
         string? location,

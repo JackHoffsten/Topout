@@ -15,6 +15,89 @@ namespace Topout.IntegrationTests;
 public class WorkoutLoggingApiTests(ApiFixture fixture)
 {
     [Fact]
+    public async Task Exercise_removal_persists_before_completion_deletes_sets_and_keeps_the_template()
+    {
+        using var client = await Client();
+        using var other = await Client();
+        var (plan, _, exercise) = await Plan(client);
+        var url = $"/api/workout-schedule/{plan.Id}/log";
+        var removal = url + $"/exercises/{exercise.Id}";
+        Assert.Equal(HttpStatusCode.NotFound, (await other.DeleteAsync(removal)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.DeleteAsync(removal)).StatusCode);
+        var removed = (
+            await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+        )!;
+        Assert.Null(removed.Log!.CompletedAt);
+        Assert.Empty(removed.Log.Exercises);
+        Assert.Contains(exercise.Id, removed.Log.RemovedExerciseIds!);
+        Assert.Contains(removed.Template!.Exercises, e => e.Exercise.Id == exercise.Id);
+        await client.PutAsJsonAsync(
+            url + "/sets",
+            new RecordSetInput(exercise.Id, 1, 8, 20, false, null)
+        );
+        var restored = (
+            await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+        )!;
+        Assert.Empty(restored.Log!.RemovedExerciseIds!);
+        Assert.Single(restored.Log.Exercises);
+        Assert.Equal(HttpStatusCode.OK, (await client.DeleteAsync(removal)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.DeleteAsync(removal)).StatusCode);
+        removed = (
+            await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+        )!;
+        Assert.Empty(removed.Log!.Exercises);
+        Assert.Single(removed.Log.RemovedExerciseIds!);
+        await client.PostAsJsonAsync(url, Input(exercise.Id));
+        Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync(removal)).StatusCode);
+        Assert.Single(
+            (await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json))!
+                .Log!
+                .Exercises
+        );
+    }
+
+    [Fact]
+    public async Task Completed_exercise_removal_keeps_other_results_and_completion_time()
+    {
+        using var client = await Client();
+        var (plan, _, exercise) = await Plan(client);
+        var second = (
+            await client.GetFromJsonAsync<ExerciseResponse[]>(
+                "/api/exercises",
+                ExerciseApiTests.Json
+            )
+        )!.First(e => e.Id != exercise.Id);
+        var url = $"/api/workout-schedule/{plan.Id}/log";
+        var input = new CompleteWorkoutInput(
+            "Keep notes",
+            [
+                new(exercise.Id, [new(8, 20, false, null)]),
+                new(second.Id, [new(10, 30, false, null)]),
+            ]
+        );
+        (await client.PostAsJsonAsync(url, input, ExerciseApiTests.Json)).EnsureSuccessStatusCode();
+        var before = (
+            await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+        )!;
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.DeleteAsync(url + $"/exercises/{exercise.Id}")).StatusCode
+        );
+        var after = (
+            await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+        )!;
+        Assert.Equal(before.Log!.CompletedAt, after.Log!.CompletedAt);
+        Assert.Equal("Keep notes", after.Log.Notes);
+        var remaining = Assert.Single(after.Log.Exercises);
+        Assert.Equal(second.Id, remaining.Exercise.Id);
+        Assert.Equal(10, Assert.Single(remaining.Sets).Reps);
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (await client.DeleteAsync(url + $"/exercises/{second.Id}")).StatusCode
+        );
+    }
+
+    [Fact]
     public async Task Locations_are_saved_cleared_suggested_and_scoped_to_the_account()
     {
         using var client = await Client();

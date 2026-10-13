@@ -36,6 +36,7 @@ const mockApi = {
   updateWorkout: jest.fn<(...args: any[]) => Promise<any>>(),
   recordWorkoutSet: jest.fn<(...args: any[]) => Promise<any>>(),
   removeWorkoutSet: jest.fn<(...args: any[]) => Promise<any>>(),
+  removeWorkoutExercise: jest.fn<(...args: any[]) => Promise<any>>(),
   updateWorkoutTemplate: jest.fn<(...args: any[]) => Promise<any>>(),
   listExercises: jest.fn<() => Promise<any[]>>(),
   listLogLocations: jest.fn<() => Promise<string[]>>(),
@@ -66,6 +67,55 @@ async function mount(label = 'Row set 1 reps') {
   );
   await screen.findByLabelText(label);
 }
+
+test('exercise removal requires confirmation and saves immediately; adding back starts fresh', async () => {
+  const current = matchingWorkout();
+  current.log!.completedAt = null;
+  mockApi.getWorkoutLogging.mockResolvedValue(current);
+  mockApi.removeWorkoutExercise.mockResolvedValue({
+    ...current,
+    log: { ...current.log, exercises: [], removedExerciseIds: [1] },
+  });
+  await mount();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Remove Row' }));
+  expect(screen.getByText('Remove Row?')).toBeTruthy();
+  expect(screen.getByText(/Its logged sets will also be deleted/)).toBeTruthy();
+  expect(mockApi.removeWorkoutExercise).not.toHaveBeenCalled();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Keep exercise' }));
+  expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('10');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Remove Row' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Confirm removal' }));
+  await waitFor(() => expect(screen.queryByLabelText('Row set 1 reps')).toBeNull());
+  expect(mockApi.removeWorkoutExercise).toHaveBeenCalledWith(2, 1);
+  expect(mockApi.completeWorkout).not.toHaveBeenCalled();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Add exercise' }));
+  await fireEventAsync.press(await screen.findByRole('button', { name: 'Add Row' }));
+  expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('');
+});
+
+test('failed removal keeps the exercise and shows a retryable error', async () => {
+  mockApi.removeWorkoutExercise.mockRejectedValueOnce(new Error('Offline'));
+  mockApi.removeWorkoutExercise.mockResolvedValueOnce({
+    ...workout,
+    log: {
+      id: 3,
+      date: workout.date,
+      notes: null,
+      completedAt: null,
+      exercises: [],
+      removedExerciseIds: [1],
+    },
+  });
+  await mount();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Remove Row' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Confirm removal' }));
+  expect(
+    await screen.findByText('Could not connect. Check your connection and try again.'),
+  ).toBeTruthy();
+  expect(screen.getByLabelText('Row set 1 reps')).toBeTruthy();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Confirm removal' }));
+  await waitFor(() => expect(screen.queryByLabelText('Row set 1 reps')).toBeNull());
+});
 
 test('missing defaults stay empty and cannot be logged without reps', async () => {
   mockApi.getWorkoutLogging.mockResolvedValue({

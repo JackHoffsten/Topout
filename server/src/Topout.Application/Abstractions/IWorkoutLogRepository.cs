@@ -5,6 +5,7 @@ namespace Topout.Application.Abstractions;
 
 public interface IWorkoutLogRepository
 {
+    Task RemoveExerciseAsync(int userId, int scheduleId, int exerciseId, CancellationToken ct);
     Task SetLocationAsync(int userId, int scheduleId, string? location, CancellationToken ct);
     Task<IReadOnlyList<Topout.Application.WorkoutLogging.PreviousSetResponse>> PreviousSetsAsync(
         int userId,

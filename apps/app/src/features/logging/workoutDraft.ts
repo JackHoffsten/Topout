@@ -31,51 +31,53 @@ export function restoreWorkoutDraft(workout: WorkoutLogging): DraftExercise[] {
           (e) => !workout.template?.exercises.some((t) => t.exercise.id === e.exercise.id),
         ),
       ];
-  return sources.map((item) => {
-    const actual = recorded.find((e) => e.exercise.id === item.exercise.id)?.sets ?? [];
-    const targets = workout.log?.completedAt
-      ? []
-      : (workout.template?.exercises.find((e) => e.exercise.id === item.exercise.id)?.sets ?? []);
-    const orders = workout.log?.completedAt
-      ? [...new Set(actual.map((s) => s.order))]
-      : Array.from(
-          { length: Math.max(targets.length, ...actual.map((s) => s.order), 1) },
-          (_, i) => i + 1,
-        );
-    return {
-      exercise: item.exercise,
-      sets: orders.flatMap((order) => {
-        const results = actual.filter((s) => s.order === order);
-        const planned = targets[order - 1];
-        const sides: DraftSet['side'][] =
-          results.some((s) => (s.side ?? 'Both') !== 'Both') ||
-          (!results.length && !!planned?.rightTarget)
-            ? workout.log?.completedAt
-              ? results.map((s) => s.side)
-              : ['Left', 'Right']
-            : ['Both'];
-        return sides.map((side) => {
-          const target =
-            side === 'Right' && planned?.rightTarget
-              ? { ...planned, ...planned.rightTarget }
-              : planned;
-          const set = actual.find((s) => s.order === order && (s.side ?? 'Both') === side);
-          const draft = set
-            ? {
-                reps: String(set.reps),
-                side,
-                weight: String(set.weightKg),
-                warmup: set.isWarmup,
-                notes: set.notes ?? '',
-                order,
-                target,
-              }
-            : { ...blankSet(target, order), side };
-          return set ? { ...draft, saved: signature(draft) } : draft;
-        });
-      }),
-    };
-  });
+  return sources
+    .filter((item) => !workout.log?.removedExerciseIds?.includes(item.exercise.id))
+    .map((item) => {
+      const actual = recorded.find((e) => e.exercise.id === item.exercise.id)?.sets ?? [];
+      const targets = workout.log?.completedAt
+        ? []
+        : (workout.template?.exercises.find((e) => e.exercise.id === item.exercise.id)?.sets ?? []);
+      const orders = workout.log?.completedAt
+        ? [...new Set(actual.map((s) => s.order))]
+        : Array.from(
+            { length: Math.max(targets.length, ...actual.map((s) => s.order), 1) },
+            (_, i) => i + 1,
+          );
+      return {
+        exercise: item.exercise,
+        sets: orders.flatMap((order) => {
+          const results = actual.filter((s) => s.order === order);
+          const planned = targets[order - 1];
+          const sides: DraftSet['side'][] =
+            results.some((s) => (s.side ?? 'Both') !== 'Both') ||
+            (!results.length && !!planned?.rightTarget)
+              ? workout.log?.completedAt
+                ? results.map((s) => s.side)
+                : ['Left', 'Right']
+              : ['Both'];
+          return sides.map((side) => {
+            const target =
+              side === 'Right' && planned?.rightTarget
+                ? { ...planned, ...planned.rightTarget }
+                : planned;
+            const set = actual.find((s) => s.order === order && (s.side ?? 'Both') === side);
+            const draft = set
+              ? {
+                  reps: String(set.reps),
+                  side,
+                  weight: String(set.weightKg),
+                  warmup: set.isWarmup,
+                  notes: set.notes ?? '',
+                  order,
+                  target,
+                }
+              : { ...blankSet(target, order), side };
+            return set ? { ...draft, saved: signature(draft) } : draft;
+          });
+        }),
+      };
+    });
 }
 export function draftDefaults(workout: WorkoutLogging, exerciseId: number, set: DraftSet) {
   const previous = workout.previousSets?.find(

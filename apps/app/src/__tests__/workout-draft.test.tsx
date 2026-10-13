@@ -34,6 +34,22 @@ const workout = {
   },
 } as WorkoutLogging;
 
+test('reopening an unfinished workout excludes removed template exercises', () => {
+  expect(
+    restoreWorkoutDraft({
+      ...workout,
+      log: {
+        id: 3,
+        date: workout.date,
+        notes: null,
+        completedAt: null,
+        exercises: [],
+        removedExerciseIds: [1],
+      },
+    }),
+  ).toEqual([]);
+});
+
 test('restored targets can split, retain left values when merged, and reconcile a saved side', () => {
   const restored = restoreWorkoutDraft(workout);
   const split = splitDraftSet(restored, 1, 1);

@@ -12,6 +12,14 @@ public sealed class WorkoutLoggingController : ControllerBase
 {
     public sealed record LocationInput(string? Location);
 
+    [HttpDelete("exercises/{exerciseId:int:min(1)}")]
+    public async Task<IActionResult> RemoveExercise(
+        int scheduleId,
+        int exerciseId,
+        [FromServices] WorkoutLoggingHandler handler,
+        CancellationToken ct
+    ) => Ok(await handler.RemoveExerciseAsync(scheduleId, exerciseId, ct));
+
     [HttpPut("location")]
     public async Task<IActionResult> SetLocation(
         int scheduleId,
