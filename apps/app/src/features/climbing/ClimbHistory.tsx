@@ -151,7 +151,7 @@ export function ClimbHistory() {
       setExpanded(undefined);
       if (selectedId === id) router.replace('/climbs');
       cache.removeQueries({ queryKey: ['climb-logs', 'detail', id] });
-      await refreshTraining(cache, 'climb');
+      await refreshTraining(cache, 'climb', id);
     },
   });
   return (
