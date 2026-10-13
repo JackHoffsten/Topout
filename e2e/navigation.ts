@@ -2,7 +2,9 @@ import { expect, type Page } from '@playwright/test';
 
 export async function navigate(page: Page, name: string) {
   const menu = page.getByRole('button', { name: 'Open navigation', exact: true });
+  const destination = page.getByRole('link', { name, exact: true });
+  await expect(menu.or(destination).first()).toBeVisible();
   if (await menu.isVisible()) await menu.click();
-  await page.getByRole('link', { name, exact: true }).click();
+  await destination.click();
   await expect(page.getByTestId('phone-navigation')).toBeHidden();
 }

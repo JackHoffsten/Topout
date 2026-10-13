@@ -42,7 +42,7 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
   await navigate(page, 'Calendar');
   await page.getByRole('button', { name: 'Plan workout', exact: true }).click();
   await page.getByRole('button', { name: 'Schedule Pull', exact: true }).click();
-  await page.getByRole('link', { name: 'Log workout', exact: true }).click();
+  await page.getByRole('button', { name: 'Log workout', exact: true }).click();
   await page
     .getByRole('button', { name: 'Unsplit Barbell Row set 2 left/right', exact: true })
     .click();
@@ -134,7 +134,7 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
   await page.reload();
   await expect(page.getByText('Updated notes', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Back to Calendar', exact: true }).click();
-  await expect(page.getByText('Completed', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'View workout log', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add rest day', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: /workout logged/ })).toBeVisible();
   if (info.project.name === 'phone') await page.setViewportSize({ width: 320, height: 844 });
@@ -143,12 +143,12 @@ test('logs actual sets, completes the calendar plan, and restores the workout re
     true,
   );
   await expect(page.getByRole('button', { name: 'Remove Pull', exact: true })).toHaveCount(0);
-  await page.getByRole('link', { name: 'View workout log', exact: true }).click();
+  await page.getByRole('button', { name: 'View workout log', exact: true }).click();
   await expect(page.getByText('Updated notes', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Back to Calendar', exact: true }).click();
   await page.getByRole('button', { name: 'Remove log for Pull', exact: true }).click();
   await page.getByRole('button', { name: 'Keep log', exact: true }).click();
-  await expect(page.getByText('Completed', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'View workout log', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Remove log for Pull', exact: true }).click();
   await page.getByRole('button', { name: 'Remove workout log', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Remove Pull', exact: true })).toBeVisible();
