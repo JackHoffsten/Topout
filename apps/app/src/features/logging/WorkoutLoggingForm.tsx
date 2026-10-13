@@ -15,8 +15,8 @@ import {
   type DraftExercise,
 } from './workoutDraft';
 import { refreshTraining } from '../training/queries';
-import { useRef, useState } from 'react';
-import { Pressable, View, type ScrollView } from 'react-native';
+import { useState } from 'react';
+import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -46,6 +46,7 @@ import {
   type TemplateSetSelection,
 } from './templateFromLog';
 import { displayDate } from '../../lib/dates';
+import { useAutoScroll } from '../../ui/useAutoScroll';
 
 export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
   const defaults = (exerciseId: number, set: DraftSet) => draftDefaults(workout, exerciseId, set);
@@ -57,7 +58,8 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
   const [items, setItems] = useState<DraftExercise[]>(() => restoreWorkoutDraft(workout));
   const [notes, setNotes] = useState(workout.log?.notes ?? '');
   const [location, setLocation] = useState(workout.log?.location ?? '');
-  const scrollRef = useRef<ScrollView>(null);
+  const autoScroll = useAutoScroll();
+  const scrollRef = autoScroll.scrollRef;
   const saveLocation = useMutation({
     mutationFn: (value: string) => api.setWorkoutLocation(workout.scheduleId, value.trim() || null),
     onSuccess: async (response) => {
@@ -219,6 +221,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
       setSearch('');
       setErrors({});
       cache.setQueryData(workoutLoggingKey(workout.scheduleId), response);
+      autoScroll.restore();
       await refreshTraining(cache, 'workout');
     },
   });
@@ -297,7 +300,11 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
     save.mutate(parsed.data);
   };
   return (
-    <Page scrollRef={scrollRef}>
+    <Page
+      scrollRef={scrollRef}
+      onScroll={autoScroll.onScroll}
+      onContentSizeChange={autoScroll.onContentSizeChange}
+    >
       <Heading large>
         {workout.log?.completedAt ? (editing ? 'Edit workout' : 'Workout log') : 'Log workout'}
       </Heading>
@@ -561,6 +568,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
                       variant="secondary"
                       disabled={busy}
                       onPress={() => {
+                        autoScroll.remember();
                         replaceExercise.reset();
                         setReplacingExercise(item);
                         setReplacementChoice(undefined);

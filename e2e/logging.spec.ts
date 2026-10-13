@@ -1,6 +1,111 @@
 import { test, expect } from '@playwright/test';
 import { navigate } from './navigation';
 
+test('returns to the exercise viewing position after replacement and confirmation', async ({
+  page,
+}, info) => {
+  test.setTimeout(120000);
+  const csrf = await (await page.request.get('/api/auth/web/csrf')).json();
+  const registration = await page.request.post('/api/auth/web/register', {
+    headers: { Origin: 'https://localhost:8443', 'X-CSRF-Token': csrf.csrfToken },
+    data: {
+      displayName: 'Replacement position tester',
+      email: `replacement-position-${Date.now()}-${info.project.name}@example.com`,
+      password: 'StrongPassword123!',
+    },
+  });
+  expect(registration.ok(), await registration.text()).toBe(true);
+  const { accessToken } = await registration.json();
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const library: { id: number; name: string }[] = await (
+    await page.request.get('/api/exercises', { headers })
+  ).json();
+  const exercises = ['Barbell Row', 'Bench Press', 'Back Squat'].map(
+    (name) => library.find((exercise) => exercise.name === name)!,
+  );
+  const replacement = library.find(
+    (exercise) => !exercises.some((item) => item.id === exercise.id),
+  )!;
+  const template = await (
+    await page.request.post('/api/workout-templates', {
+      headers,
+      data: {
+        name: 'Replacement position',
+        exercises: exercises.map((exercise) => ({
+          exerciseId: exercise.id,
+          sets: [
+            {
+              targetRepsMin: 8,
+              targetRepsMax: null,
+              targetWeightKg: 40,
+              isWarmup: false,
+              isAmrap: false,
+              rightTarget: null,
+            },
+          ],
+        })),
+      },
+    })
+  ).json();
+  const today = new Date();
+  const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const schedule = await (
+    await page.request.post('/api/workout-schedule', {
+      headers,
+      data: { date, templateId: template.id },
+    })
+  ).json();
+  await page.goto(`/workouts/${schedule.id}`);
+  const scrollPosition = (element: HTMLElement) => {
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+      if (
+        /^(auto|scroll)$/.test(getComputedStyle(parent).overflowY) &&
+        parent.scrollHeight > parent.clientHeight
+      )
+        return parent.scrollTop;
+    }
+    throw new Error('Workout scroll container not found.');
+  };
+  const original = page.getByRole('button', { name: 'Replace Bench Press', exact: true });
+  await original.scrollIntoViewIfNeeded();
+  const beforeReplacement = await original.evaluate(scrollPosition);
+  await original.click();
+  await page.getByLabel('Search exercises', { exact: true }).fill(replacement.name);
+  await page.getByRole('button', { name: `Replace with ${replacement.name}`, exact: true }).click();
+  const updated = page.getByRole('button', { name: `Replace ${replacement.name}`, exact: true });
+  await expect(updated).toHaveCount(1);
+  await expect
+    .poll(async () => Math.abs((await updated.evaluate(scrollPosition)) - beforeReplacement))
+    .toBeLessThan(3);
+  await expect(updated).toBeInViewport();
+
+  // The same return position applies when correcting a completed workout through confirmation.
+  const completed = await page.request.post(`/api/workout-schedule/${schedule.id}/log`, {
+    headers,
+    data: {
+      notes: null,
+      exercises: [exercises[0]!, replacement, exercises[2]!].map((exercise) => ({
+        exerciseId: exercise.id,
+        sets: [{ order: 1, side: 'Both', reps: 8, weightKg: 40, isWarmup: false, notes: null }],
+      })),
+    },
+  });
+  expect(completed.ok(), await completed.text()).toBe(true);
+  await page.reload();
+  await page.getByRole('button', { name: 'Edit workout', exact: true }).click();
+  await updated.scrollIntoViewIfNeeded();
+  const beforeConfirmation = await updated.evaluate(scrollPosition);
+  await updated.click();
+  await page.getByLabel('Search exercises', { exact: true }).fill('Bench Press');
+  await page.getByRole('button', { name: 'Replace with Bench Press', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm replacement', exact: true }).click();
+  await expect(original).toHaveCount(1);
+  await expect
+    .poll(async () => Math.abs((await original.evaluate(scrollPosition)) - beforeConfirmation))
+    .toBeLessThan(3);
+  await expect(original).toBeInViewport();
+});
+
 test('logs actual sets, completes the calendar plan, and restores the workout record', async ({
   page,
 }, info) => {
