@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Topout.Application.Abstractions;
 using Topout.Application.Climbing;
@@ -86,12 +85,7 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
             .ToArrayAsync(ct);
         return projects
             .Where(x => x.Logs.Count > 0)
-            .Select(x => new ClimbProjectResponse(
-                x.Id,
-                ClimbLogResponse.From(
-                    x.Logs.OrderByDescending(l => l.Date).ThenByDescending(l => l.Id).First()
-                )
-            ))
+            .Select(x => new ClimbProjectResponse(x.Id, ClimbLogResponse.From(x.LatestAttempt!)))
             .ToArray();
     }
 
@@ -133,38 +127,7 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
         if (query.Grade is { Length: > 0 })
         {
             // Match any selected grade within the stored range, including its endpoints.
-            var matching = new[] { "Font", "V", "French", "YDS" }
-                .SelectMany(system =>
-                {
-                    var scale = ClimbingGrades.Values(system);
-                    return scale
-                        .SelectMany(
-                            (low, i) =>
-                                scale
-                                    .Skip(i)
-                                    .Select(
-                                        (high, offset) =>
-                                            new
-                                            {
-                                                low,
-                                                high,
-                                                i,
-                                                end = i + offset,
-                                            }
-                                    )
-                        )
-                        .Where(range =>
-                            scale
-                                .Skip(range.i)
-                                .Take(range.end - range.i + 1)
-                                .Any(query.Grade.Contains)
-                        )
-                        .Select(range =>
-                            range.low == range.high ? range.low : $"{range.low}-{range.high}"
-                        );
-                })
-                .Distinct()
-                .ToArray();
+            var matching = ClimbingGrades.MatchingIntervals(query.Grade);
             items = items.Where(x => matching.Contains(x.Grade));
         }
         if (query.Environment is { Length: > 0 })
@@ -194,42 +157,7 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
         if (query.Sort.StartsWith("grade"))
         {
             // Grade systems are distinct scales: group by system, then difficulty, never alphabetical grade text.
-            var parameter = Expression.Parameter(typeof(ClimbLog), "x");
-            Expression lower = Expression.Constant(-1);
-            Expression upper = Expression.Constant(-1);
-            foreach (var system in new[] { "Font", "V", "French", "YDS" })
-            foreach (
-                var (grade, index) in ClimbingGrades
-                    .Values(system)
-                    .Select((grade, index) => (grade, index))
-            )
-            {
-                var text = Expression.Property(parameter, nameof(ClimbLog.Grade));
-                Expression EndpointRank(Expression fallback, bool last) =>
-                    Expression.Condition(
-                        Expression.AndAlso(
-                            Expression.Equal(
-                                Expression.Property(parameter, nameof(ClimbLog.GradeSystem)),
-                                Expression.Constant(system)
-                            ),
-                            Expression.OrElse(
-                                Expression.Equal(text, Expression.Constant(grade)),
-                                Expression.Call(
-                                    text,
-                                    last ? nameof(string.EndsWith) : nameof(string.StartsWith),
-                                    Type.EmptyTypes,
-                                    Expression.Constant(last ? $"-{grade}" : $"{grade}-")
-                                )
-                            )
-                        ),
-                        Expression.Constant(index),
-                        fallback
-                    );
-                lower = EndpointRank(lower, false);
-                upper = EndpointRank(upper, true);
-            }
-            var rank = Expression.Divide(Expression.Add(lower, upper), Expression.Constant(2));
-            var key = Expression.Lambda<Func<ClimbLog, int>>(rank, parameter);
+            var key = ClimbingGrades.RankExpression();
             var grouped = items.OrderBy(x => x.GradeSystem);
             ordered =
                 query.Sort == "grade-asc" ? grouped.ThenBy(key) : grouped.ThenByDescending(key);
@@ -305,33 +233,16 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
         else
             log.SetProject(null);
         update(log);
-        var earlier = db.ClimbLogs.Where(x =>
-            x.UserId == userId
-            && x.ProjectId == log.ProjectId
-            && (x.Date < log.Date || (x.Date == log.Date && (!id.HasValue || x.Id < id.Value)))
-        );
-        log.ClassifySingleAttemptSend(
-            log.ProjectId != null && await earlier.AnyAsync(ct),
-            log.ProjectId != null && await earlier.AnyAsync(x => x.Date == log.Date, ct)
-        );
-        if (log.ProjectId != null && log.Outcome is "Flash" or "Onsight" or "DayFlash")
+        if (log.Project != null)
         {
-            var prior = db.ClimbLogs.Where(x =>
-                x.UserId == userId
-                && x.ProjectId == log.ProjectId
-                && (x.Date < log.Date || (x.Date == log.Date && (!id.HasValue || x.Id < id.Value)))
-            );
-            if (log.Outcome is "Flash" or "Onsight" && await prior.AnyAsync(ct))
-                throw new RequestException(
-                    ErrorKind.Validation,
-                    "Flash and onsight are not available after previous project attempts."
-                );
-            if (log.Outcome == "DayFlash" && await prior.AnyAsync(x => x.Date == log.Date, ct))
-                throw new RequestException(
-                    ErrorKind.Validation,
-                    "Day flash requires the first attempt of the day."
-                );
+            var history = await db
+                .ClimbLogs.AsNoTracking()
+                .Where(x => x.UserId == userId && x.ProjectId == log.ProjectId)
+                .ToArrayAsync(ct);
+            log.Project.ClassifyAttempt(log, history.Where(x => ClimbProject.Precedes(x, log, id)));
         }
+        else
+            log.ClassifySingleAttemptSend(false, false);
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT pg_advisory_xact_lock({userId}, {log.Date.DayNumber})",
             ct
@@ -379,14 +290,10 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
     private async Task SynchronizeProject(int projectId, CancellationToken ct)
     {
         var project = await db.ClimbProjects.SingleAsync(x => x.Id == projectId, ct);
-        if (!await db.ClimbLogs.AnyAsync(x => x.ProjectId == projectId, ct))
+        await db.Entry(project).Collection(x => x.Logs).LoadAsync(ct);
+        if (project.Logs.Count == 0)
             db.ClimbProjects.Remove(project);
         else
-            project.SetCompleted(
-                await db.ClimbLogs.AnyAsync(
-                    x => x.ProjectId == projectId && x.Outcome != "Attempted",
-                    ct
-                )
-            );
+            project.SynchronizeCompletion();
     }
 }

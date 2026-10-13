@@ -59,26 +59,9 @@ public sealed record ClimbLogResponse(
             x.Location,
             x.ProjectId,
             x.Project?.IsCompleted ?? false,
-            x.Project == null
-                ? x.Attempts
-                : (
-                    x
-                        .Project.Logs.Where(l =>
-                            l.Date < x.Date || (l.Date == x.Date && l.Id <= x.Id)
-                        )
-                        .Sum(l => l.Attempts)
-                        is var total
-                    && total > 0
-                        ? total
-                        : null
-                ),
+            x.Project?.AttemptsThrough(x).TotalAttempts ?? (x.Project == null ? x.Attempts : null),
             x.AttemptsMode,
-            x.Project == null
-                ? x.AttemptsMode != "Exact"
-                : x.Project.Logs.Any(l =>
-                    (l.Date < x.Date || (l.Date == x.Date && l.Id <= x.Id))
-                    && l.AttemptsMode != "Exact"
-                ),
+            x.Project?.AttemptsThrough(x).IsLowerBound ?? (x.AttemptsMode != "Exact"),
             x.WallAngles
         );
 }

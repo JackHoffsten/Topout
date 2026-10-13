@@ -13,5 +13,7 @@
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
+    <Content Include="../../../packages/shared/src/grade-scales.json" Link="grade-scales.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
+
