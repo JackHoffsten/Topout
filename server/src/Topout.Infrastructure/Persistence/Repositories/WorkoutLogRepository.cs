@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Topout.Application.Abstractions;
 using Topout.Application.Common;
+using Topout.Application.WorkoutLogging;
 using Topout.Domain.Entities;
 using Topout.Domain.Enums;
 
@@ -117,15 +118,7 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
                 )
                 .SingleOrDefaultAsync(ct)
             ?? throw new RequestException(ErrorKind.NotFound, "Scheduled workout not found.");
-        if (
-            schedule.IsRestDay
-            || (
-                editing
-                    ? schedule.Status != ScheduledStatus.Completed
-                    : schedule.Status != ScheduledStatus.Planned
-            )
-        )
-            throw new RequestException(ErrorKind.Conflict, "This workout cannot be logged again.");
+        WorkoutMutation.Apply(() => schedule.EnsureCanComplete(editing));
         foreach (var entry in log.Entries)
             db.Entry(entry.Exercise).State = EntityState.Unchanged;
         if (schedule.WorkoutLogId.HasValue)
@@ -158,8 +151,7 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
                 )
                 .SingleOrDefaultAsync(ct)
             ?? throw new RequestException(ErrorKind.NotFound, "Scheduled workout not found.");
-        if (schedule.IsRestDay || schedule.Status == ScheduledStatus.Skipped)
-            throw new RequestException(ErrorKind.Conflict, "This workout cannot be logged.");
+        WorkoutMutation.Apply(schedule.EnsureCanLog);
         await db.Entry(schedule)
             .Reference(s => s.WorkoutLog)
             .Query()
@@ -194,19 +186,12 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
             db.WorkoutLogs.Add(log);
         }
         db.Entry(exercise).State = EntityState.Unchanged;
-        var entry = log.Entries.FirstOrDefault(e => e.ExerciseId == exercise.Id);
-        if (
-            entry?.Sets.Any(s =>
-                s.Order == order && (s.Side == SetSide.Both) != (side == SetSide.Both)
-            ) == true
-        )
-            throw new RequestException(
-                ErrorKind.Conflict,
-                "Remove the existing set before changing its split mode."
-            );
-        if (location is not null)
-            log.SetLocation(location);
-        log.RecordSet(exercise, order, reps, weight, warmup, notes, side);
+        WorkoutMutation.Apply(() =>
+        {
+            if (location is not null)
+                log.SetLocation(location);
+            log.RecordSet(exercise, order, reps, weight, warmup, notes, side);
+        });
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }
@@ -230,12 +215,7 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
             )
         )
             throw new RequestException(ErrorKind.NotFound, "Set not found.");
-        if (log.IsCompleted && log.Entries.Sum(e => e.Sets.Count) == 1)
-            throw new RequestException(
-                ErrorKind.Conflict,
-                "A completed workout needs at least one set."
-            );
-        log.RemoveRecordedSet(exerciseId, order, side);
+        WorkoutMutation.Apply(() => log.RemoveRecordedSet(exerciseId, order, side));
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }

@@ -1,3 +1,5 @@
+using Topout.Application.Common;
+using Topout.Application.WorkoutLogging;
 using Topout.Domain.Entities;
 using Topout.Domain.Enums;
 using Topout.Domain.ValueObjects;
@@ -6,6 +8,48 @@ namespace Topout.UnitTests;
 
 public class GymDomainTests
 {
+    [Fact]
+    public void Workout_mutations_translate_domain_conflicts_without_changing_the_log()
+    {
+        var log = new WorkoutLog(1, new DateOnly(2026, 10, 1));
+        var exercise = new Exercise(1, "Row", MuscleGroup.Back);
+        log.RecordSet(exercise, 1, 8, Weight.Zero, false, null);
+        var split = Assert.Throws<RequestException>(() =>
+            WorkoutMutation.Apply(() =>
+                log.RecordSet(exercise, 1, 9, Weight.Zero, false, null, SetSide.Left)
+            )
+        );
+        Assert.Equal(ErrorKind.Conflict, split.Kind);
+        Assert.Equal(8, log.Entries.Single().Sets.Single().Reps);
+        log.Complete(DateTime.UtcNow);
+        var removal = Assert.Throws<RequestException>(() =>
+            WorkoutMutation.Apply(() => log.RemoveRecordedSet(exercise.Id, 1))
+        );
+        Assert.Equal(ErrorKind.Conflict, removal.Kind);
+        Assert.Single(log.Entries.Single().Sets);
+    }
+
+    [Fact]
+    public void Workout_completion_policy_distinguishes_logging_from_editing()
+    {
+        var date = new DateOnly(2026, 10, 1);
+        var schedule = new ScheduledWorkout(1, date, new WorkoutDay(1, "Pull"));
+        schedule.EnsureCanComplete(editing: false);
+        Assert.Throws<InvalidOperationException>(() => schedule.EnsureCanComplete(editing: true));
+        var log = new WorkoutLog(1, date);
+        log.RecordSet(new Exercise(1, "Row", MuscleGroup.Back), 1, 8, Weight.Zero, false, null);
+        log.Complete(DateTime.UtcNow);
+        schedule.AttachLog(log);
+        schedule.EnsureCanComplete(editing: true);
+        Assert.Throws<InvalidOperationException>(() => schedule.EnsureCanComplete(editing: false));
+        Assert.Throws<InvalidOperationException>(() =>
+            ScheduledWorkout.CreateRestDay(1, date).EnsureCanComplete(editing: false)
+        );
+        var skipped = new ScheduledWorkout(1, date, new WorkoutDay(1, "Pull"));
+        skipped.MarkSkipped();
+        Assert.Throws<InvalidOperationException>(() => skipped.EnsureCanComplete(editing: false));
+    }
+
     [Fact]
     public void Split_results_keep_one_order_and_cannot_overwrite_another_side()
     {
