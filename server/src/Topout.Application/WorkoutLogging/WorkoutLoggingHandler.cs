@@ -157,15 +157,7 @@ public sealed class WorkoutLoggingHandler(
         var schedule =
             await logs.FindScheduleAsync(user.UserId, scheduleId, ct)
             ?? throw new RequestException(ErrorKind.NotFound, "Scheduled workout not found.");
-        if (
-            schedule.IsRestDay
-            || (
-                editing
-                    ? schedule.Status != ScheduledStatus.Completed
-                    : schedule.Status != ScheduledStatus.Planned
-            )
-        )
-            throw new RequestException(ErrorKind.Conflict, "This workout cannot be logged again.");
+        WorkoutMutation.Apply(() => schedule.EnsureCanComplete(editing));
         if (
             input.Notes?.Length > 2000
             || input.Location?.Trim().Length > 200
