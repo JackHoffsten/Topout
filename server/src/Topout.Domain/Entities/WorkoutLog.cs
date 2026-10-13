@@ -146,9 +146,7 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
         int exerciseId,
         Exercise replacement,
         int order,
-        int[] orders,
-        SetSide[] sides,
-        bool[] warmups
+        IReadOnlyList<Topout.Domain.ValueObjects.WorkoutReplacementSet> sets
     )
     {
         if (replacement.UserId != UserId)
@@ -167,7 +165,7 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
             );
             _entries.Add(entry);
         }
-        entry.ReplaceExercise(replacement, exerciseId, order, orders, sides, warmups);
+        entry.ReplaceExercise(replacement, exerciseId, order, sets);
         RemovedExerciseIds = RemovedExerciseIds
             .Append(exerciseId)
             .Where(id => id != replacement.Id)

@@ -76,9 +76,13 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
                 exerciseId,
                 replacement,
                 input.Order,
-                input.Sets.Select(s => s.Order).ToArray(),
-                input.Sets.Select(s => s.Side).ToArray(),
-                input.Sets.Select(s => s.IsWarmup).ToArray()
+                input
+                    .Sets.Select(s => new Topout.Domain.ValueObjects.WorkoutReplacementSet(
+                        s.Order,
+                        s.Side,
+                        s.IsWarmup
+                    ))
+                    .ToArray()
             )
         );
         await db.SaveChangesAsync(ct);

@@ -439,3 +439,97 @@ test('replacement preserves recorded results, confirms changes, retries errors, 
     .click();
   await expect(page.getByText('Left: 8 reps (40 kg)', { exact: true })).toBeVisible();
 });
+
+test('replacement keeps the position of an added exercise recorded before its preceding entry', async ({
+  page,
+}, info) => {
+  test.setTimeout(120000);
+  const csrf = await (await page.request.get('/api/auth/web/csrf')).json();
+  const registration = await page.request.post('/api/auth/web/register', {
+    headers: { Origin: 'https://localhost:8443', 'X-CSRF-Token': csrf.csrfToken },
+    data: {
+      displayName: 'Replacement order tester',
+      email: `replacement-order-${Date.now()}-${info.project.name}@example.com`,
+      password: 'StrongPassword123!',
+    },
+  });
+  expect(registration.ok(), await registration.text()).toBe(true);
+  const { accessToken } = await registration.json();
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const library: { id: number; name: string }[] = await (
+    await page.request.get('/api/exercises', { headers })
+  ).json();
+  const first = library.find((exercise) => exercise.name === 'Barbell Row')!;
+  const second = library.find((exercise) => exercise.name === 'Bench Press')!;
+  const third = library.find((exercise) => exercise.name === 'Back Squat')!;
+  const replacement = library.find(
+    (exercise) => ![first.id, second.id, third.id].includes(exercise.id),
+  )!;
+  const template = await (
+    await page.request.post('/api/workout-templates', {
+      headers,
+      data: {
+        name: 'Added exercise order',
+        exercises: [
+          {
+            exerciseId: first.id,
+            sets: [
+              {
+                targetRepsMin: 8,
+                targetRepsMax: null,
+                targetWeightKg: 40,
+                isWarmup: false,
+                isAmrap: false,
+                rightTarget: null,
+              },
+            ],
+          },
+        ],
+      },
+    })
+  ).json();
+  const today = new Date();
+  const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const schedule = await (
+    await page.request.post('/api/workout-schedule', {
+      headers,
+      data: { date, templateId: template.id },
+    })
+  ).json();
+  await page.goto(`/workouts/${schedule.id}`);
+  for (const exercise of [second, third]) {
+    await page.getByRole('button', { name: 'Add exercise', exact: true }).click();
+    await page.getByLabel('Search exercises', { exact: true }).fill(exercise.name);
+    await page.getByRole('button', { name: `Add ${exercise.name}`, exact: true }).click();
+  }
+  for (const exercise of [third, second]) {
+    await page.getByLabel(`${exercise.name} set 1 reps`, { exact: true }).fill('9');
+    await page.getByLabel(`${exercise.name} set 1 weight (kg)`, { exact: true }).fill('30');
+    await page.getByRole('button', { name: `Log ${exercise.name} set 1`, exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: `Log ${exercise.name} set 1`, exact: true }),
+    ).toBeDisabled();
+  }
+  await page.getByRole('button', { name: `Replace ${third.name}`, exact: true }).click();
+  await page.getByLabel('Search exercises', { exact: true }).fill(replacement.name);
+  await page.getByRole('button', { name: `Replace with ${replacement.name}`, exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm replacement', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: `Replace ${replacement.name}`, exact: true }),
+  ).toBeVisible();
+  const displayedOrder = () =>
+    page
+      .getByRole('button', { name: /^Collapse / })
+      .evaluateAll((elements) => elements.map((element) => element.getAttribute('aria-label')));
+  const expectedOrder = [first, second, replacement].map((exercise) => `Collapse ${exercise.name}`);
+  expect(await displayedOrder()).toEqual(expectedOrder);
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: `Replace ${replacement.name}`, exact: true }),
+  ).toBeVisible();
+  expect(await displayedOrder()).toEqual(expectedOrder);
+  await page.getByRole('button', { name: 'Finish workout', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Edit workout', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Edit workout', exact: true }).click();
+  expect(await displayedOrder()).toEqual(expectedOrder);
+});

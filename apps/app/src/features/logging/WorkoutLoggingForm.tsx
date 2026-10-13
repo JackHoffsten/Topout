@@ -3,6 +3,7 @@ import { workoutLoggingKey } from './queries';
 import {
   completionExercises,
   restoreWorkoutDraft,
+  draftSetFromActual,
   draftDefaults,
   valueOrDefault,
   blankSet,
@@ -196,16 +197,13 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
                   const saved = recorded.find(
                     (result) => result.order === set.order && result.side === set.side,
                   );
-                  const draft = {
+                  return draftSetFromActual(saved, {
                     ...set,
                     target: undefined,
-                    reps: saved ? String(saved.reps) : '',
-                    weight: saved ? String(saved.weightKg) : '',
-                    warmup: saved?.isWarmup ?? set.warmup,
-                    notes: saved ? (saved.notes ?? '') : set.notes,
+                    reps: '',
+                    weight: '',
                     saved: undefined,
-                  };
-                  return saved ? { ...draft, saved: signature(draft) } : draft;
+                  });
                 }),
               },
         ),

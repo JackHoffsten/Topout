@@ -69,14 +69,11 @@ public sealed record WorkoutLogResponse(
                     e.OriginalExerciseId!.Value,
                     ExerciseResponse.From(e.Exercise),
                     e.ReplacementOrder!.Value,
-                    e.ReplacementSetOrders.Select(
-                            (order, index) =>
-                                new ReplacementSetInput(
-                                    order,
-                                    e.ReplacementSetSides[index],
-                                    e.ReplacementWarmups[index]
-                                )
-                        )
+                    e.ReplacementSets.Select(s => new ReplacementSetInput(
+                            s.Order,
+                            s.Side,
+                            s.IsWarmup
+                        ))
                         .ToArray()
                 ))
                 .ToArray()
