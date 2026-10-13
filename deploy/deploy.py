@@ -1,6 +1,5 @@
 #!/usr/bin/python3 -I
 """Install root-owned as /usr/local/sbin/topout-deploy; accepts only current main."""
-import fcntl
 import json
 import os
 from pathlib import Path
@@ -54,53 +53,84 @@ def prepare_release(source, sha):
             '-t', f'topout-{image}:{sha}', str(source))
 
 
-def main():
-    if os.geteuid() != 0 or len(sys.argv) != 2 or not re.fullmatch('[0-9a-f]{40}', sys.argv[1]):
-        raise SystemExit('Usage (root): topout-deploy <full lowercase Git SHA>')
-    sha = sys.argv[1]
-    ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
-    with (ROOT / 'operations.lock').open('w') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        if remote_sha() != sha:
-            raise SystemExit('Refusing a release that is not current origin/main')
+class ProductionExecution:
+    """Root-owned Linux execution boundary; deployment policy stays portable."""
+
+    def remote_sha(self):
+        return remote_sha()
+
+    def read_state(self):
         state_file = ROOT / 'release.json'
-        state = json.loads(state_file.read_text()) if state_file.exists() else {}
-        previous = state.get('active')
+        return json.loads(state_file.read_text()) if state_file.exists() else {}
+
+    def fetch_source(self, sha):
         source = ROOT / 'source'
         if not source.exists():
             run('git', 'clone', '--no-checkout', REPO, str(source))
         run('git', '-C', str(source), 'fetch', '--force', 'origin', 'main')
         fetched = run('git', '-C', str(source), 'rev-parse', 'FETCH_HEAD', capture_output=True, text=True).stdout.strip()
-        if fetched != sha:
-            raise SystemExit('Main advanced during fetch; let the next build deploy')
-        run('git', '-C', str(source), 'checkout', '--detach', '--force', sha)
-        prepare_release(source, sha)
-        if remote_sha() != sha:
-            raise SystemExit('Main advanced during build; refusing stale deployment')
-        compose(sha, 'up', '-d', '--wait', 'postgres')
-        # Migration failure leaves the previous app running. Never roll schemas back automatically.
-        compose(sha, '--profile', 'migration', 'run', '--rm', '--no-deps', 'migrate')
-        try:
-            compose(sha, 'up', '-d', '--wait', '--wait-timeout', '180', 'backend', 'gateway')
-            for _ in range(12):
-                try:
-                    with urllib.request.urlopen('http://127.0.0.1:18082/', timeout=10) as response:
-                        if response.status == 200 and b'<div id="root">' in response.read():
-                            break
-                except OSError:
-                    pass
-                time.sleep(5)
-            else:
-                raise RuntimeError('Local gateway smoke test failed')
-        except Exception:
-            if previous:
-                compose(previous, 'up', '-d', '--wait', '--wait-timeout', '180', 'backend', 'gateway')
-                print(f'Rolled images back to {previous}; database was not restored', file=sys.stderr)
-            else:
-                compose(sha, 'stop', 'backend', 'gateway')
-            raise
-        save_state({'active': sha, 'previous': previous})
-        print(f'Deployed {sha}')
+        if fetched == sha:
+            run('git', '-C', str(source), 'checkout', '--detach', '--force', sha)
+        return fetched
+
+    def prepare_release(self, sha):
+        prepare_release(ROOT / 'source', sha)
+
+    def compose(self, sha, *args):
+        compose(sha, *args)
+
+    def smoke_test(self):
+        for _ in range(12):
+            try:
+                with urllib.request.urlopen('http://127.0.0.1:18082/', timeout=10) as response:
+                    if response.status == 200 and b'<div id="root">' in response.read():
+                        return
+            except OSError:
+                pass
+            time.sleep(5)
+        raise RuntimeError('Local gateway smoke test failed')
+
+    def save_state(self, state):
+        save_state(state)
+
+
+def deploy_release(sha, execution):
+    """Deploy under the caller's operation lock using a controlled execution adapter."""
+    if not re.fullmatch('[0-9a-f]{40}', sha):
+        raise ValueError('Release must be a full lowercase Git SHA')
+    if execution.remote_sha() != sha:
+        raise SystemExit('Refusing a release that is not current origin/main')
+    previous = execution.read_state().get('active')
+    if execution.fetch_source(sha) != sha:
+        raise SystemExit('Main advanced during fetch; let the next build deploy')
+    execution.prepare_release(sha)
+    if execution.remote_sha() != sha:
+        raise SystemExit('Main advanced during build; refusing stale deployment')
+    execution.compose(sha, 'up', '-d', '--wait', 'postgres')
+    # Migration failure leaves the previous app running. Never roll schemas back automatically.
+    execution.compose(sha, '--profile', 'migration', 'run', '--rm', '--no-deps', 'migrate')
+    try:
+        execution.compose(sha, 'up', '-d', '--wait', '--wait-timeout', '180', 'backend', 'gateway')
+        execution.smoke_test()
+    except Exception:
+        if previous:
+            execution.compose(previous, 'up', '-d', '--wait', '--wait-timeout', '180', 'backend', 'gateway')
+            print(f'Rolled images back to {previous}; database was not restored', file=sys.stderr)
+        else:
+            execution.compose(sha, 'stop', 'backend', 'gateway')
+        raise
+    execution.save_state({'active': sha, 'previous': previous})
+    print(f'Deployed {sha}')
+
+
+def main():
+    if not hasattr(os, 'geteuid') or os.geteuid() != 0 or len(sys.argv) != 2 or not re.fullmatch('[0-9a-f]{40}', sys.argv[1]):
+        raise SystemExit('Usage (root): topout-deploy <full lowercase Git SHA>')
+    import fcntl
+    ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with (ROOT / 'operations.lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        deploy_release(sys.argv[1], ProductionExecution())
 
 
 if __name__ == '__main__':

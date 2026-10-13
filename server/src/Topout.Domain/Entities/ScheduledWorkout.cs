@@ -37,6 +37,18 @@ public class ScheduledWorkout : OwnedEntity
 
     public static ScheduledWorkout CreateRestDay(int userId, DateOnly date) => new(userId, date);
 
+    public void EnsureCanComplete(bool editing)
+    {
+        if (IsRestDay || Status != (editing ? ScheduledStatus.Completed : ScheduledStatus.Planned))
+            throw new InvalidOperationException("This workout cannot be logged again.");
+    }
+
+    public void EnsureCanLog()
+    {
+        if (IsRestDay || Status == ScheduledStatus.Skipped)
+            throw new InvalidOperationException("This workout cannot be logged.");
+    }
+
     public void MoveTo(DateOnly newDate)
     {
         if (Status == ScheduledStatus.Completed)
