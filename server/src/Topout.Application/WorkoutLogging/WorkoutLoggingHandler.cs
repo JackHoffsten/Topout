@@ -25,7 +25,7 @@ public sealed class WorkoutLoggingHandler(
         if (
             input.Order is < 1 or > 100
             || input.Sets is null
-            || input.Sets.Count is < 1 or > 200
+            || input.Sets.Count > 200
             || input.Sets.Any(s => s is null || s.Order is < 1 or > 100 || !Enum.IsDefined(s.Side))
             || input
                 .Sets.GroupBy(s => s.Order)

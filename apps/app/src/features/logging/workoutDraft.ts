@@ -23,21 +23,52 @@ export const signature = (set: DraftSet) =>
   JSON.stringify([set.reps, set.weight, set.warmup, set.notes, set.side]);
 export function restoreWorkoutDraft(workout: WorkoutLogging): DraftExercise[] {
   const recorded = workout.log?.exercises ?? [];
+  const replacements = workout.log?.replacements ?? [];
+  const templateSources = (workout.template?.exercises ?? [])
+    .map((item, index) => ({ ...item, position: index + 1 }))
+    .filter(
+      (item) =>
+        replacements.some((r) => r.originalExerciseId === item.exercise.id) ||
+        !workout.log?.removedExerciseIds?.includes(item.exercise.id),
+    )
+    .map((item) => {
+      const replacement = replacements.find((r) => r.originalExerciseId === item.exercise.id);
+      return {
+        ...item,
+        exercise: replacement?.exercise ?? item.exercise,
+        position: replacement?.order ?? item.position,
+      };
+    });
+  const extras = recorded.filter(
+    (e) => !templateSources.some((t) => t.exercise.id === e.exercise.id),
+  );
   const sources = workout.log?.completedAt
-    ? recorded
+    ? recorded.map((item, index) => ({ ...item, position: index + 1 }))
     : [
-        ...(workout.template?.exercises ?? []),
-        ...recorded.filter(
-          (e) => !workout.template?.exercises.some((t) => t.exercise.id === e.exercise.id),
-        ),
+        ...templateSources,
+        ...extras.map((item, index) => ({ ...item, position: templateSources.length + index + 1 })),
       ];
   return sources
-    .filter((item) => !workout.log?.removedExerciseIds?.includes(item.exercise.id))
+    .sort((a, b) => {
+      if (workout.log?.completedAt) return 0;
+      const position = (item: typeof a) =>
+        replacements.find((r) => r.exercise.id === item.exercise.id)?.order ?? item.position;
+      return position(a) - position(b);
+    })
+    .filter(
+      (item) =>
+        replacements.some((r) => r.exercise.id === item.exercise.id) ||
+        !workout.log?.removedExerciseIds?.includes(item.exercise.id),
+    )
     .map((item) => {
       const actual = recorded.find((e) => e.exercise.id === item.exercise.id)?.sets ?? [];
+      const replacement = replacements.find((r) => r.exercise.id === item.exercise.id);
       const targets = workout.log?.completedAt
         ? []
-        : (workout.template?.exercises.find((e) => e.exercise.id === item.exercise.id)?.sets ?? []);
+        : replacement
+          ? []
+          : (workout.template?.exercises.find((e) => e.exercise.id === item.exercise.id)?.sets ??
+            []);
       const orders = workout.log?.completedAt
         ? [...new Set(actual.map((s) => s.order))]
         : Array.from(
@@ -46,35 +77,43 @@ export function restoreWorkoutDraft(workout: WorkoutLogging): DraftExercise[] {
           );
       return {
         exercise: item.exercise,
-        sets: orders.flatMap((order) => {
-          const results = actual.filter((s) => s.order === order);
+        sets: (replacement && !workout.log?.completedAt
+          ? replacement.sets.map((set) => ({
+              order: set.order,
+              side: set.side,
+              warmup: set.isWarmup,
+            }))
+          : orders.flatMap((order) => {
+              const results = actual.filter((s) => s.order === order);
+              const planned = targets[order - 1];
+              const sides: DraftSet['side'][] =
+                results.some((s) => (s.side ?? 'Both') !== 'Both') ||
+                (!results.length && !!planned?.rightTarget)
+                  ? workout.log?.completedAt
+                    ? results.map((s) => s.side)
+                    : ['Left', 'Right']
+                  : ['Both'];
+              return sides.map((side) => ({ order, side, warmup: planned?.isWarmup ?? false }));
+            })
+        ).map(({ order, side, warmup }) => {
           const planned = targets[order - 1];
-          const sides: DraftSet['side'][] =
-            results.some((s) => (s.side ?? 'Both') !== 'Both') ||
-            (!results.length && !!planned?.rightTarget)
-              ? workout.log?.completedAt
-                ? results.map((s) => s.side)
-                : ['Left', 'Right']
-              : ['Both'];
-          return sides.map((side) => {
-            const target =
-              side === 'Right' && planned?.rightTarget
-                ? { ...planned, ...planned.rightTarget }
-                : planned;
-            const set = actual.find((s) => s.order === order && (s.side ?? 'Both') === side);
-            const draft = set
-              ? {
-                  reps: String(set.reps),
-                  side,
-                  weight: String(set.weightKg),
-                  warmup: set.isWarmup,
-                  notes: set.notes ?? '',
-                  order,
-                  target,
-                }
-              : { ...blankSet(target, order), side };
-            return set ? { ...draft, saved: signature(draft) } : draft;
-          });
+          const target =
+            side === 'Right' && planned?.rightTarget
+              ? { ...planned, ...planned.rightTarget }
+              : planned;
+          const set = actual.find((s) => s.order === order && (s.side ?? 'Both') === side);
+          const draft = set
+            ? {
+                reps: String(set.reps),
+                side,
+                weight: String(set.weightKg),
+                warmup: set.isWarmup,
+                notes: set.notes ?? '',
+                order,
+                target,
+              }
+            : { ...blankSet(target, order), side, warmup };
+          return set ? { ...draft, saved: signature(draft) } : draft;
         }),
       };
     });

@@ -52,6 +52,22 @@ export const completeWorkoutInputSchema = z
 export type CompleteWorkoutInput = z.input<typeof completeWorkoutInputSchema>;
 
 export const workoutLogSchema = z.object({
+  replacements: z
+    .array(
+      z.object({
+        originalExerciseId: z.number().int().positive(),
+        exercise: exerciseSchema,
+        order: z.number().int().min(1).max(100),
+        sets: z.array(
+          z.object({
+            order: z.number().int().min(1).max(100),
+            side: z.enum(['Both', 'Left', 'Right']),
+            isWarmup: z.boolean(),
+          }),
+        ),
+      }),
+    )
+    .optional(),
   removedExerciseIds: z.array(z.number().int().positive()).optional(),
   location: z.string().nullable().optional(),
   id: z.number().int().positive(),
@@ -98,3 +114,17 @@ export const recordWorkoutSetSchema = loggedSetSchema.extend({
 });
 
 export type RecordWorkoutSet = z.input<typeof recordWorkoutSetSchema>;
+export const replaceWorkoutExerciseInputSchema = z.object({
+  replacementExerciseId: z.number().int().positive(),
+  order: z.number().int().min(1).max(100),
+  sets: z
+    .array(
+      z.object({
+        order: z.number().int().min(1).max(100),
+        side: z.enum(['Both', 'Left', 'Right']),
+        isWarmup: z.boolean(),
+      }),
+    )
+    .max(200),
+});
+export type ReplaceWorkoutExerciseInput = z.input<typeof replaceWorkoutExerciseInputSchema>;

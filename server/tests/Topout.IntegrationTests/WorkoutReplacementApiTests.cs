@@ -327,4 +327,29 @@ public partial class WorkoutLoggingApiTests
         Assert.Equal(2, remaining.Order);
         Assert.Equal(11, Assert.Single(Assert.Single(after.Log.Exercises).Sets).Reps);
     }
+
+    [Fact]
+    public async Task Replacement_preserves_an_empty_draft_set_structure()
+    {
+        using var client = await Client();
+        var (plan, _, exercise) = await Plan(client);
+        var replacement = (
+            await client.GetFromJsonAsync<ExerciseResponse[]>(
+                "/api/exercises",
+                ExerciseApiTests.Json
+            )
+        )!.First(e => e.Id != exercise.Id);
+        var url = $"/api/workout-schedule/{plan.Id}/log";
+        var response = await client.PutAsJsonAsync(
+            url + $"/exercises/{exercise.Id}/replacement",
+            new ReplaceExerciseInput(replacement.Id, 1, []),
+            ExerciseApiTests.Json
+        );
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var restored = (
+            await client.GetFromJsonAsync<WorkoutLoggingResponse>(url, ExerciseApiTests.Json)
+        )!;
+        Assert.Empty(Assert.Single(restored.Log!.Replacements!).Sets);
+        Assert.Empty(Assert.Single(restored.Log.Exercises).Sets);
+    }
 }
