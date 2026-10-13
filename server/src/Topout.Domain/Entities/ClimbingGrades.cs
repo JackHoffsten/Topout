@@ -1,9 +1,12 @@
 using System.Linq.Expressions;
+
 namespace Topout.Domain.Entities;
 
 public static class ClimbingGrades
 {
-    public static int Rank(string system, string grade) => Array.IndexOf(Values(system), Representative(system, grade));
+    public static int Rank(string system, string grade) =>
+        Array.IndexOf(Values(system), Representative(system, grade));
+
     public static string[] MatchingIntervals(string[] selected)
     {
         return new[] { "Font", "V", "French", "YDS" }
@@ -27,10 +30,7 @@ public static class ClimbingGrades
                                 )
                     )
                     .Where(range =>
-                        scale
-                            .Skip(range.i)
-                            .Take(range.end - range.i + 1)
-                            .Any(selected.Contains)
+                        scale.Skip(range.i).Take(range.end - range.i + 1).Any(selected.Contains)
                     )
                     .Select(range =>
                         range.low == range.high ? range.low : $"{range.low}-{range.high}"
@@ -39,6 +39,7 @@ public static class ClimbingGrades
             .Distinct()
             .ToArray();
     }
+
     // Expression adapter keeps database sorting translatable without evaluating domain methods in SQL.
     public static Expression<Func<ClimbLog, int>> RankExpression()
     {
@@ -46,39 +47,40 @@ public static class ClimbingGrades
         Expression lower = Expression.Constant(-1);
         Expression upper = Expression.Constant(-1);
         foreach (var system in new[] { "Font", "V", "French", "YDS" })
-            foreach (
-                var (grade, index) in ClimbingGrades
-                    .Values(system)
-                    .Select((grade, index) => (grade, index))
-            )
-            {
-                var text = Expression.Property(parameter, nameof(ClimbLog.Grade));
-                Expression EndpointRank(Expression fallback, bool last) =>
-                    Expression.Condition(
-                        Expression.AndAlso(
-                            Expression.Equal(
-                                Expression.Property(parameter, nameof(ClimbLog.GradeSystem)),
-                                Expression.Constant(system)
-                            ),
-                            Expression.OrElse(
-                                Expression.Equal(text, Expression.Constant(grade)),
-                                Expression.Call(
-                                    text,
-                                    last ? nameof(string.EndsWith) : nameof(string.StartsWith),
-                                    Type.EmptyTypes,
-                                    Expression.Constant(last ? $"-{grade}" : $"{grade}-")
-                                )
-                            )
+        foreach (
+            var (grade, index) in ClimbingGrades
+                .Values(system)
+                .Select((grade, index) => (grade, index))
+        )
+        {
+            var text = Expression.Property(parameter, nameof(ClimbLog.Grade));
+            Expression EndpointRank(Expression fallback, bool last) =>
+                Expression.Condition(
+                    Expression.AndAlso(
+                        Expression.Equal(
+                            Expression.Property(parameter, nameof(ClimbLog.GradeSystem)),
+                            Expression.Constant(system)
                         ),
-                        Expression.Constant(index),
-                        fallback
-                    );
-                lower = EndpointRank(lower, false);
-                upper = EndpointRank(upper, true);
-            }
+                        Expression.OrElse(
+                            Expression.Equal(text, Expression.Constant(grade)),
+                            Expression.Call(
+                                text,
+                                last ? nameof(string.EndsWith) : nameof(string.StartsWith),
+                                Type.EmptyTypes,
+                                Expression.Constant(last ? $"-{grade}" : $"{grade}-")
+                            )
+                        )
+                    ),
+                    Expression.Constant(index),
+                    fallback
+                );
+            lower = EndpointRank(lower, false);
+            upper = EndpointRank(upper, true);
+        }
         var rank = Expression.Divide(Expression.Add(lower, upper), Expression.Constant(2));
         return Expression.Lambda<Func<ClimbLog, int>>(rank, parameter);
     }
+
     public static bool IsValid(string system, string grade)
     {
         var parts = grade.Split('-');

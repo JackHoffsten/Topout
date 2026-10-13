@@ -131,4 +131,3 @@ public sealed class ClimbLog : OwnedEntity
         return string.IsNullOrEmpty(value) ? null : value;
     }
 }
-

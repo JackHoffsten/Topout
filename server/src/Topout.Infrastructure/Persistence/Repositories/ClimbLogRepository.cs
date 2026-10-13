@@ -85,12 +85,7 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
             .ToArrayAsync(ct);
         return projects
             .Where(x => x.Logs.Count > 0)
-            .Select(x => new ClimbProjectResponse(
-                x.Id,
-                ClimbLogResponse.From(
-                    x.LatestAttempt!
-                )
-            ))
+            .Select(x => new ClimbProjectResponse(x.Id, ClimbLogResponse.From(x.LatestAttempt!)))
             .ToArray();
     }
 
@@ -240,7 +235,10 @@ internal sealed class ClimbLogRepository(AppDbContext db) : IClimbLogRepository
         update(log);
         if (log.Project != null)
         {
-            var history = await db.ClimbLogs.AsNoTracking().Where(x => x.UserId == userId && x.ProjectId == log.ProjectId).ToArrayAsync(ct);
+            var history = await db
+                .ClimbLogs.AsNoTracking()
+                .Where(x => x.UserId == userId && x.ProjectId == log.ProjectId)
+                .ToArrayAsync(ct);
             log.Project.ClassifyAttempt(log, history.Where(x => ClimbProject.Precedes(x, log, id)));
         }
         else
