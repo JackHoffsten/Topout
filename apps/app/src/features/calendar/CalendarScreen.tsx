@@ -1,3 +1,4 @@
+import { refreshTraining } from '../training/queries';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
@@ -103,8 +104,7 @@ export function CalendarScreen() {
     onSuccess: async (_, id) => {
       setRemovingLog(undefined);
       cache.removeQueries({ queryKey: ['workout-logging', id] });
-      await cache.invalidateQueries({ queryKey: ['progress'] });
-      await cache.invalidateQueries({ queryKey: scheduleKey });
+      await refreshTraining(cache, 'workout');
     },
   });
   const selectDate = (date: Date, revealDetails = true) => {

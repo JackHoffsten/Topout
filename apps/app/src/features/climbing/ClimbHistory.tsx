@@ -1,3 +1,4 @@
+import { refreshTraining } from '../training/queries';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -150,13 +151,7 @@ export function ClimbHistory() {
       setExpanded(undefined);
       if (selectedId === id) router.replace('/climbs');
       cache.removeQueries({ queryKey: ['climb-logs', 'detail', id] });
-      await cache.invalidateQueries({ queryKey: ['progress'] });
-      await cache.invalidateQueries({ queryKey: ['climb-projects'] });
-      await cache.invalidateQueries({
-        predicate: (query) =>
-          query.queryKey[0] === 'climb-logs' &&
-          !(query.queryKey[1] === 'detail' && query.queryKey[2] === id),
-      });
+      await refreshTraining(cache, 'climb', id);
     },
   });
   return (

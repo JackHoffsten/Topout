@@ -1,3 +1,5 @@
+import { createClimbSave, ClimbPhotoSaveError } from './climbSave';
+import { refreshTraining } from '../training/queries';
 import { useRef, useState, type RefObject } from 'react';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -171,6 +173,7 @@ export function ClimbEditor({
   });
   const [validation, setValidation] = useState<string>();
   const [savedId, setSavedId] = useState(log?.id);
+  const [saveWorkflow] = useState(() => createClimbSave(api, log?.id));
   const projectAttempts = useQuery({
     queryKey: ['climb-projects', draft.projectId, 'attempts'],
     queryFn: () => api.getProjectAttempts(draft.projectId!),
@@ -203,31 +206,23 @@ export function ClimbEditor({
   const displayedPhoto = photo === undefined ? existingPhoto.data : photo;
   const save = useMutation({
     mutationFn: async (input: ClimbLogInput) => {
-      const result = savedId
-        ? await api.updateClimbLog(savedId, input)
-        : await api.createClimbLog(input);
-      // Preserve the created ID if a photo upload fails, so retry cannot create duplicates.
-      setSavedId(result.id);
-      if (result.projectId)
-        setDraft((current) => ({ ...current, projectId: result.projectId, isProject: true }));
-      if (photo !== undefined) {
-        try {
-          if (photo) await api.saveClimbPhoto(result.id, photo.base64);
-          else await api.deleteClimbPhoto(result.id);
-        } catch (error) {
-          await cache.invalidateQueries({ queryKey: ['climb-logs'] });
-          setPhotoError('The climb was saved, but the photo change was not. Try saving again.');
-          throw error;
+      try {
+        return await saveWorkflow.save(input, photo, (result) => {
+          setSavedId(result.id);
+          if (result.projectId)
+            setDraft((current) => ({ ...current, projectId: result.projectId, isProject: true }));
+        });
+      } catch (error) {
+        if (error instanceof ClimbPhotoSaveError) {
+          await refreshTraining(cache, 'climb');
+          setPhotoError(error.message);
+          throw error.cause;
         }
+        throw error;
       }
-      return result;
     },
     onSuccess: async (_, input) => {
-      await cache.invalidateQueries({ queryKey: ['progress'] });
-      await cache.invalidateQueries({ queryKey: ['climb-logs'] });
-      await cache.invalidateQueries({ queryKey: ['log-locations', 'climb'] });
-      await cache.invalidateQueries({ queryKey: ['climb-photo'] });
-      await cache.invalidateQueries({ queryKey: ['climb-projects'] });
+      await refreshTraining(cache, 'climb');
       onClose(input.date);
     },
   });
