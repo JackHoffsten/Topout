@@ -22,6 +22,13 @@ public sealed record LoggedExerciseResponse(
     IReadOnlyList<LoggedSetResponse> Sets
 );
 
+public sealed record ExerciseReplacementResponse(
+    int OriginalExerciseId,
+    ExerciseResponse Exercise,
+    int Order,
+    IReadOnlyList<ReplacementSetInput> Sets
+);
+
 public sealed record WorkoutLogResponse(
     int Id,
     DateOnly Date,
@@ -29,7 +36,8 @@ public sealed record WorkoutLogResponse(
     DateTime? CompletedAt,
     IReadOnlyList<LoggedExerciseResponse> Exercises,
     string? Location = null,
-    IReadOnlyList<int>? RemovedExerciseIds = null
+    IReadOnlyList<int>? RemovedExerciseIds = null,
+    IReadOnlyList<ExerciseReplacementResponse>? Replacements = null
 )
 {
     public static WorkoutLogResponse From(WorkoutLog log) =>
@@ -55,6 +63,19 @@ public sealed record WorkoutLogResponse(
                 ))
                 .ToArray(),
             log.Location,
-            log.RemovedExerciseIds
+            log.RemovedExerciseIds,
+            log.Entries.Where(e => e.OriginalExerciseId.HasValue)
+                .Select(e => new ExerciseReplacementResponse(
+                    e.OriginalExerciseId!.Value,
+                    ExerciseResponse.From(e.Exercise),
+                    e.ReplacementOrder!.Value,
+                    e.ReplacementSets.Select(s => new ReplacementSetInput(
+                            s.Order,
+                            s.Side,
+                            s.IsWarmup
+                        ))
+                        .ToArray()
+                ))
+                .ToArray()
         );
 }

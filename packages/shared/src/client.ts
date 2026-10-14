@@ -26,6 +26,8 @@ import {
   workoutLoggingSchema,
   type RecordWorkoutSet,
   recordWorkoutSetSchema,
+  replaceWorkoutExerciseInputSchema,
+  type ReplaceWorkoutExerciseInput,
 } from './contracts';
 import { ApiError, Fetcher, readResponse } from './http';
 import { climbPhotoSchema } from './climbPhoto';
@@ -324,6 +326,19 @@ export class ApiClient {
       workoutLoggingSchema,
       'PUT',
       recordWorkoutSetSchema.parse(input),
+    );
+  }
+
+  replaceWorkoutExercise(
+    scheduleId: number,
+    exerciseId: number,
+    input: ReplaceWorkoutExerciseInput,
+  ) {
+    return this.request(
+      `/api/workout-schedule/${scheduleId}/log/exercises/${exerciseId}/replacement`,
+      workoutLoggingSchema,
+      'PUT',
+      replaceWorkoutExerciseInputSchema.parse(input),
     );
   }
 

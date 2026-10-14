@@ -8,9 +8,11 @@ export function Page({
   children,
   scrollRef,
   onContentSizeChange,
+  onScroll,
 }: React.PropsWithChildren<{
   scrollRef?: React.Ref<ScrollView>;
   onContentSizeChange?: ScrollViewProps['onContentSizeChange'];
+  onScroll?: ScrollViewProps['onScroll'];
 }>) {
   const c = useTheme();
   const frame = useRef<View>(null);
@@ -38,6 +40,8 @@ export function Page({
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           onContentSizeChange={onContentSizeChange}
+          onScroll={onScroll}
+          scrollEventThrottle={onScroll ? 16 : undefined}
           style={{ flex: 1, backgroundColor: c.bg }}
           contentContainerStyle={{
             padding: 24,

@@ -9,6 +9,86 @@ namespace Topout.Infrastructure.Persistence.Repositories;
 
 internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogRepository
 {
+    public async Task ReplaceExerciseAsync(
+        int userId,
+        int scheduleId,
+        int exerciseId,
+        Exercise replacement,
+        ReplaceExerciseInput input,
+        CancellationToken ct
+    )
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var schedule = await LockAsync(userId, scheduleId, ct);
+        await db.Entry(schedule)
+            .Reference(s => s.WorkoutDay)
+            .Query()
+            .Include(t => t.Exercises)
+            .LoadAsync(ct);
+        var log = schedule.WorkoutLog;
+        var active =
+            log?.IsCompleted == true
+                ? log.Entries.Select(e => e.ExerciseId).ToHashSet()
+                : (schedule.WorkoutDay?.Exercises.Select(e => e.ExerciseId) ?? []).ToHashSet();
+        if (log is not null && !log.IsCompleted)
+        {
+            active.ExceptWith(log.RemovedExerciseIds);
+            foreach (var entry in log.Entries.Where(e => e.OriginalExerciseId.HasValue))
+                active.Remove(entry.OriginalExerciseId!.Value);
+            active.UnionWith(log.Entries.Select(e => e.ExerciseId));
+        }
+        // A newly added draft exercise may have no recorded results yet, but must be visible to this account.
+        if (!active.Contains(exerciseId))
+        {
+            if (
+                log?.IsCompleted == true
+                || (log?.RemovedExerciseIds.Contains(exerciseId) ?? false)
+                || (log?.Entries.Any(e => e.OriginalExerciseId == exerciseId) ?? false)
+                || !await db.Exercises.AnyAsync(e => e.Id == exerciseId && e.UserId == userId, ct)
+            )
+                throw new RequestException(ErrorKind.NotFound, "Exercise entry not found.");
+        }
+        if (active.Contains(replacement.Id) && replacement.Id != exerciseId)
+            throw new RequestException(
+                ErrorKind.Conflict,
+                "An exercise can appear only once in a workout."
+            );
+        if (replacement.Id == exerciseId)
+            throw new RequestException(ErrorKind.Conflict, "Choose a different exercise.");
+        var recorded = log?.Entries.FirstOrDefault(e => e.ExerciseId == exerciseId);
+        if (
+            recorded is not null
+            && recorded.Sets.Any(s => !input.Sets.Any(p => p.Order == s.Order && p.Side == s.Side))
+        )
+            throw new RequestException(
+                ErrorKind.Conflict,
+                "The exercise has changed. Reopen the workout and retry replacement."
+            );
+        if (log is null)
+        {
+            log = new WorkoutLog(userId, schedule.Date);
+            schedule.StartLog(log);
+            db.WorkoutLogs.Add(log);
+        }
+        db.Entry(replacement).State = EntityState.Unchanged;
+        WorkoutMutation.Apply(() =>
+            log.ReplaceExercise(
+                exerciseId,
+                replacement,
+                input.Order,
+                input
+                    .Sets.Select(s => new Topout.Domain.ValueObjects.WorkoutReplacementSet(
+                        s.Order,
+                        s.Side,
+                        s.IsWarmup
+                    ))
+                    .ToArray()
+            )
+        );
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+    }
+
     public async Task RemoveExerciseAsync(
         int userId,
         int scheduleId,

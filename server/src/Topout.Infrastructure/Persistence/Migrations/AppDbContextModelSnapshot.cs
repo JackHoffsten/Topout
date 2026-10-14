@@ -514,6 +514,24 @@ namespace Topout.Infrastructure.Persistence.Migrations
                     b.Property<int>("Order")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("OriginalExerciseId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ReplacementOrder")
+                        .HasColumnType("integer");
+
+                    b.PrimitiveCollection<int[]>("ReplacementSetOrders")
+                        .IsRequired()
+                        .HasColumnType("integer[]");
+
+                    b.PrimitiveCollection<int[]>("ReplacementSetSides")
+                        .IsRequired()
+                        .HasColumnType("integer[]");
+
+                    b.PrimitiveCollection<bool[]>("ReplacementWarmups")
+                        .IsRequired()
+                        .HasColumnType("boolean[]");
+
                     b.Property<int>("WorkoutLogId")
                         .HasColumnType("integer");
 

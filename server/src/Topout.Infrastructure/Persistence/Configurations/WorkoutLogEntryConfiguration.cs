@@ -19,6 +19,10 @@ internal sealed class WorkoutLogEntryConfiguration : IEntityTypeConfiguration<Wo
             .HasForeignKey(x => x.ExerciseId)
             .OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.Notes).HasMaxLength(2000);
+        builder.Ignore(x => x.ReplacementSets);
+        builder.Property<int[]>("ReplacementSetOrders");
+        builder.Property<Topout.Domain.Enums.SetSide[]>("ReplacementSetSides");
+        builder.Property<bool[]>("ReplacementWarmups");
         builder.HasIndex(x => new { x.WorkoutLogId, x.Order }).IsUnique();
         builder.Navigation(x => x.Sets).UsePropertyAccessMode(PropertyAccessMode.Field);
     }

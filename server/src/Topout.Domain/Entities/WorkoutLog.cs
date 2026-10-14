@@ -109,7 +109,8 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
             _entries.Add(entry);
         }
         entry.RecordSet(order, reps, weight, warmup, notes, side);
-        RemovedExerciseIds = RemovedExerciseIds.Where(id => id != exercise.Id).ToArray();
+        if (entry.OriginalExerciseId is null)
+            RemovedExerciseIds = RemovedExerciseIds.Where(id => id != exercise.Id).ToArray();
     }
 
     public void RemoveExercise(int exerciseId)
@@ -120,7 +121,12 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
             throw new InvalidOperationException(
                 "A completed workout needs at least one exercise with a logged set."
             );
+        var originalId = _entries
+            .FirstOrDefault(e => e.ExerciseId == exerciseId)
+            ?.OriginalExerciseId;
         _entries.RemoveAll(e => e.ExerciseId == exerciseId);
+        if (originalId.HasValue)
+            RemovedExerciseIds = [.. RemovedExerciseIds.Append(originalId.Value).Distinct()];
         RemovedExerciseIds = [.. RemovedExerciseIds.Append(exerciseId).Distinct()];
     }
 
@@ -132,8 +138,39 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
         if (IsCompleted && _entries.Sum(e => e.Sets.Count) == 1)
             throw new InvalidOperationException("A completed workout needs at least one set.");
         entry.RemoveRecordedSet(order, side);
-        if (entry.Sets.Count == 0)
+        if (entry.Sets.Count == 0 && entry.OriginalExerciseId is null)
             _entries.Remove(entry);
+    }
+
+    public void ReplaceExercise(
+        int exerciseId,
+        Exercise replacement,
+        int order,
+        IReadOnlyList<Topout.Domain.ValueObjects.WorkoutReplacementSet> sets
+    )
+    {
+        if (replacement.UserId != UserId)
+            throw new ArgumentException("Exercise and workout must belong to the same user.");
+        if (_entries.Any(e => e.ExerciseId == replacement.Id && e.ExerciseId != exerciseId))
+            throw new InvalidOperationException("An exercise can appear only once in a workout.");
+        var entry = _entries.FirstOrDefault(e => e.ExerciseId == exerciseId);
+        if (entry is null)
+        {
+            if (_entries.Count >= 100)
+                throw new ArgumentException("A workout can contain at most 100 exercises.");
+            entry = new WorkoutLogEntry(
+                this,
+                replacement,
+                _entries.Select(e => e.Order).DefaultIfEmpty(0).Max() + 1
+            );
+            _entries.Add(entry);
+        }
+        entry.ReplaceExercise(replacement, exerciseId, order, sets);
+        RemovedExerciseIds = RemovedExerciseIds
+            .Append(exerciseId)
+            .Where(id => id != replacement.Id)
+            .Distinct()
+            .ToArray();
     }
 
     public void ReplaceContents(WorkoutLog source)

@@ -3,6 +3,7 @@ import { workoutLoggingKey } from './queries';
 import {
   completionExercises,
   restoreWorkoutDraft,
+  draftSetFromActual,
   draftDefaults,
   valueOrDefault,
   blankSet,
@@ -14,8 +15,8 @@ import {
   type DraftExercise,
 } from './workoutDraft';
 import { refreshTraining } from '../training/queries';
-import { useRef, useState } from 'react';
-import { Pressable, View, type ScrollView } from 'react-native';
+import { useState } from 'react';
+import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -23,6 +24,7 @@ import {
   recordWorkoutSetSchema,
   errorMessage,
   type WorkoutLogging,
+  type Exercise,
 } from '@topout/shared';
 import { useSession } from '../../lib/providers';
 import { Button } from '../../ui/components/Button';
@@ -44,6 +46,7 @@ import {
   type TemplateSetSelection,
 } from './templateFromLog';
 import { displayDate } from '../../lib/dates';
+import { useAutoScroll } from '../../ui/useAutoScroll';
 
 export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
   const defaults = (exerciseId: number, set: DraftSet) => draftDefaults(workout, exerciseId, set);
@@ -55,7 +58,8 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
   const [items, setItems] = useState<DraftExercise[]>(() => restoreWorkoutDraft(workout));
   const [notes, setNotes] = useState(workout.log?.notes ?? '');
   const [location, setLocation] = useState(workout.log?.location ?? '');
-  const scrollRef = useRef<ScrollView>(null);
+  const autoScroll = useAutoScroll();
+  const scrollRef = autoScroll.scrollRef;
   const saveLocation = useMutation({
     mutationFn: (value: string) => api.setWorkoutLocation(workout.scheduleId, value.trim() || null),
     onSuccess: async (response) => {
@@ -69,6 +73,8 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
   const [discard, setDiscard] = useState(false);
   const [removingExercise, setRemovingExercise] = useState<DraftExercise>();
   const [normalSet, setNormalSet] = useState<{ exerciseId: number; order: number }>();
+  const [replacingExercise, setReplacingExercise] = useState<DraftExercise>();
+  const [replacementChoice, setReplacementChoice] = useState<Exercise>();
   const [picker, setPicker] = useState(false);
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
@@ -171,7 +177,56 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
       await refreshTraining(cache, 'workout');
     },
   });
+  const replaceExercise = useMutation({
+    mutationFn: ({ item, replacement }: { item: DraftExercise; replacement: Exercise }) =>
+      api.replaceWorkoutExercise(workout.scheduleId, item.exercise.id, {
+        replacementExerciseId: replacement.id,
+        order: items.findIndex((entry) => entry.exercise.id === item.exercise.id) + 1,
+        sets: (
+          items.find((entry) => entry.exercise.id === item.exercise.id)?.sets ?? item.sets
+        ).map((set) => ({ order: set.order, side: set.side, isWarmup: set.warmup })),
+      }),
+    onSuccess: async (response, { item, replacement }) => {
+      const recorded =
+        response.log?.exercises.find((entry) => entry.exercise.id === replacement.id)?.sets ?? [];
+      setItems((current) =>
+        current.map((entry) =>
+          entry.exercise.id !== item.exercise.id
+            ? entry
+            : {
+                exercise: replacement,
+                sets: entry.sets.map((set) => {
+                  const saved = recorded.find(
+                    (result) => result.order === set.order && result.side === set.side,
+                  );
+                  return draftSetFromActual(saved, {
+                    ...set,
+                    target: undefined,
+                    reps: '',
+                    weight: '',
+                    saved: undefined,
+                  });
+                }),
+              },
+        ),
+      );
+      setCollapsed((current) => {
+        const next = new Set(current);
+        if (next.delete(item.exercise.id)) next.add(replacement.id);
+        return next;
+      });
+      setReplacingExercise(undefined);
+      setReplacementChoice(undefined);
+      setPicker(false);
+      setSearch('');
+      setErrors({});
+      cache.setQueryData(workoutLoggingKey(workout.scheduleId), response);
+      autoScroll.restore();
+      await refreshTraining(cache, 'workout');
+    },
+  });
   const busy =
+    replaceExercise.isPending ||
     removeExercise.isPending ||
     save.isPending ||
     record.isPending ||
@@ -245,7 +300,11 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
     save.mutate(parsed.data);
   };
   return (
-    <Page scrollRef={scrollRef}>
+    <Page
+      scrollRef={scrollRef}
+      onScroll={autoScroll.onScroll}
+      onContentSizeChange={autoScroll.onContentSizeChange}
+    >
       <Heading large>
         {workout.log?.completedAt ? (editing ? 'Edit workout' : 'Workout log') : 'Log workout'}
       </Heading>
@@ -504,6 +563,20 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
                       }}
                     />
                     <Button
+                      title="Replace exercise"
+                      accessibilityLabel={`Replace ${item.exercise.name}`}
+                      variant="secondary"
+                      disabled={busy}
+                      onPress={() => {
+                        autoScroll.remember();
+                        replaceExercise.reset();
+                        setReplacingExercise(item);
+                        setReplacementChoice(undefined);
+                        setSearch('');
+                        setPicker(true);
+                      }}
+                    />
+                    <Button
                       title="Remove exercise"
                       accessibilityLabel={`Remove ${item.exercise.name}`}
                       variant="secondary"
@@ -520,7 +593,12 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
           ))}
           {picker ? (
             <Card>
-              <SearchField label="Search exercises" value={search} onChangeText={setSearch} />
+              <SearchField
+                label="Search exercises"
+                value={search}
+                onChangeText={setSearch}
+                autoFocus={!!replacingExercise}
+              />
               {available.isPending ? (
                 <Loading text="Loading exercises…" />
               ) : available.isError ? (
@@ -545,10 +623,27 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
                       <Button
                         key={exercise.id}
                         title={exercise.name}
-                        accessibilityLabel={`Add ${exercise.name}`}
+                        accessibilityLabel={`${replacingExercise ? 'Replace with' : 'Add'} ${exercise.name}`}
                         variant="secondary"
                         disabled={busy}
                         onPress={() => {
+                          if (replacingExercise) {
+                            if (
+                              workout.log?.exercises.some(
+                                (entry) =>
+                                  entry.exercise.id === replacingExercise.exercise.id &&
+                                  entry.sets.length > 0,
+                              )
+                            ) {
+                              setReplacementChoice(exercise);
+                              setPicker(false);
+                            } else
+                              replaceExercise.mutate({
+                                item: replacingExercise,
+                                replacement: exercise,
+                              });
+                            return;
+                          }
                           setItems([...items, { exercise, sets: [blankSet()] }]);
                           setPicker(false);
                           setSearch('');
@@ -566,7 +661,12 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
               <Button
                 title="Close exercise picker"
                 variant="secondary"
-                onPress={() => setPicker(false)}
+                disabled={busy}
+                onPress={() => {
+                  setPicker(false);
+                  setReplacingExercise(undefined);
+                  setReplacementChoice(undefined);
+                }}
               />
             </Card>
           ) : (
@@ -576,6 +676,14 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
               disabled={busy || items.length >= 100}
               onPress={() => setPicker(true)}
             />
+          )}
+          {!replacementChoice && (
+            <ErrorNotice
+              message={replaceExercise.isError ? errorMessage(replaceExercise.error) : undefined}
+            />
+          )}
+          {replaceExercise.isError && !replacementChoice && replacingExercise && (
+            <Label muted>Choose an exercise again to retry replacement.</Label>
           )}
           <Field
             label="Workout notes (optional)"
@@ -618,7 +726,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
           )}
           <Label small muted>
             {workout.log?.completedAt
-              ? 'Save set and confirmed exercise removals save immediately. Save changes also saves notes and other exercise changes.'
+              ? 'Save set, exercise replacements and confirmed exercise removals save immediately. Save changes also saves notes and other exercise changes.'
               : 'Blank fields use the shown previous or planned values. Log each set to save it immediately. Remove sets you did not complete before finishing.'}
           </Label>
           <Button
@@ -632,6 +740,24 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
             variant="secondary"
             disabled={busy}
             onPress={() => (dirty ? setDiscard(true) : router.replace('/calendar'))}
+          />
+          <ConfirmDialog
+            visible={!!replacementChoice}
+            title={`Replace ${replacingExercise?.exercise.name ?? 'exercise'} with ${replacementChoice?.name ?? 'exercise'}?`}
+            description="Logged sets will be relabelled to the replacement exercise. Their reps, weight, warm-up flags and notes will be kept. This change saves immediately and leaves the template unchanged."
+            confirmLabel="Confirm replacement"
+            cancelLabel="Keep original exercise"
+            busy={replaceExercise.isPending}
+            error={replaceExercise.isError ? errorMessage(replaceExercise.error) : undefined}
+            onCancel={() => {
+              setReplacementChoice(undefined);
+              setReplacingExercise(undefined);
+              replaceExercise.reset();
+            }}
+            onConfirm={() => {
+              if (replacingExercise && replacementChoice)
+                replaceExercise.mutate({ item: replacingExercise, replacement: replacementChoice });
+            }}
           />
           <ConfirmDialog
             visible={!!removingExercise}
