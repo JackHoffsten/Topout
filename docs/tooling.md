@@ -10,7 +10,10 @@ Each browser test suite keeps its Playwright configuration beside its tests:
 `e2e/playwright.config.ts` for API-backed tests and
 `browser-tests/playwright.config.ts` for keyboard and layout tests. Run them from
 the root with `npm run test:e2e` and `npm run test:keyboard` respectively. Vitest
-stays at the root because it selects unit tests across `packages/`.
+settings live in `packages/shared/vitest.config.mts`, beside the package that uses
+them. `npm run test:unit` runs that package's tests; `npm test` runs both shared and
+app tests. The root `tsconfig.json` checks repository tooling, while
+`tsconfig.base.json` shares compiler settings with the shared package.
 
 Prettier formats TypeScript, JavaScript, JSON, YAML, and Markdown. CSharpier formats
 maintained C# source and tests. Ruff formats Python deployment scripts and tests.

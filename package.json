@@ -12,9 +12,9 @@
   "scripts": {
     "dev": "npm run dev --workspace @topout/app",
     "build": "npm run build --workspace @topout/app",
-    "typecheck": "tsc -p tsconfig.tools.json && npm run typecheck --workspaces --if-present",
-    "test": "vitest run && npm run test --workspace @topout/app",
-    "test:unit": "vitest run",
+    "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspace @topout/shared && npm run test --workspace @topout/app",
+    "test:unit": "npm run test --workspace @topout/shared",
     "test:e2e": "playwright test -c e2e/playwright.config.ts",
     "test:keyboard": "npm run build && playwright test -c browser-tests/playwright.config.ts",
     "db:up": "docker compose up -d --wait postgres",
