@@ -15,8 +15,8 @@
     "typecheck": "tsc -p tsconfig.tools.json && npm run typecheck --workspaces --if-present",
     "test": "vitest run && npm run test --workspace @topout/app",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test",
-    "test:keyboard": "npm run build && playwright test -c playwright.keyboard.config.ts",
+    "test:e2e": "playwright test -c e2e/playwright.config.ts",
+    "test:keyboard": "npm run build && playwright test -c browser-tests/playwright.config.ts",
     "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres",
@@ -49,5 +49,11 @@
     "selfsigned": "^5.5.0",
     "typescript": "7.0.2",
     "vitest": "5.0.1"
+  },
+  "prettier": {
+    "semi": true,
+    "singleQuote": true,
+    "trailingComma": "all",
+    "printWidth": 100
   }
 }

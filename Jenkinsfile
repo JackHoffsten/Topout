@@ -27,7 +27,7 @@ pipeline {
         }
         stage('Deployment tooling') {
             steps {
-                sh 'python3 -m venv .venv && .venv/bin/python -m pip install -r requirements-dev.txt'
+                sh 'python3 -m venv .venv && .venv/bin/python -m pip install -r deploy/requirements-dev.txt'
                 sh '.venv/bin/python -m ruff format --check deploy'
                 sh '.venv/bin/python -m unittest discover -s deploy/tests'
                 sh 'sh -n deploy/postgres-init.sh'

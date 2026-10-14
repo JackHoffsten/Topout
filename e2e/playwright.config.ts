@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 export default defineConfig({
-  testDir: './e2e',
+  testDir: '.',
   workers: 1,
   timeout: 60000,
   expect: { timeout: 15000 },
@@ -12,5 +12,5 @@ export default defineConfig({
       use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
     },
   ],
-  globalSetup: './e2e/setup.ts',
+  globalSetup: './setup.ts',
 });
