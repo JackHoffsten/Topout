@@ -3,7 +3,6 @@ node_modules
 .ruff_cache
 __pycache__
 apps/app/expo-env.d.ts
-docs/refactoring-plan.md
 .env.example
 dist
 build
