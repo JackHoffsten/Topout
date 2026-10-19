@@ -66,6 +66,7 @@ public sealed class WorkoutLoggingHandler(
                 user.UserId,
                 schedule.Date,
                 schedule.WorkoutLogId,
+                schedule.WorkoutLog?.Location,
                 ct
             ),
         };

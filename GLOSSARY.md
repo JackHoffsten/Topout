@@ -4,6 +4,10 @@ Topout tracks workouts and climbing activity.
 
 ## Language
 
+**Last logged**:
+The previous recorded result for an exercise at a particular set position and
+side, preferring the workout's location when matching history exists.
+
 **Workout**:
 A training session consisting of exercises and sets, which can be planned and
 logged.

@@ -133,8 +133,18 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
 
     public async Task<
         IReadOnlyList<Topout.Application.WorkoutLogging.PreviousSetResponse>
-    > PreviousSetsAsync(int userId, DateOnly date, int? excludedLogId, CancellationToken ct) =>
-        await db
+    > PreviousSetsAsync(
+        int userId,
+        DateOnly date,
+        int? excludedLogId,
+        string? location,
+        CancellationToken ct
+    )
+    {
+        var normalizedLocation = string.IsNullOrWhiteSpace(location)
+            ? null
+            : location.Trim().ToLowerInvariant();
+        return await db
             .WorkoutLogSets.AsNoTracking()
             .Where(s =>
                 s.WorkoutLogEntry.WorkoutLog.UserId == userId
@@ -150,7 +160,13 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
                 s.Side,
             })
             .Select(g =>
-                g.OrderByDescending(s => s.WorkoutLogEntry.WorkoutLog.Date)
+                g.OrderByDescending(s =>
+                        normalizedLocation != null
+                        && s.WorkoutLogEntry.WorkoutLog.Location != null
+                        && s.WorkoutLogEntry.WorkoutLog.Location.Trim().ToLower()
+                            == normalizedLocation
+                    )
+                    .ThenByDescending(s => s.WorkoutLogEntry.WorkoutLog.Date)
                     .ThenByDescending(s => s.WorkoutLogEntry.WorkoutLogId)
                     .Select(s => new Topout.Application.WorkoutLogging.PreviousSetResponse(
                         s.WorkoutLogEntry.ExerciseId,
@@ -166,6 +182,7 @@ internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogReposit
                     .First()
             )
             .ToArrayAsync(ct);
+    }
 
     public async Task DeleteAsync(int userId, int scheduleId, CancellationToken ct)
     {

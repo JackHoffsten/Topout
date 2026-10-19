@@ -19,6 +19,7 @@ public interface IWorkoutLogRepository
         int userId,
         DateOnly date,
         int? excludedLogId,
+        string? location,
         CancellationToken ct
     );
     Task DeleteAsync(int userId, int scheduleId, CancellationToken ct);
