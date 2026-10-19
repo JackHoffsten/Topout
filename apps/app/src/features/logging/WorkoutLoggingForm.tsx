@@ -63,6 +63,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
   const saveLocation = useMutation({
     mutationFn: (value: string) => api.setWorkoutLocation(workout.scheduleId, value.trim() || null),
     onSuccess: async (response) => {
+      setLocation(response.log?.location ?? '');
       cache.setQueryData(workoutLoggingKey(workout.scheduleId), response);
       await refreshTraining(cache, 'workout');
     },

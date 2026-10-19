@@ -387,6 +387,51 @@ test('saves an optional workout location independently without requiring sets', 
   expect(mockApi.recordWorkoutSet).not.toHaveBeenCalled();
 });
 
+test('saving location refreshes history and blank defaults while preserving entered values', async () => {
+  const previous = {
+    exerciseId: 1,
+    order: 1,
+    date: '2026-09-29',
+    reps: 10,
+    weightKg: 35,
+    isWarmup: false,
+    side: 'Both',
+    location: 'Other Gym',
+  };
+  const updated = {
+    ...workout,
+    log: {
+      id: 1,
+      date: workout.date,
+      notes: null,
+      completedAt: null,
+      exercises: [],
+      location: 'Central Gym',
+    },
+    previousSets: [
+      { ...previous, date: '2026-09-28', reps: 8, weightKg: 25, location: 'Central Gym' },
+    ],
+  };
+  mockApi.getWorkoutLogging.mockResolvedValue({ ...workout, previousSets: [previous] });
+  mockApi.setWorkoutLocation.mockResolvedValue(updated);
+  await mount();
+  await fireEventAsync.changeText(screen.getByLabelText('Row set 1 reps'), '11');
+  await fireEventAsync.changeText(screen.getByLabelText('Location (optional)'), 'Central Gym');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Save location' }));
+  await screen.findByText(/Last logged \(2026-09-28 · Central Gym\)/);
+  expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('11');
+  expect(screen.getByLabelText('Row set 1 weight (kg)').props.value).toBe('');
+  expect(screen.getByLabelText('Row set 1 weight (kg)').props.placeholder).toBe('25');
+  mockApi.recordWorkoutSet.mockResolvedValue(updated);
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Log Row set 1' }));
+  await waitFor(() =>
+    expect(mockApi.recordWorkoutSet).toHaveBeenCalledWith(
+      2,
+      expect.objectContaining({ reps: 11, weightKg: 25, location: 'Central Gym' }),
+    ),
+  );
+});
+
 test('automatically saves the selected workout location rather than the typed prefix', async () => {
   mockApi.listLogLocations.mockResolvedValue(['Central Gym']);
   mockApi.setWorkoutLocation.mockResolvedValue(workout);
