@@ -17,6 +17,7 @@ import {
   type WorkoutTemplateInput,
   workoutTemplateSchema,
   workoutTemplatesSchema,
+  exerciseOrderInputSchema,
   type ScheduleWorkoutInput,
   scheduleWorkoutInputSchema,
   scheduledWorkoutSchema,
@@ -282,6 +283,24 @@ export class ApiClient {
 
   getWorkoutLogging(scheduleId: number) {
     return this.request(`/api/workout-schedule/${scheduleId}/log`, workoutLoggingSchema);
+  }
+
+  reorderWorkoutExercises(scheduleId: number, exerciseIds: number[]) {
+    return this.request(
+      `/api/workout-schedule/${scheduleId}/log/exercises/order`,
+      workoutLoggingSchema,
+      'PUT',
+      exerciseOrderInputSchema.parse({ exerciseIds }),
+    );
+  }
+
+  reorderTemplateExercises(id: number, exerciseIds: number[]) {
+    return this.request(
+      `/api/workout-templates/${id}/exercises/order`,
+      workoutTemplateSchema,
+      'PUT',
+      exerciseOrderInputSchema.parse({ exerciseIds }),
+    );
   }
 
   listLogLocations(activity: 'workout' | 'climb', search = '') {

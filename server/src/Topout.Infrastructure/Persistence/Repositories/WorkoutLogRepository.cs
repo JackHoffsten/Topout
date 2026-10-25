@@ -9,6 +9,65 @@ namespace Topout.Infrastructure.Persistence.Repositories;
 
 internal sealed class WorkoutLogRepository(AppDbContext db) : IWorkoutLogRepository
 {
+    public async Task ReorderExercisesAsync(
+        int userId,
+        int scheduleId,
+        IReadOnlyList<Exercise> exercises,
+        CancellationToken ct
+    )
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var schedule = await LockAsync(userId, scheduleId, ct);
+        await db.Entry(schedule)
+            .Reference(s => s.WorkoutDay)
+            .Query()
+            .Include(t => t.Exercises)
+            .LoadAsync(ct);
+        var log = schedule.WorkoutLog;
+        var ids = exercises.Select(e => e.Id).ToHashSet();
+        var active =
+            log?.IsCompleted == true
+                ? log.Entries.Select(e => e.ExerciseId).ToHashSet()
+                : (schedule.WorkoutDay?.Exercises.Select(e => e.ExerciseId) ?? []).ToHashSet();
+        if (log is not null && !log.IsCompleted)
+        {
+            active.ExceptWith(log.RemovedExerciseIds);
+            active.ExceptWith(
+                log.Entries.Where(e => e.OriginalExerciseId.HasValue)
+                    .Select(e => e.OriginalExerciseId!.Value)
+            );
+            active.UnionWith(log.Entries.Select(e => e.ExerciseId));
+        }
+        if (
+            !active.IsSubsetOf(ids)
+            || (
+                log is not null
+                && ids.Any(id =>
+                    !active.Contains(id)
+                    && (
+                        log.RemovedExerciseIds.Contains(id)
+                        || log.Entries.Any(e => e.OriginalExerciseId == id)
+                    )
+                )
+            )
+        )
+            throw new RequestException(
+                ErrorKind.Conflict,
+                "The workout has changed. Reopen it and retry."
+            );
+        if (log is null)
+        {
+            log = new WorkoutLog(userId, schedule.Date);
+            schedule.StartLog(log);
+            db.WorkoutLogs.Add(log);
+        }
+        foreach (var exercise in exercises)
+            db.Entry(exercise).State = EntityState.Unchanged;
+        WorkoutMutation.Apply(() => log.ReorderExercises(exercises));
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+    }
+
     public async Task ReplaceExerciseAsync(
         int userId,
         int scheduleId,

@@ -53,6 +53,7 @@ public class WorkoutLogEntry : Entity
         WorkoutLog = workoutLog;
         Exercise = exercise;
         Order = order;
+        ExerciseId = exercise.Id;
     }
 
     internal void SetOrder(int order) => Order = order;

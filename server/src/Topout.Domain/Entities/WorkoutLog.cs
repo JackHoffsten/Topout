@@ -13,6 +13,29 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
     public DateTime? CompletedAt { get; private set; }
     public bool IsCompleted => CompletedAt is not null;
     public int[] RemovedExerciseIds { get; private set; } = [];
+    public int[] ExerciseOrder { get; private set; } = [];
+
+    public void ReorderExercises(IReadOnlyList<Exercise> exercises)
+    {
+        if (
+            exercises.Count is < 1 or > 100
+            || exercises.Any(e => e.UserId != UserId)
+            || exercises.Select(e => e.Id).Distinct().Count() != exercises.Count
+        )
+            throw new ArgumentException("Choose 1–100 distinct exercises belonging to this user.");
+        if (_entries.Any(e => !exercises.Any(x => x.Id == e.ExerciseId)))
+            throw new InvalidOperationException("The workout has changed. Reopen it and retry.");
+        foreach (var exercise in exercises)
+            if (!_entries.Any(e => e.ExerciseId == exercise.Id))
+                _entries.Add(
+                    new WorkoutLogEntry(
+                        this,
+                        exercise,
+                        _entries.Select(e => e.Order).DefaultIfEmpty(0).Max() + 1
+                    )
+                );
+        ExerciseOrder = exercises.Select(e => e.Id).ToArray();
+    }
 
     private readonly List<WorkoutLogEntry> _entries = [];
     public IReadOnlyList<WorkoutLogEntry> Entries => _entries;
@@ -109,6 +132,8 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
             _entries.Add(entry);
         }
         entry.RecordSet(order, reps, weight, warmup, notes, side);
+        if (ExerciseOrder.Length > 0 && !ExerciseOrder.Contains(exercise.Id))
+            ExerciseOrder = [.. ExerciseOrder, exercise.Id];
         if (entry.OriginalExerciseId is null)
             RemovedExerciseIds = RemovedExerciseIds.Where(id => id != exercise.Id).ToArray();
     }
@@ -125,6 +150,7 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
             .FirstOrDefault(e => e.ExerciseId == exerciseId)
             ?.OriginalExerciseId;
         _entries.RemoveAll(e => e.ExerciseId == exerciseId);
+        ExerciseOrder = ExerciseOrder.Where(id => id != exerciseId).ToArray();
         if (originalId.HasValue)
             RemovedExerciseIds = [.. RemovedExerciseIds.Append(originalId.Value).Distinct()];
         RemovedExerciseIds = [.. RemovedExerciseIds.Append(exerciseId).Distinct()];
@@ -138,7 +164,11 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
         if (IsCompleted && _entries.Sum(e => e.Sets.Count) == 1)
             throw new InvalidOperationException("A completed workout needs at least one set.");
         entry.RemoveRecordedSet(order, side);
-        if (entry.Sets.Count == 0 && entry.OriginalExerciseId is null)
+        if (
+            entry.Sets.Count == 0
+            && entry.OriginalExerciseId is null
+            && !ExerciseOrder.Contains(exerciseId)
+        )
             _entries.Remove(entry);
     }
 
@@ -166,6 +196,9 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
             _entries.Add(entry);
         }
         entry.ReplaceExercise(replacement, exerciseId, order, sets);
+        ExerciseOrder = ExerciseOrder
+            .Select(id => id == exerciseId ? replacement.Id : id)
+            .ToArray();
         RemovedExerciseIds = RemovedExerciseIds
             .Append(exerciseId)
             .Where(id => id != replacement.Id)
@@ -198,6 +231,7 @@ public class WorkoutLog : OwnedEntity, ICreatedAt, IUpdatedAt
                 );
         }
         CompletedAt = completedAt;
+        ExerciseOrder = source.Entries.OrderBy(e => e.Order).Select(e => e.ExerciseId).ToArray();
         RemovedExerciseIds = RemovedExerciseIds
             .Where(id => !source.Entries.Any(e => e.ExerciseId == id))
             .ToArray();

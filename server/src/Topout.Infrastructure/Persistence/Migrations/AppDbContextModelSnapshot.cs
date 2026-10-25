@@ -469,6 +469,10 @@ namespace Topout.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
+                    b.PrimitiveCollection<int[]>("ExerciseOrder")
+                        .IsRequired()
+                        .HasColumnType("integer[]");
+
                     b.Property<string>("Location")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");

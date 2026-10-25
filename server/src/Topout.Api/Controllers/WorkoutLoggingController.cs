@@ -10,6 +10,14 @@ namespace Topout.Api.Controllers;
 [Route("api/workout-schedule/{scheduleId:int:min(1)}/log")]
 public sealed class WorkoutLoggingController : ControllerBase
 {
+    [HttpPut("exercises/order")]
+    public async Task<IActionResult> ReorderExercises(
+        int scheduleId,
+        Topout.Application.Common.ExerciseOrderInput input,
+        [FromServices] WorkoutLoggingHandler handler,
+        CancellationToken ct
+    ) => Ok(await handler.ReorderExercisesAsync(scheduleId, input, ct));
+
     public sealed record LocationInput(string? Location);
 
     [HttpPut("exercises/{exerciseId:int:min(1)}/replacement")]

@@ -58,6 +58,7 @@ const replacementSetSchema = z.object({
 });
 
 export const workoutLogSchema = z.object({
+  exerciseOrder: z.array(z.number().int().positive()).optional(),
   replacements: z
     .array(
       z.object({

@@ -146,6 +146,13 @@ public class WorkoutTemplateTests
 
     private sealed class MemoryTemplates : IWorkoutTemplateRepository
     {
+        public Task<WorkoutDay> ReorderAsync(
+            int userId,
+            int id,
+            IReadOnlyList<Exercise> exercises,
+            CancellationToken ct
+        ) => throw new NotSupportedException();
+
         public int Saves;
 
         public Task<WorkoutDay?> FindAsync(int userId, int id, CancellationToken ct) =>

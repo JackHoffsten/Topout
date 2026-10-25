@@ -4,6 +4,12 @@ namespace Topout.Application.Abstractions;
 
 public interface IWorkoutTemplateRepository
 {
+    Task<WorkoutDay> ReorderAsync(
+        int userId,
+        int id,
+        IReadOnlyList<Exercise> exercises,
+        CancellationToken ct
+    );
     Task<IReadOnlyList<WorkoutDay>> ListAsync(int userId, CancellationToken ct);
     Task<WorkoutDay?> FindAsync(int userId, int id, CancellationToken ct);
     Task<WorkoutDay> SaveAsync(int? id, WorkoutDay template, CancellationToken ct);

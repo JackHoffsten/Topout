@@ -11,6 +11,25 @@ public sealed class SaveWorkoutTemplateHandler(
     ICurrentUser user
 )
 {
+    public async Task<WorkoutTemplateResponse> ReorderAsync(
+        int id,
+        ExerciseOrderInput input,
+        CancellationToken ct
+    )
+    {
+        input.Validate();
+        var available = (await exercises.ListAsync(user.UserId, ct)).ToDictionary(e => e.Id);
+        var ordered = input
+            .ExerciseIds.Select(exerciseId =>
+                available.GetValueOrDefault(exerciseId)
+                ?? throw new RequestException(ErrorKind.NotFound, "Exercise not found.")
+            )
+            .ToArray();
+        return WorkoutTemplateResponse.From(
+            await templates.ReorderAsync(user.UserId, id, ordered, ct)
+        );
+    }
+
     public async Task<WorkoutTemplateResponse> HandleAsync(
         int? id,
         WorkoutTemplateInput input,

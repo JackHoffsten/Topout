@@ -7,6 +7,63 @@ namespace Topout.Infrastructure.Persistence.Repositories;
 
 internal sealed class WorkoutTemplateRepository(AppDbContext db) : IWorkoutTemplateRepository
 {
+    public async Task<WorkoutDay> ReorderAsync(
+        int userId,
+        int id,
+        IReadOnlyList<Exercise> exercises,
+        CancellationToken ct
+    )
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var target =
+            await db
+                .WorkoutDays.FromSqlInterpolated(
+                    $"SELECT * FROM \"WorkoutDays\" WHERE \"Id\" = {id} AND \"UserId\" = {userId} FOR UPDATE"
+                )
+                .SingleOrDefaultAsync(ct)
+            ?? throw new RequestException(ErrorKind.NotFound, "Workout template not found.");
+        var existing = (await FindAsync(userId, id, ct))!;
+        // A local removal is still a draft edit. Retain omitted saved members until Save changes.
+        var ordered = exercises
+            .Concat(
+                existing
+                    .Exercises.OrderBy(e => e.Order)
+                    .Where(e => !exercises.Any(x => x.Id == e.ExerciseId))
+                    .Select(e => e.Exercise)
+            )
+            .ToArray();
+        if (ordered.Length > 100)
+            throw new RequestException(
+                ErrorKind.Validation,
+                "A template can contain at most 100 exercises."
+            );
+        var draft = new WorkoutDay(userId, existing.Name);
+        foreach (var exercise in ordered)
+        {
+            var entry = draft.AddExercise(exercise);
+            var saved = existing.Exercises.FirstOrDefault(e => e.ExerciseId == exercise.Id);
+            foreach (var set in saved?.PlannedSets ?? [])
+                entry.AddSet(
+                    set.TargetRepsMin,
+                    set.TargetWeight,
+                    set.IsWarmup,
+                    set.IsAmrap,
+                    set.TargetRepsMax,
+                    set.RightTargetRepsMin,
+                    set.RightTargetRepsMax,
+                    set.RightTargetWeight,
+                    set.IsSplit
+                );
+        }
+        await db.WorkoutDayExercises.Where(x => x.WorkoutDayId == target.Id).ExecuteDeleteAsync(ct);
+        target.ReplaceContents(draft);
+        foreach (var entry in target.Exercises)
+            db.Entry(entry.Exercise).State = EntityState.Unchanged;
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return target;
+    }
+
     private IQueryable<WorkoutDay> ReadQuery(int userId) =>
         db
             .WorkoutDays.AsNoTracking()

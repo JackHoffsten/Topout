@@ -37,7 +37,8 @@ public sealed record WorkoutLogResponse(
     IReadOnlyList<LoggedExerciseResponse> Exercises,
     string? Location = null,
     IReadOnlyList<int>? RemovedExerciseIds = null,
-    IReadOnlyList<ExerciseReplacementResponse>? Replacements = null
+    IReadOnlyList<ExerciseReplacementResponse>? Replacements = null,
+    IReadOnlyList<int>? ExerciseOrder = null
 )
 {
     public static WorkoutLogResponse From(WorkoutLog log) =>
@@ -46,7 +47,11 @@ public sealed record WorkoutLogResponse(
             log.Date,
             log.Notes,
             log.CompletedAt,
-            log.Entries.OrderBy(e => e.Order)
+            log.Entries.OrderBy(e =>
+                    Array.IndexOf(log.ExerciseOrder, e.ExerciseId) is var index && index >= 0
+                        ? index
+                        : 100 + e.Order
+                )
                 .Select(e => new LoggedExerciseResponse(
                     ExerciseResponse.From(e.Exercise),
                     e.Sets.OrderBy(s => s.Order)
@@ -76,6 +81,7 @@ public sealed record WorkoutLogResponse(
                         ))
                         .ToArray()
                 ))
-                .ToArray()
+                .ToArray(),
+            log.ExerciseOrder
         );
 }

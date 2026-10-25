@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { exerciseSchema } from './exerciseContracts';
 
+export const exerciseOrderInputSchema = z.object({
+  exerciseIds: z
+    .array(z.number().int().positive())
+    .min(1)
+    .max(100)
+    .refine((ids) => new Set(ids).size === ids.length, 'Choose distinct exercises.'),
+});
+
 const plannedSideSchema = z
   .object({
     targetRepsMin: z.number().int().min(1).max(1000).nullish().default(null),

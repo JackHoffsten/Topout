@@ -9,6 +9,14 @@ namespace Topout.Api.Controllers;
 [Route("api/workout-templates")]
 public sealed class WorkoutTemplatesController : ControllerBase
 {
+    [HttpPut("{id:int:min(1)}/exercises/order")]
+    public async Task<IActionResult> Reorder(
+        int id,
+        Topout.Application.Common.ExerciseOrderInput input,
+        [FromServices] SaveWorkoutTemplateHandler handler,
+        CancellationToken ct
+    ) => Ok(await handler.ReorderAsync(id, input, ct));
+
     [HttpGet]
     public async Task<IActionResult> List(
         [FromServices] ListWorkoutTemplatesHandler handler,

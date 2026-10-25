@@ -5,6 +5,12 @@ namespace Topout.Application.Abstractions;
 
 public interface IWorkoutLogRepository
 {
+    Task ReorderExercisesAsync(
+        int userId,
+        int scheduleId,
+        IReadOnlyList<Exercise> exercises,
+        CancellationToken ct
+    );
     Task ReplaceExerciseAsync(
         int userId,
         int scheduleId,

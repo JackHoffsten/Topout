@@ -15,6 +15,24 @@ public sealed class WorkoutLoggingHandler(
     TimeProvider clock
 )
 {
+    public async Task<WorkoutLoggingResponse> ReorderExercisesAsync(
+        int scheduleId,
+        ExerciseOrderInput input,
+        CancellationToken ct
+    )
+    {
+        input.Validate();
+        var available = (await exercises.ListAsync(user.UserId, ct)).ToDictionary(e => e.Id);
+        var ordered = input
+            .ExerciseIds.Select(id =>
+                available.GetValueOrDefault(id)
+                ?? throw new RequestException(ErrorKind.NotFound, "Exercise not found.")
+            )
+            .ToArray();
+        await logs.ReorderExercisesAsync(user.UserId, scheduleId, ordered, ct);
+        return await GetAsync(scheduleId, ct);
+    }
+
     public async Task<WorkoutLoggingResponse> ReplaceExerciseAsync(
         int scheduleId,
         int exerciseId,

@@ -11,7 +11,7 @@ using Topout.Infrastructure.Persistence;
 namespace Topout.IntegrationTests;
 
 [Collection("api")]
-public class WorkoutTemplateApiTests(ApiFixture fixture)
+public partial class WorkoutTemplateApiTests(ApiFixture fixture)
 {
     private const string Url = "/api/workout-templates";
 
