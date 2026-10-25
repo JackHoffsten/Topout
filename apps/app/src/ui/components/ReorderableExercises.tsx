@@ -51,7 +51,7 @@ export function ReorderableExercises<T extends Item>({
   disabled: boolean;
   onMove: (from: number, to: number) => void;
   onDragging: (dragging: boolean) => void;
-  renderItem: (item: T, index: number, controls: ReactNode) => ReactNode;
+  renderItem: (item: T, index: number, controls: ReactNode, collapsed?: boolean) => ReactNode;
   feedback?: SaveFeedback;
   movedId?: number;
   reveal?: ReorderReveal;
@@ -67,6 +67,9 @@ export function ReorderableExercises<T extends Item>({
   const drag = useRef<Drag | undefined>(undefined);
   const frame = useRef<number | undefined>(undefined);
   const [preview, setPreview] = useState<Drag>();
+  const [placeholderHeight, setPlaceholderHeight] = useState(150);
+  const compactHeight = useRef(150);
+  const edgeOffset = useRef(0);
   const currentOffset = () => area?.metrics.current.offset ?? 0;
   const stopFrame = () => {
     if (frame.current !== undefined) cancelAnimationFrame(frame.current);
@@ -92,22 +95,46 @@ export function ReorderableExercises<T extends Item>({
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') cancel();
     };
+    // Layout changes can move the responder's node away from the release target.
+    const release = (event: MouseEvent) => {
+      if (drag.current) finish(event.pageX, event.pageY);
+    };
     window.addEventListener('keydown', escape);
     window.addEventListener('blur', cancel);
+    window.addEventListener('mouseup', release, true);
+    window.addEventListener('pointerup', release, true);
+    window.addEventListener('pointercancel', cancel, true);
     return () => {
       window.removeEventListener('keydown', escape);
       window.removeEventListener('blur', cancel);
+      window.removeEventListener('mouseup', release, true);
+      window.removeEventListener('pointerup', release, true);
+      window.removeEventListener('pointercancel', cancel, true);
     };
   }, [isDragging]);
-  const track = (x: number, y: number) => {
+  const track = (x: number, y: number, retarget = false, offset = currentOffset()) => {
     const current = drag.current;
     if (!current) return;
+    const pointerMoved = x !== current.x || y !== current.y;
+    if (pointerMoved) edgeOffset.current = offset;
     current.x = x;
     current.y = y;
     current.moved ||= Math.abs(y - current.startY) > 6;
-    if (current.moved && boxes.current.length) {
-      const contentY = y + currentOffset();
-      const sorted = [...boxes.current].sort((a, b) => a.index - b.index);
+    if (current.moved && boxes.current.length && (pointerMoved || retarget)) {
+      const contentY = y + offset;
+      const source = boxes.current.find((box) => box.index === current.from);
+      const removedHeight = source ? source.bottom - source.top - compactHeight.current : 0;
+      // Target stable slots in the compact layout, not the animated neighbors.
+      const sorted = boxes.current
+        .map((box) => ({
+          index: box.index,
+          top: box.top - (box.index > current.from ? removedHeight : 0),
+          bottom:
+            box.index === current.from
+              ? box.top + compactHeight.current
+              : box.bottom - (box.index > current.from ? removedHeight : 0),
+        }))
+        .sort((a, b) => a.index - b.index);
       const containing = sorted.find((box) => contentY >= box.top && contentY <= box.bottom);
       current.to =
         containing?.index ??
@@ -127,17 +154,26 @@ export function ReorderableExercises<T extends Item>({
     drag.current = current;
     boxes.current = [];
     const offset = currentOffset();
+    edgeOffset.current = offset;
     root.current?.measureInWindow((left, top, width) => {
       list.current = { left, top: top + offset, width };
     });
+    const measured: Box[] = [];
+    const rowCount = rows.current.size;
     rows.current.forEach((row, id) =>
       row.measureInWindow((_x, top, _width, height) => {
-        if (drag.current === current)
-          boxes.current.push({
+        if (drag.current === current) {
+          measured.push({
             index: items.findIndex((entry) => entry.exercise.id === id),
             top: top + offset,
             bottom: top + offset + height,
           });
+          // Finish the original layout snapshot before shrinking the source.
+          if (measured.length === rowCount) {
+            boxes.current = measured;
+            track(current.x, current.y, true);
+          }
+        }
       }),
     );
     setPreview({ ...current });
@@ -148,22 +184,53 @@ export function ReorderableExercises<T extends Item>({
       const elapsed = previous ? Math.min(32, time - previous) : 16;
       previous = time;
       const bounds = area?.metrics.current;
-      if (
-        area &&
-        bounds &&
-        current.moved &&
-        current.x >= bounds.left &&
-        current.x <= bounds.left + bounds.width &&
-        current.y >= bounds.top &&
-        current.y <= bounds.top + bounds.height
-      ) {
-        const zone = Math.min(96, bounds.height / 4);
-        const top = Math.max(0, 1 - (current.y - bounds.top) / zone);
-        const bottom = Math.max(0, 1 - (bounds.top + bounds.height - current.y) / zone);
-        const speed = (bottom * bottom - top * top) * 850;
-        if (speed) {
-          area.scrollTo(bounds.offset + (speed * elapsed) / 1000);
-          track(current.x, current.y);
+      if (area && bounds && bounds.height > 0) {
+        let offset = bounds.offset;
+        let edgeScrolling = false;
+        const inside =
+          current.moved &&
+          current.x >= bounds.left &&
+          current.x <= bounds.left + bounds.width &&
+          current.y >= bounds.top &&
+          current.y <= bounds.top + bounds.height;
+        if (inside) {
+          const zone = Math.min(96, bounds.height / 4);
+          const top = Math.max(0, 1 - (current.y - bounds.top) / zone);
+          const bottom = Math.max(0, 1 - (bounds.top + bounds.height - current.y) / zone);
+          const speed = (bottom * bottom - top * top) * 850;
+          if (speed) {
+            edgeScrolling = true;
+            // Keep edge progress independent from visibility corrections, which
+            // may hold the actual viewport behind the pointer's next target.
+            offset = Math.max(
+              0,
+              Math.min(
+                edgeOffset.current + (speed * elapsed) / 1000,
+                bounds.contentHeight - bounds.height,
+              ),
+            );
+            edgeOffset.current = offset;
+            track(current.x, current.y, true, offset);
+          }
+        }
+        if (!edgeScrolling) edgeOffset.current = bounds.offset;
+        const source = boxes.current.find((box) => box.index === current.from);
+        const target = boxes.current.find((box) => box.index === current.to);
+        if (source && target) {
+          const top =
+            current.to > current.from ? target.bottom - (source.bottom - source.top) : target.top;
+          const margin = 12;
+          const topOffset = top - bounds.top - margin;
+          const bottomOffset = top + compactHeight.current - bounds.top - bounds.height + margin;
+          // Visibility-only scrolling must not retarget beneath a stationary pointer.
+          offset =
+            compactHeight.current > bounds.height - margin * 2
+              ? topOffset
+              : Math.max(bottomOffset, Math.min(offset, topOffset));
+        }
+        if (Math.abs(offset - bounds.offset) > 0.5) {
+          area.scrollTo(offset);
+          setPreview({ ...current });
         }
       }
       frame.current = requestAnimationFrame(tick);
@@ -189,6 +256,7 @@ export function ReorderableExercises<T extends Item>({
     ? new Set(selected.sets?.map((set, index) => (set as { order?: number }).order ?? index) ?? [])
         .size
     : 0;
+  let selectedControls: ReactNode;
   return (
     <View ref={root} collapsable={false} style={{ gap: 24 }}>
       {items.map((item, index) => {
@@ -196,19 +264,21 @@ export function ReorderableExercises<T extends Item>({
         const blocked = disabled || items.length < 2;
         const responder = PanResponder.create({
           onStartShouldSetPanResponder: () => !blocked && !drag.current,
-          onPanResponderGrant: (event) =>
-            start(index, event.nativeEvent.pageX, event.nativeEvent.pageY),
+          onPanResponderGrant: (event) => {
+            if (Platform.OS === 'web') event.preventDefault();
+            start(index, event.nativeEvent.pageX, event.nativeEvent.pageY);
+          },
           onPanResponderMove: (event) => track(event.nativeEvent.pageX, event.nativeEvent.pageY),
           onPanResponderRelease: (event) =>
             finish(event.nativeEvent.pageX, event.nativeEvent.pageY),
           onPanResponderTerminate: cancel,
           onPanResponderTerminationRequest: () => false,
         });
-        const controls = (
+        const renderControls = (interactive: boolean) => (
           <View style={{ gap: 8 }}>
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
               <View
-                {...responder.panHandlers}
+                {...(interactive ? responder.panHandlers : {})}
                 accessible
                 accessibilityRole="button"
                 accessibilityLabel={`Drag ${name} to reorder`}
@@ -259,19 +329,21 @@ export function ReorderableExercises<T extends Item>({
             )}
           </View>
         );
+        const controls = renderControls(true);
+        if (preview?.from === index) selectedControls = renderControls(false);
         const shift =
           preview &&
           source &&
           preview.to > preview.from &&
           index > preview.from &&
           index <= preview.to
-            ? -(sourceHeight + 24)
+            ? -(placeholderHeight + 24)
             : preview &&
                 source &&
                 preview.to < preview.from &&
                 index >= preview.to &&
                 index < preview.from
-              ? sourceHeight + 24
+              ? placeholderHeight + 24
               : 0;
         return (
           <View
@@ -289,11 +361,20 @@ export function ReorderableExercises<T extends Item>({
                   ? c.accent
                   : 'transparent',
               opacity: preview?.from === index ? 0 : 1,
+              ...(preview?.from === index && source ? { height: placeholderHeight } : {}),
             }}
           >
-            <MovingRow shift={shift} reduced={reduced}>
-              {renderItem(item, index, controls)}
-            </MovingRow>
+            <View
+              style={
+                preview?.from === index && source
+                  ? { position: 'absolute', left: 0, right: 0 }
+                  : undefined
+              }
+            >
+              <MovingRow shift={shift} reduced={reduced}>
+                {renderItem(item, index, controls)}
+              </MovingRow>
+            </View>
           </View>
         );
       })}
@@ -305,8 +386,8 @@ export function ReorderableExercises<T extends Item>({
             position: 'absolute',
             top: gapTop,
             left: 0,
-            right: 0,
-            height: sourceHeight,
+            width: list.current.width,
+            height: placeholderHeight,
             borderWidth: 2,
             borderStyle: 'dashed',
             borderColor: c.accent,
@@ -328,6 +409,32 @@ export function ReorderableExercises<T extends Item>({
           <View style={{ padding: 12 }}>
             <Label small>Drop in position {preview.to + 1}</Label>
           </View>
+        </View>
+      )}
+      {preview && selected && (
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          aria-hidden
+          style={
+            {
+              position: 'absolute',
+              left: -10000,
+              width: list.current.width,
+              opacity: 0,
+              borderWidth: 2,
+              borderColor: 'transparent',
+              ...(Platform.OS === 'web' ? { visibility: 'hidden' } : {}),
+            } as ViewStyle
+          }
+          onLayout={(event) => {
+            const height = event.nativeEvent.layout.height;
+            compactHeight.current = height;
+            setPlaceholderHeight(height);
+          }}
+        >
+          {renderItem(selected, preview.from, selectedControls, true)}
         </View>
       )}
       {preview && selected && (

@@ -478,7 +478,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
               void reorder.move(from, to);
             }}
             onDragging={setDragging}
-            renderItem={(item, i, controls) => (
+            renderItem={(item, i, controls, collapsedPreview) => (
               <Card key={item.exercise.id}>
                 <Pressable
                   disabled={busy}
@@ -503,7 +503,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
                   </Label>
                 </Pressable>
                 {controls}
-                {!collapsed.has(item.exercise.id) && (
+                {!collapsedPreview && !collapsed.has(item.exercise.id) && (
                   <>
                     {item.sets.map((set, j) => (
                       <WorkoutSetEditor

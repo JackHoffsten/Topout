@@ -104,6 +104,90 @@ async function drag(page: Page, from: string, to: string, cancel = false) {
 }
 
 for (const mode of ['template', 'log'] as const) {
+  for (const short of [false, true]) {
+    test(`${mode}: reveals ${short ? 'oversized' : 'clipped'} placeholder without changing destination`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1100, height: 900 });
+      const state = await app(page, mode, 8);
+      if (short) {
+        await page.setViewportSize({ width: 1100, height: 130 });
+        await expect
+          .poll(async () => (await page.getByTestId('page-scroll').boundingBox())!.height)
+          .toBeLessThanOrEqual(130);
+      }
+      const scroll = page.getByTestId('page-scroll');
+      const bounds = (await scroll.boundingBox())!;
+      const handle = page.getByRole('button', { name: 'Drag Row to reorder', exact: true });
+      const initial = (await handle.boundingBox())!;
+      await scroll.evaluate(
+        (node, delta) => {
+          node.scrollTop += delta;
+        },
+        initial.y - bounds.y - 30,
+      );
+      const start = (await handle.boundingBox())!;
+      const before = await scroll.evaluate((node) => node.scrollTop);
+      await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+      await page.mouse.down();
+      const placeholder = page.getByTestId('drag-placeholder');
+      await expect(placeholder).toContainText('Drop in position 1');
+      await expect
+        .poll(async () => (await placeholder.boundingBox())!.y)
+        .toBeGreaterThanOrEqual(bounds.y + 10);
+      if (!short)
+        await expect
+          .poll(async () => {
+            const box = (await placeholder.boundingBox())!;
+            return box.y + box.height;
+          })
+          .toBeLessThanOrEqual(bounds.y + bounds.height - 10);
+      else expect((await placeholder.boundingBox())!.height).toBeGreaterThan(bounds.height - 24);
+      await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeLessThan(before - 10);
+      const offset = await scroll.evaluate((node) => node.scrollTop);
+      await page.waitForTimeout(200);
+      expect(Math.abs((await scroll.evaluate((node) => node.scrollTop)) - offset)).toBeLessThan(2);
+      await expect(placeholder).toContainText('Drop in position 1');
+      await page.mouse.up();
+      expect(state.saves).toEqual([]);
+    });
+  }
+
+  test(`${mode}: placeholder matches a collapsed exercise and closes the expanded source gap`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1200, height: 1600 });
+    const state = await app(page, mode);
+    const handle = page.getByRole('button', { name: 'Drag Row to reorder', exact: true });
+    const next = page.getByRole('button', { name: 'Drag Curl to reorder', exact: true });
+    const collapse = page.getByRole('button', { name: 'Collapse Row', exact: true });
+    if (await collapse.count()) await collapse.click();
+    const collapsedCard = (await handle.locator('..').locator('..').locator('..').boundingBox())!;
+    await page.getByRole('button', { name: 'Expand Row', exact: true }).click();
+    const before = (await next.boundingBox())!;
+    const start = (await handle.boundingBox())!;
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    await expect(page.getByTestId('drag-placeholder')).toBeVisible();
+    await expect
+      .poll(async () => {
+        const placeholder = (await page.getByTestId('drag-placeholder').boundingBox())!;
+        return (
+          Math.abs(collapsedCard.height + 4 - placeholder.height) +
+          Math.abs(collapsedCard.width + 4 - placeholder.width)
+        );
+      })
+      .toBeLessThan(2);
+    await expect.poll(async () => (await next.boundingBox())!.y).toBeLessThan(before.y - 20);
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    await expect
+      .poll(async () => Math.abs((await next.boundingBox())!.y - before.y))
+      .toBeLessThan(2);
+    await expect(page.getByRole('button', { name: 'Collapse Row', exact: true })).toBeVisible();
+    expect(state.saves).toEqual([]);
+  });
+
   test(`${mode}: pointer drag saves, restores after reload, and rolls back failed moves`, async ({
     page,
   }) => {
@@ -190,6 +274,18 @@ for (const mode of ['template', 'log'] as const) {
     await expect(page.getByTestId('drag-preview')).toContainText('Row');
     await expect(page.getByTestId('drag-insertion-line')).toBeAttached();
     await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeGreaterThan(500);
+    await expect(page.getByTestId('drag-placeholder')).toContainText('Drop in position 16', {
+      timeout: 15000,
+    });
+    await expect
+      .poll(async () => {
+        const placeholder = (await page.getByTestId('drag-placeholder').boundingBox())!;
+        return Math.max(
+          bounds.y + 10 - placeholder.y,
+          placeholder.y + placeholder.height - (bounds.y + bounds.height - 10),
+        );
+      })
+      .toBeLessThanOrEqual(0);
     expect(state.saves).toEqual([]);
     await page.mouse.move(x, bounds.y + bounds.height / 2, { steps: 4 });
     const stopped = await scroll.evaluate((node) => node.scrollTop);

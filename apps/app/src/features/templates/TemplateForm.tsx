@@ -282,12 +282,13 @@ export function TemplateForm({ template }: { template?: WorkoutTemplate }) {
           void reorder.move(from, to);
         }}
         onDragging={setDragging}
-        renderItem={(item, i, controls) => (
+        renderItem={(item, i, controls, collapsed) => (
           <React.Fragment key={item.exercise.id}>
             {pending === item && exercisePicker}
             <Card
               style={{ padding: wide ? 24 : 16 }}
               onLayout={(event) =>
+                !collapsed &&
                 autoScroll.register(String(item.exercise.id), event.nativeEvent.layout.y)
               }
             >
@@ -339,7 +340,7 @@ export function TemplateForm({ template }: { template?: WorkoutTemplate }) {
                   </View>
                 </>
               )}
-              {(expanded.has(item.exercise.id) || pending === item) && (
+              {!collapsed && (expanded.has(item.exercise.id) || pending === item) && (
                 <>
                   {item.sets.length === 0 && <Label muted>No planned sets.</Label>}
                   {item.sets.map((set, j) => (
