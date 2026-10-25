@@ -1,0 +1,5 @@
+# Report save status consistently across actions and navigation
+
+Use a shared inline Saving… → Saved status near the relevant action for explicit and automatic data saves throughout workout logs, workout templates, exercises, calendar scheduling and climbing-day toggles, climbing logs and photos, and device appearance settings. Keep existing immediate navigation and editor/dialog closing behavior, carrying the brief success confirmation to the destination or remaining parent surface; announce status changes accessibly and use a brief success highlight that respects reduced-motion preferences. Report success only when the entire intended save workflow succeeds, accurately distinguish partial commits such as a saved climbing log with a failed photo upload, and preserve retryable data and existing failure recovery; device-setting write failures must be surfaced too.
+
+Authentication actions, including sign-out, and explicit Remove/Delete actions retain their existing feedback. Edits committed through Save, including clearing a climb photo, and ordinary toggles, including unmarking a climbing day, use the shared status.
