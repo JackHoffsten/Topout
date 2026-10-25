@@ -1,3 +1,7 @@
+import { useSaveMutation } from '../../ui/saveFeedback';
+import { SaveStatus } from '../../ui/components/SaveStatus';
+import { ReorderableExercises } from '../../ui/components/ReorderableExercises';
+import { useExerciseReorder } from '../../ui/useExerciseReorder';
 import { WorkoutSetEditor } from './WorkoutSetEditor';
 import { workoutLoggingKey } from './queries';
 import {
@@ -60,7 +64,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
   const [location, setLocation] = useState(workout.log?.location ?? '');
   const autoScroll = useAutoScroll();
   const scrollRef = autoScroll.scrollRef;
-  const saveLocation = useMutation({
+  const saveLocation = useSaveMutation('Workout location', {
     mutationFn: (value: string) => api.setWorkoutLocation(workout.scheduleId, value.trim() || null),
     onSuccess: async (response) => {
       setLocation(response.log?.location ?? '');
@@ -81,7 +85,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [confirmTemplate, setConfirmTemplate] = useState(false);
   const [templateSet, setTemplateSet] = useState<TemplateSetSelection>();
-  const updateTemplateSet = useMutation({
+  const updateTemplateSet = useSaveMutation('Template set', {
     mutationFn: async (selection: TemplateSetSelection) => {
       const current = await api.getWorkoutLogging(workout.scheduleId);
       const input = templateFromLoggedSet(current, selection);
@@ -102,7 +106,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
     updateTemplateSet.reset();
     setTemplateSet(selection);
   };
-  const updateTemplate = useMutation({
+  const updateTemplate = useSaveMutation('Workout template', {
     mutationFn: async () => {
       // Recheck persisted data rather than using draft edits or an old cached template.
       const current = await api.getWorkoutLogging(workout.scheduleId);
@@ -120,7 +124,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
       ]);
     },
   });
-  const save = useMutation({
+  const save = useSaveMutation('Workout', {
     mutationFn: (input: Parameters<typeof api.completeWorkout>[1]) =>
       workout.log?.completedAt
         ? api.updateWorkout(workout.scheduleId, input)
@@ -132,7 +136,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
       await refreshTraining(cache, 'workout');
     },
   });
-  const record = useMutation({
+  const record = useSaveMutation('Workout set', {
     mutationFn: (input: Parameters<typeof api.recordWorkoutSet>[1]) =>
       api.recordWorkoutSet(workout.scheduleId, input),
     onSuccess: async (response, input) => {
@@ -178,7 +182,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
       await refreshTraining(cache, 'workout');
     },
   });
-  const replaceExercise = useMutation({
+  const replaceExercise = useSaveMutation('Exercise replacement', {
     mutationFn: ({ item, replacement }: { item: DraftExercise; replacement: Exercise }) =>
       api.replaceWorkoutExercise(workout.scheduleId, item.exercise.id, {
         replacementExerciseId: replacement.id,
@@ -226,7 +230,14 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
       await refreshTraining(cache, 'workout');
     },
   });
-  const busy =
+  const [dragging, setDragging] = useState(false);
+  const reorder = useExerciseReorder(items, setItems, async (ids) => {
+    const response = await api.reorderWorkoutExercises(workout.scheduleId, ids);
+    cache.setQueryData(workoutLoggingKey(workout.scheduleId), response);
+    await refreshTraining(cache, 'workout');
+  });
+  const mutating =
+    reorder.pending ||
     replaceExercise.isPending ||
     removeExercise.isPending ||
     save.isPending ||
@@ -234,6 +245,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
     remove.isPending ||
     updateTemplateSet.isPending ||
     saveLocation.isPending;
+  const busy = mutating || dragging;
   const logSet = (i: number, j: number) => {
     const set = items[i]!.sets[j]!;
     const fallback = defaults(items[i]!.exercise.id, set);
@@ -265,6 +277,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
     setDirty(true);
     setErrors({});
     save.reset();
+    saveLocation.reset();
     record.reset();
     remove.reset();
   };
@@ -302,6 +315,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
   };
   return (
     <Page
+      scrollEnabled={!dragging}
       scrollRef={scrollRef}
       onScroll={autoScroll.onScroll}
       onContentSizeChange={autoScroll.onContentSizeChange}
@@ -318,6 +332,10 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
           day: 'numeric',
         })}
       </Label>
+      <SaveStatus feedback={save.feedback} />
+      {!confirmTemplate && <SaveStatus feedback={updateTemplate.feedback} />}
+      {!templateSet && <SaveStatus feedback={updateTemplateSet.feedback} />}
+      {!replacingExercise && <SaveStatus feedback={replaceExercise.feedback} />}
       {workout.log?.completedAt && !editing ? (
         <>
           <Label syntax="keyword">Completed</Label>
@@ -403,7 +421,6 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
                   match.
                 </Label>
               )}
-              {updateTemplate.isSuccess && <Label>Template updated.</Label>}
               {!confirmTemplate && (
                 <ErrorNotice
                   message={updateTemplate.isError ? updateTemplate.error.message : undefined}
@@ -417,6 +434,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
                 cancelLabel="Cancel"
                 error={updateTemplate.isError ? updateTemplate.error.message : undefined}
                 busy={updateTemplate.isPending}
+                feedback={updateTemplate.feedback}
                 onCancel={() => setConfirmTemplate(false)}
                 onConfirm={() => updateTemplate.mutate()}
               />
@@ -438,6 +456,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
               changed();
             }}
           />
+          <SaveStatus feedback={saveLocation.feedback} />
           <Button
             title="Save location"
             variant="secondary"
@@ -448,150 +467,171 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
           <ErrorNotice
             message={saveLocation.isError ? errorMessage(saveLocation.error) : undefined}
           />
-          {items.map((item, i) => (
-            <Card key={item.exercise.id}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${collapsed.has(item.exercise.id) ? 'Expand' : 'Collapse'} ${item.exercise.name}`}
-                accessibilityState={{ expanded: !collapsed.has(item.exercise.id) }}
-                onPress={() =>
-                  setCollapsed((current) => {
-                    const next = new Set(current);
-                    if (next.has(item.exercise.id)) next.delete(item.exercise.id);
-                    else next.add(item.exercise.id);
-                    return next;
-                  })
-                }
-              >
-                <Heading name>{item.exercise.name}</Heading>
-                <Label small muted>
-                  <Label syntax="number" small>
-                    {new Set(item.sets.map((set) => set.order)).size}
-                  </Label>{' '}
-                  sets {collapsed.has(item.exercise.id) ? '▾' : '▴'}
-                </Label>
-              </Pressable>
-              {!collapsed.has(item.exercise.id) && (
-                <>
-                  {item.sets.map((set, j) => (
-                    <WorkoutSetEditor
-                      key={`${set.order}-${set.side}`}
-                      workout={workout}
-                      item={item}
-                      set={set}
-                      exerciseIndex={i}
-                      setIndex={j}
-                      busy={busy}
-                      errors={errors}
-                      actions={{
-                        change: (patch) => changeSet(i, j, patch),
-                        record: () => logSet(i, j),
-                        toggleSplit: () => {
-                          const group = item.sets.filter((s) => s.order === set.order);
-                          if (group.some((s) => !!s.saved)) return;
-                          if (set.side !== 'Both') {
-                            const left = group.find((s) => s.side === 'Left') ?? group[0]!;
-                            const right = group.find((s) => s.side === 'Right');
-                            if (
-                              right &&
-                              signature({ ...right, side: 'Both' }) !==
-                                signature({ ...left, side: 'Both' }) &&
-                              (right.reps || right.weight || right.notes)
-                            ) {
-                              setNormalSet({ exerciseId: item.exercise.id, order: set.order });
-                            } else useNormalSet(item.exercise.id, set.order);
-                            return;
-                          }
-                          setItems((current) =>
-                            splitDraftSet(current, item.exercise.id, set.order),
-                          );
-                          changed();
-                        },
-                        remove: () => {
-                          if (set.saved) {
-                            remove.mutate({
+          <ReorderableExercises
+            items={items}
+            feedback={reorder.feedback}
+            movedId={reorder.movedId}
+            reveal={reorder.reveal}
+            error={reorder.error}
+            disabled={mutating || picker}
+            onMove={(from, to) => {
+              void reorder.move(from, to);
+            }}
+            onDragging={setDragging}
+            renderItem={(item, i, controls) => (
+              <Card key={item.exercise.id}>
+                <Pressable
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${collapsed.has(item.exercise.id) ? 'Expand' : 'Collapse'} ${item.exercise.name}`}
+                  accessibilityState={{ expanded: !collapsed.has(item.exercise.id) }}
+                  onPress={() =>
+                    setCollapsed((current) => {
+                      const next = new Set(current);
+                      if (next.has(item.exercise.id)) next.delete(item.exercise.id);
+                      else next.add(item.exercise.id);
+                      return next;
+                    })
+                  }
+                >
+                  <Heading name>{item.exercise.name}</Heading>
+                  <Label small muted>
+                    <Label syntax="number" small>
+                      {new Set(item.sets.map((set) => set.order)).size}
+                    </Label>{' '}
+                    sets {collapsed.has(item.exercise.id) ? '▾' : '▴'}
+                  </Label>
+                </Pressable>
+                {controls}
+                {!collapsed.has(item.exercise.id) && (
+                  <>
+                    {item.sets.map((set, j) => (
+                      <WorkoutSetEditor
+                        key={`${set.order}-${set.side}`}
+                        workout={workout}
+                        item={item}
+                        set={set}
+                        exerciseIndex={i}
+                        setIndex={j}
+                        busy={busy}
+                        feedback={
+                          record.variables?.exerciseId === item.exercise.id &&
+                          record.variables?.order === set.order &&
+                          (record.variables?.side ?? 'Both') === set.side
+                            ? record.feedback
+                            : undefined
+                        }
+                        errors={errors}
+                        actions={{
+                          change: (patch) => changeSet(i, j, patch),
+                          record: () => logSet(i, j),
+                          toggleSplit: () => {
+                            const group = item.sets.filter((s) => s.order === set.order);
+                            if (group.some((s) => !!s.saved)) return;
+                            if (set.side !== 'Both') {
+                              const left = group.find((s) => s.side === 'Left') ?? group[0]!;
+                              const right = group.find((s) => s.side === 'Right');
+                              if (
+                                right &&
+                                signature({ ...right, side: 'Both' }) !==
+                                  signature({ ...left, side: 'Both' }) &&
+                                (right.reps || right.weight || right.notes)
+                              ) {
+                                setNormalSet({ exerciseId: item.exercise.id, order: set.order });
+                              } else useNormalSet(item.exercise.id, set.order);
+                              return;
+                            }
+                            setItems((current) =>
+                              splitDraftSet(current, item.exercise.id, set.order),
+                            );
+                            changed();
+                          },
+                          remove: () => {
+                            if (set.saved) {
+                              remove.mutate({
+                                exerciseId: item.exercise.id,
+                                order: set.order,
+                                side: set.side,
+                              });
+                              return;
+                            }
+                            setItems(
+                              items.map((entry, n) =>
+                                n === i
+                                  ? { ...entry, sets: entry.sets.filter((_, k) => k !== j) }
+                                  : entry,
+                              ),
+                            );
+                            changed();
+                          },
+                          updateTemplate: () =>
+                            selectTemplateSet({
                               exerciseId: item.exercise.id,
                               order: set.order,
                               side: set.side,
-                            });
-                            return;
-                          }
+                            }),
+                        }}
+                      />
+                    ))}
+                    <ErrorNotice message={errors[`exercises.${i}.sets`]} />
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      <Button
+                        title="Add set"
+                        accessibilityLabel={`Add set to ${item.exercise.name}`}
+                        variant="secondary"
+                        disabled={busy || Math.max(0, ...item.sets.map((set) => set.order)) >= 100}
+                        onPress={() => {
                           setItems(
                             items.map((entry, n) =>
                               n === i
-                                ? { ...entry, sets: entry.sets.filter((_, k) => k !== j) }
+                                ? {
+                                    ...entry,
+                                    sets: [
+                                      ...entry.sets,
+                                      {
+                                        ...blankSet(
+                                          undefined,
+                                          Math.max(0, ...entry.sets.map((set) => set.order)) + 1,
+                                        ),
+                                      },
+                                    ],
+                                  }
                                 : entry,
                             ),
                           );
                           changed();
-                        },
-                        updateTemplate: () =>
-                          selectTemplateSet({
-                            exerciseId: item.exercise.id,
-                            order: set.order,
-                            side: set.side,
-                          }),
-                      }}
-                    />
-                  ))}
-                  <ErrorNotice message={errors[`exercises.${i}.sets`]} />
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    <Button
-                      title="Add set"
-                      accessibilityLabel={`Add set to ${item.exercise.name}`}
-                      variant="secondary"
-                      disabled={busy || Math.max(0, ...item.sets.map((set) => set.order)) >= 100}
-                      onPress={() => {
-                        setItems(
-                          items.map((entry, n) =>
-                            n === i
-                              ? {
-                                  ...entry,
-                                  sets: [
-                                    ...entry.sets,
-                                    {
-                                      ...blankSet(
-                                        undefined,
-                                        Math.max(0, ...entry.sets.map((set) => set.order)) + 1,
-                                      ),
-                                    },
-                                  ],
-                                }
-                              : entry,
-                          ),
-                        );
-                        changed();
-                      }}
-                    />
-                    <Button
-                      title="Replace exercise"
-                      accessibilityLabel={`Replace ${item.exercise.name}`}
-                      variant="secondary"
-                      disabled={busy}
-                      onPress={() => {
-                        autoScroll.remember();
-                        replaceExercise.reset();
-                        setReplacingExercise(item);
-                        setReplacementChoice(undefined);
-                        setSearch('');
-                        setPicker(true);
-                      }}
-                    />
-                    <Button
-                      title="Remove exercise"
-                      accessibilityLabel={`Remove ${item.exercise.name}`}
-                      variant="secondary"
-                      disabled={busy}
-                      onPress={() => {
-                        removeExercise.reset();
-                        setRemovingExercise(item);
-                      }}
-                    />
-                  </View>
-                </>
-              )}
-            </Card>
-          ))}
+                        }}
+                      />
+                      <Button
+                        title="Replace exercise"
+                        accessibilityLabel={`Replace ${item.exercise.name}`}
+                        variant="secondary"
+                        disabled={busy}
+                        onPress={() => {
+                          autoScroll.remember();
+                          replaceExercise.reset();
+                          setReplacingExercise(item);
+                          setReplacementChoice(undefined);
+                          setSearch('');
+                          setPicker(true);
+                        }}
+                      />
+                      <Button
+                        title="Remove exercise"
+                        accessibilityLabel={`Remove ${item.exercise.name}`}
+                        variant="secondary"
+                        disabled={busy}
+                        onPress={() => {
+                          removeExercise.reset();
+                          setRemovingExercise(item);
+                        }}
+                      />
+                    </View>
+                  </>
+                )}
+              </Card>
+            )}
+          />
           {picker ? (
             <Card>
               <SearchField
@@ -749,6 +789,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
             confirmLabel="Confirm replacement"
             cancelLabel="Keep original exercise"
             busy={replaceExercise.isPending}
+            feedback={replaceExercise.feedback}
             error={replaceExercise.isError ? errorMessage(replaceExercise.error) : undefined}
             onCancel={() => {
               setReplacementChoice(undefined);
@@ -797,7 +838,6 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
           />
         </>
       )}
-      {updateTemplateSet.isSuccess && <Label>Template set updated.</Label>}
       {!templateSet && (
         <ErrorNotice
           message={updateTemplateSet.isError ? updateTemplateSet.error.message : undefined}
@@ -810,6 +850,7 @@ export function WorkoutLoggingForm({ workout }: { workout: WorkoutLogging }) {
         confirmLabel="Confirm set update"
         cancelLabel="Cancel"
         busy={updateTemplateSet.isPending}
+        feedback={updateTemplateSet.feedback}
         error={updateTemplateSet.isError ? updateTemplateSet.error.message : undefined}
         onCancel={() => setTemplateSet(undefined)}
         onConfirm={() => {

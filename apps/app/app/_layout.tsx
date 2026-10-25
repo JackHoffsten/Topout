@@ -6,6 +6,7 @@ import { Providers, useSession } from '../src/lib/providers';
 import { Loading } from '../src/ui/components/Loading';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { ThemeProvider, useAppColorScheme } from '../src/ui/ThemeProvider';
+import { SaveFeedbackProvider } from '../src/ui/saveFeedback';
 
 export const unstable_settings = { initialRouteName: 'index' };
 
@@ -15,7 +16,7 @@ function Routes() {
   const path = usePathname();
   if (status === 'restoring' && path !== '/privacy' && path !== '/support') return <Loading />;
   return (
-    <>
+    <SaveFeedbackProvider scope={path}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack
         initialRouteName="index"
@@ -34,7 +35,7 @@ function Routes() {
           <Stack.Screen name="(app)" />
         </Stack.Protected>
       </Stack>
-    </>
+    </SaveFeedbackProvider>
   );
 }
 

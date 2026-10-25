@@ -82,6 +82,14 @@ export function restoreWorkoutDraft(workout: WorkoutLogging): DraftExercise[] {
       previousPosition = position;
     }
   }
+  const savedOrder = workout.log?.exerciseOrder;
+  if (savedOrder?.length) {
+    const position = (id: number) => {
+      const index = savedOrder.indexOf(id);
+      return index < 0 ? savedOrder.length : index;
+    };
+    ordered.sort((a, b) => position(a.exercise.id) - position(b.exercise.id));
+  }
   return ordered.map((item) => {
     const actual = recorded.find((e) => e.exercise.id === item.exercise.id)?.sets ?? [];
     const replacement = replacements.find((r) => r.exercise.id === item.exercise.id);

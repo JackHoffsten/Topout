@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ApiError } from '@topout/shared';
 import { TemplateList } from '../features/templates/TemplateList';
 import { TemplateEditor } from '../features/templates/TemplateEditor';
+import { SaveFeedbackProvider } from '../ui/saveFeedback';
 
 const exercise = { id: 1, name: 'Row', muscleGroups: ['Back'], isCustom: false };
 const set = {
@@ -22,6 +23,7 @@ const set = {
 };
 const template = { id: 1, name: 'Pull', exercises: [{ exercise, sets: [set, set] }] };
 const mockApi = {
+  reorderTemplateExercises: jest.fn<(...args: any[]) => Promise<any>>(),
   listExercises: jest.fn<() => Promise<any[]>>(),
   createExercise: jest.fn<(...args: any[]) => Promise<any>>(),
   listWorkoutTemplates: jest.fn<() => Promise<any[]>>(),
@@ -58,7 +60,11 @@ async function mount(element: React.ReactElement) {
       mutations: { retry: false, gcTime: 0 },
     },
   });
-  return render(<QueryClientProvider client={client}>{element}</QueryClientProvider>);
+  return render(
+    <SaveFeedbackProvider scope="templates">
+      <QueryClientProvider client={client}>{element}</QueryClientProvider>
+    </SaveFeedbackProvider>,
+  );
 }
 
 beforeEach(() => {
@@ -331,6 +337,7 @@ test('creates a missing exercise inline and preserves the template draft', async
   await fireEvent.press(screen.getByRole('checkbox', { name: 'Biceps' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Create exercise' }));
   await screen.findByRole('button', { name: 'Add set to Cable row' });
+  await screen.findByText('Exercise: Saved');
   expect(screen.queryByLabelText('Cable row set 1 reps')).toBeNull();
   expect(mockApi.createExercise).toHaveBeenCalledWith({
     name: 'Cable row',
@@ -442,4 +449,32 @@ test('restores split template targets and can change a set back to normal', asyn
       exercises: [{ exerciseId: 1, sets: [set] }],
     }),
   );
+});
+
+test('existing template moves save separately, roll back on failure and retain unrelated draft edits', async () => {
+  const second = { ...exercise, id: 2, name: 'Curl' };
+  const current = {
+    ...template,
+    exercises: [...template.exercises, { exercise: second, sets: [] }],
+  };
+  mockApi.getWorkoutTemplate.mockResolvedValue(current);
+  mockApi.reorderTemplateExercises
+    .mockRejectedValueOnce(new Error('Offline'))
+    .mockResolvedValue(current);
+  await mount(<TemplateEditor id={1} />);
+  await fireEvent.press(await screen.findByRole('button', { name: 'Expand Row' }));
+  await fireEvent.changeText(screen.getByLabelText('Template name'), 'Unsaved name');
+  await fireEvent.changeText(screen.getByLabelText('Row set 1 reps'), '17');
+  expect(screen.getByRole('button', { name: 'Move Row up' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Move Curl down' })).toBeDisabled();
+  await fireEvent.press(screen.getByRole('button', { name: 'Move Curl up' }));
+  await screen.findByText(/Could not save exercise order/);
+  expect(screen.getByRole('button', { name: 'Move Row up' })).toBeDisabled();
+  await fireEvent.press(screen.getByRole('button', { name: 'Move Curl up' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Move Curl up' })).toBeDisabled());
+  expect(mockApi.reorderTemplateExercises).toHaveBeenNthCalledWith(2, 1, [2, 1]);
+  expect(screen.getByLabelText('Template name').props.value).toBe('Unsaved name');
+  expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('17');
+  expect(mockApi.updateWorkoutTemplate).not.toHaveBeenCalled();
+  expect(mockApi.createWorkoutTemplate).not.toHaveBeenCalled();
 });

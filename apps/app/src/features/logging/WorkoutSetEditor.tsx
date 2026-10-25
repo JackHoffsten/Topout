@@ -7,6 +7,8 @@ import { Button } from '../../ui/components/Button';
 import { Label } from '../../ui/components/Label';
 import { Field } from '../../ui/components/Field';
 import { useDesktop } from '../../ui/theme';
+import { SaveStatus } from '../../ui/components/SaveStatus';
+import type { SaveFeedback } from '../../ui/saveFeedback';
 export function WorkoutSetEditor({
   workout,
   item,
@@ -14,6 +16,7 @@ export function WorkoutSetEditor({
   exerciseIndex,
   setIndex,
   busy,
+  feedback,
   errors,
   actions,
 }: {
@@ -23,6 +26,7 @@ export function WorkoutSetEditor({
   exerciseIndex: number;
   setIndex: number;
   busy: boolean;
+  feedback?: SaveFeedback;
   errors: Record<string, string>;
   actions: {
     change: (patch: Partial<DraftSet>) => void;
@@ -152,6 +156,7 @@ export function WorkoutSetEditor({
         editable={!busy}
         error={errors[`exercises.${exerciseIndex}.sets.${setIndex}.notes`]}
       />
+      <SaveStatus feedback={feedback} />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         <Button
           title={set.saved === signature(set) ? 'Logged' : set.saved ? 'Save set' : 'Log set'}

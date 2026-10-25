@@ -69,3 +69,25 @@ test('restored targets can split, retain left values when merged, and reconcile 
   expect(merged[0]!.sets[0]).toMatchObject({ side: 'Both', reps: '10', saved: undefined });
   expect(draftDefaults(workout, 1, restored[0]!.sets[0]!)).toEqual({ reps: 8, weight: 20 });
 });
+
+test('saved exercise order overrides template and logging chronology while retaining empty additions', () => {
+  const typedExercise = workout.template!.exercises[0]!.exercise;
+  const second = { ...typedExercise, id: 2, name: 'Curl' };
+  const restored = restoreWorkoutDraft({
+    ...workout,
+    log: {
+      id: 3,
+      date: workout.date,
+      completedAt: null,
+      notes: null,
+      exerciseOrder: [2, 1],
+      exercises: [
+        { exercise: typedExercise, sets: [] },
+        { exercise: second, sets: [] },
+      ],
+    },
+  });
+  expect(restored.map((item) => item.exercise.id)).toEqual([2, 1]);
+  expect(restored[0]!.sets[0]!.reps).toBe('');
+  expect(restored[1]!.sets[0]!.target?.targetRepsMin).toBe(8);
+});

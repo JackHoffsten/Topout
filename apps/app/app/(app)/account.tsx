@@ -13,11 +13,12 @@ import { Link } from 'expo-router';
 import { tokens, useTheme } from '../../src/ui/theme';
 import { useThemePreference, type ThemePreference } from '../../src/ui/ThemeProvider';
 import { View } from 'react-native';
+import { SaveStatus } from '../../src/ui/components/SaveStatus';
 
 export default function Account() {
   const { logout, deleteAccount } = useSession();
   const c = useTheme();
-  const { preference, setPreference } = useThemePreference();
+  const { preference, setPreference, feedback, saveError } = useThemePreference();
   const [password, setPassword] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -41,7 +42,9 @@ export default function Account() {
             />
           ))}
         </View>
-        <Label muted>Saved on this device. System follows your device appearance.</Label>
+        <SaveStatus feedback={feedback} />
+        <ErrorNotice message={saveError} />
+        <Label muted>Stored on this device. System follows your device appearance.</Label>
       </Card>
       <Card>
         <Heading>Sign out</Heading>

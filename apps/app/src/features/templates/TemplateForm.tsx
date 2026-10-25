@@ -1,3 +1,7 @@
+import { useSaveMutation } from '../../ui/saveFeedback';
+import { SaveStatus } from '../../ui/components/SaveStatus';
+import { ReorderableExercises } from '../../ui/components/ReorderableExercises';
+import { useExerciseReorder } from '../../ui/useExerciseReorder';
 import { TemplateSetEditor } from './TemplateSetEditor';
 import {
   createDraftSet,
@@ -9,7 +13,7 @@ import {
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   type PlannedSet,
   type WorkoutTemplate,
@@ -68,7 +72,7 @@ export function TemplateForm({ template }: { template?: WorkoutTemplate }) {
   const { api } = useSession();
   const router = useRouter();
   const cache = useQueryClient();
-  const save = useMutation({
+  const save = useSaveMutation('Workout template', {
     mutationFn: (input: WorkoutTemplateInput) =>
       template ? api.updateWorkoutTemplate(template.id, input) : api.createWorkoutTemplate(input),
     onSuccess: async () => {
@@ -110,7 +114,26 @@ export function TemplateForm({ template }: { template?: WorkoutTemplate }) {
     setErrors({});
     save.mutate(parsed.data);
   };
-  const busy = save.isPending;
+  const [dragging, setDragging] = useState(false);
+  const reorder = useExerciseReorder(
+    savedItems,
+    setItems,
+    async (ids) => {
+      if (!template) {
+        setDirty(true);
+        return;
+      }
+      await api.reorderTemplateExercises(template.id, ids);
+      await Promise.all([
+        cache.invalidateQueries({ queryKey: templatesKey }),
+        cache.invalidateQueries({ queryKey: ['workout-logging'] }),
+        cache.invalidateQueries({ queryKey: ['workout-schedule'] }),
+      ]);
+    },
+    !!template,
+  );
+  const mutating = save.isPending || reorder.pending;
+  const busy = mutating || dragging;
   const exercisePicker = picker && (
     <Card>
       <Pressable
@@ -228,7 +251,11 @@ export function TemplateForm({ template }: { template?: WorkoutTemplate }) {
     </Card>
   );
   return (
-    <Page scrollRef={autoScroll.scrollRef} onContentSizeChange={autoScroll.onContentSizeChange}>
+    <Page
+      scrollEnabled={!dragging}
+      scrollRef={autoScroll.scrollRef}
+      onContentSizeChange={autoScroll.onContentSizeChange}
+    >
       <Heading large>{template ? 'Edit workout template' : 'New workout template'}</Heading>
       <Field
         label="Template name"
@@ -244,130 +271,133 @@ export function TemplateForm({ template }: { template?: WorkoutTemplate }) {
         error={errors.name}
       />
       {items.length === 0 && !picker && <Label muted>No exercises added.</Label>}
-      {items.map((item, i) => (
-        <React.Fragment key={item.exercise.id}>
-          {pending === item && exercisePicker}
-          <Card
-            style={{ padding: wide ? 24 : 16 }}
-            onLayout={(event) =>
-              autoScroll.register(String(item.exercise.id), event.nativeEvent.layout.y)
-            }
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${expanded.has(item.exercise.id) || pending === item ? 'Collapse' : 'Expand'} ${item.exercise.name}`}
-              accessibilityState={{ expanded: expanded.has(item.exercise.id) || pending === item }}
-              disabled={pending === item}
-              onPress={() => {
-                if (!expanded.has(item.exercise.id)) autoScroll.reveal(String(item.exercise.id));
-                setExpanded((current) => {
-                  const next = new Set(current);
-                  if (next.has(item.exercise.id)) next.delete(item.exercise.id);
-                  else next.add(item.exercise.id);
-                  return next;
-                });
-              }}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-              }}
+      <ReorderableExercises
+        items={items}
+        feedback={reorder.feedback}
+        movedId={reorder.movedId}
+        reveal={reorder.reveal}
+        error={reorder.error}
+        disabled={mutating || picker}
+        onMove={(from, to) => {
+          void reorder.move(from, to);
+        }}
+        onDragging={setDragging}
+        renderItem={(item, i, controls) => (
+          <React.Fragment key={item.exercise.id}>
+            {pending === item && exercisePicker}
+            <Card
+              style={{ padding: wide ? 24 : 16 }}
+              onLayout={(event) =>
+                autoScroll.register(String(item.exercise.id), event.nativeEvent.layout.y)
+              }
             >
-              <View style={{ flex: 1 }}>
-                <Label syntax="name">{item.exercise.name}</Label>
-                <Label muted small>
-                  <Label syntax="number" small>
-                    {item.sets.length}
-                  </Label>{' '}
-                  {item.sets.length === 1 ? 'set' : 'sets'}
-                </Label>
-              </View>
-              {pending !== item && <Label>{expanded.has(item.exercise.id) ? '▴' : '▾'}</Label>}
-            </Pressable>
-            {pending !== item && (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                <Button
-                  title="↑"
-                  accessibilityLabel={`Move ${item.exercise.name} up`}
-                  variant="secondary"
-                  disabled={busy || picker || i === 0}
-                  onPress={() => changeItems(moveDraftItem(items, i, -1))}
-                />
-                <Button
-                  title="↓"
-                  accessibilityLabel={`Move ${item.exercise.name} down`}
-                  variant="secondary"
-                  disabled={busy || picker || i === items.length - 1}
-                  onPress={() => changeItems(moveDraftItem(items, i, 1))}
-                />
-                <Button
-                  title="Remove exercise"
-                  accessibilityLabel={`Remove ${item.exercise.name}`}
-                  variant="secondary"
-                  disabled={busy || picker}
-                  onPress={() => changeItems(items.filter((_, n) => n !== i))}
-                />
-              </View>
-            )}
-            {(expanded.has(item.exercise.id) || pending === item) && (
-              <>
-                {item.sets.length === 0 && <Label muted>No planned sets.</Label>}
-                {item.sets.map((set, j) => (
-                  <TemplateSetEditor
-                    key={set.key}
-                    set={set}
-                    exerciseName={item.exercise.name}
-                    exerciseIndex={i}
-                    setIndex={j}
-                    totalSets={item.sets.length}
-                    busy={busy}
-                    errors={errors}
-                    onChange={(patch) => changeSet(i, j, patch)}
-                    onMove={(direction) =>
-                      changeItems(
-                        items.map((e, n) =>
-                          n === i ? { ...e, sets: moveDraftItem(e.sets, j, direction) } : e,
-                        ),
-                      )
-                    }
-                    onRemove={() =>
-                      changeItems(
-                        items.map((e, n) =>
-                          n === i ? { ...e, sets: e.sets.filter((_, index) => index !== j) } : e,
-                        ),
-                      )
-                    }
-                  />
-                ))}
-                <View style={{ alignSelf: 'flex-start' }}>
-                  <Button
-                    title="+ Add set"
-                    accessibilityLabel={`Add set to ${item.exercise.name}`}
-                    variant="secondary"
-                    disabled={busy}
-                    onPress={() => {
-                      const last = item.sets.at(-1);
-                      const set = last
-                        ? {
-                            ...last,
-                            key: nextKey.current++,
-                            min: '',
-                            max: '',
-                            right: last.right ? { ...last.right, min: '', max: '' } : undefined,
-                          }
-                        : toDraft();
-                      changeItems(
-                        items.map((e, n) => (n === i ? { ...e, sets: [...e.sets, set] } : e)),
-                      );
-                    }}
-                  />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${expanded.has(item.exercise.id) || pending === item ? 'Collapse' : 'Expand'} ${item.exercise.name}`}
+                accessibilityState={{
+                  expanded: expanded.has(item.exercise.id) || pending === item,
+                }}
+                disabled={busy || pending === item}
+                onPress={() => {
+                  if (!expanded.has(item.exercise.id)) autoScroll.reveal(String(item.exercise.id));
+                  setExpanded((current) => {
+                    const next = new Set(current);
+                    if (next.has(item.exercise.id)) next.delete(item.exercise.id);
+                    else next.add(item.exercise.id);
+                    return next;
+                  });
+                }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Label syntax="name">{item.exercise.name}</Label>
+                  <Label muted small>
+                    <Label syntax="number" small>
+                      {item.sets.length}
+                    </Label>{' '}
+                    {item.sets.length === 1 ? 'set' : 'sets'}
+                  </Label>
                 </View>
-              </>
-            )}
-          </Card>
-        </React.Fragment>
-      ))}
+                {pending !== item && <Label>{expanded.has(item.exercise.id) ? '▴' : '▾'}</Label>}
+              </Pressable>
+              {pending !== item && (
+                <>
+                  {controls}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    <Button
+                      title="Remove exercise"
+                      accessibilityLabel={`Remove ${item.exercise.name}`}
+                      variant="secondary"
+                      disabled={busy || picker}
+                      onPress={() => changeItems(items.filter((_, n) => n !== i))}
+                    />
+                  </View>
+                </>
+              )}
+              {(expanded.has(item.exercise.id) || pending === item) && (
+                <>
+                  {item.sets.length === 0 && <Label muted>No planned sets.</Label>}
+                  {item.sets.map((set, j) => (
+                    <TemplateSetEditor
+                      key={set.key}
+                      set={set}
+                      exerciseName={item.exercise.name}
+                      exerciseIndex={i}
+                      setIndex={j}
+                      totalSets={item.sets.length}
+                      busy={busy}
+                      errors={errors}
+                      onChange={(patch) => changeSet(i, j, patch)}
+                      onMove={(direction) =>
+                        changeItems(
+                          items.map((e, n) =>
+                            n === i ? { ...e, sets: moveDraftItem(e.sets, j, direction) } : e,
+                          ),
+                        )
+                      }
+                      onRemove={() =>
+                        changeItems(
+                          items.map((e, n) =>
+                            n === i ? { ...e, sets: e.sets.filter((_, index) => index !== j) } : e,
+                          ),
+                        )
+                      }
+                    />
+                  ))}
+                  <View style={{ alignSelf: 'flex-start' }}>
+                    <Button
+                      title="+ Add set"
+                      accessibilityLabel={`Add set to ${item.exercise.name}`}
+                      variant="secondary"
+                      disabled={busy}
+                      onPress={() => {
+                        const last = item.sets.at(-1);
+                        const set = last
+                          ? {
+                              ...last,
+                              key: nextKey.current++,
+                              min: '',
+                              max: '',
+                              right: last.right ? { ...last.right, min: '', max: '' } : undefined,
+                            }
+                          : toDraft();
+                        changeItems(
+                          items.map((e, n) => (n === i ? { ...e, sets: [...e.sets, set] } : e)),
+                        );
+                      }}
+                    />
+                  </View>
+                </>
+              )}
+            </Card>
+          </React.Fragment>
+        )}
+      />
       {picker && !pending && (
         <View onLayout={(event) => autoScroll.register('picker', event.nativeEvent.layout.y)}>
           {exercisePicker}
@@ -418,6 +448,7 @@ export function TemplateForm({ template }: { template?: WorkoutTemplate }) {
       <ErrorNotice
         message={Object.keys(errors).length > 0 ? 'Check the highlighted fields.' : undefined}
       />
+      <SaveStatus feedback={save.feedback} />
       <ErrorNotice message={save.isError ? errorMessage(save.error) : undefined} />
       {!picker && (
         <>

@@ -31,6 +31,7 @@ const workout = {
   },
 };
 const mockApi = {
+  reorderWorkoutExercises: jest.fn<(...args: any[]) => Promise<any>>(),
   getWorkoutLogging: jest.fn<(...args: any[]) => Promise<any>>(),
   completeWorkout: jest.fn<(...args: any[]) => Promise<any>>(),
   updateWorkout: jest.fn<(...args: any[]) => Promise<any>>(),
@@ -185,7 +186,7 @@ test('updates matching template targets only after confirmation using saved resu
       ],
     }),
   );
-  await screen.findByText('Template updated.');
+  await screen.findByText('Workout template: Saved');
 });
 
 test('rechecks matching structure before updating and preserves the template on mismatch', async () => {
@@ -213,7 +214,7 @@ test('cancelling a template update does not save and failed updates remain retry
   await screen.findByText('Could not save template.');
   mockApi.updateWorkoutTemplate.mockResolvedValue(workout.template);
   await fireEventAsync.press(screen.getByRole('button', { name: 'Confirm update' }));
-  await screen.findByText('Template updated.');
+  await screen.findByText('Workout template: Saved');
 });
 
 test('mismatching completed workouts disable template updates', async () => {
@@ -261,7 +262,7 @@ test('updates one saved set in an unfinished workout while retaining other targe
   await fireEventAsync.press(screen.getByRole('button', { name: 'Update template Row set 1' }));
   expect(mockApi.updateWorkoutTemplate).not.toHaveBeenCalled();
   await fireEventAsync.press(screen.getByRole('button', { name: 'Confirm set update' }));
-  await screen.findByText('Template set updated.');
+  await screen.findByText('Template set: Saved');
   expect(mockApi.updateWorkoutTemplate).toHaveBeenCalledWith(1, {
     name: 'Pull',
     exercises: [
@@ -758,4 +759,108 @@ test('logging split control toggles back to normal and confirms before discardin
   expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('8');
   expect(screen.getByLabelText('Row set 1 weight (kg)').props.value).toBe('12');
   expect(mockApi.removeWorkoutSet).not.toHaveBeenCalled();
+});
+
+test('exercise moves save immediately, keep draft values attached and roll back for retry', async () => {
+  const second = { ...exercise, id: 2, name: 'Curl' };
+  const current = {
+    ...workout,
+    template: {
+      ...workout.template,
+      exercises: [...workout.template.exercises, { exercise: second, sets: [] }],
+    },
+  };
+  mockApi.getWorkoutLogging.mockResolvedValue(current);
+  mockApi.reorderWorkoutExercises
+    .mockRejectedValueOnce(new Error('Offline'))
+    .mockResolvedValue(current);
+  await mount();
+  expect(screen.getByRole('button', { name: 'Move Row up' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Move Curl down' })).toBeDisabled();
+  await fireEventAsync.changeText(screen.getByLabelText('Row set 1 reps'), '13');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Move Curl up' }));
+  await screen.findByText(/Could not save exercise order/);
+  expect(screen.getByRole('button', { name: 'Move Row up' })).toBeDisabled();
+  expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('13');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Move Curl up' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Move Curl up' })).toBeDisabled());
+  expect(mockApi.reorderWorkoutExercises).toHaveBeenNthCalledWith(2, 2, [2, 1]);
+  expect(screen.getByLabelText('Row set 1 reps').props.value).toBe('13');
+  expect(mockApi.completeWorkout).not.toHaveBeenCalled();
+  expect(mockApi.updateWorkout).not.toHaveBeenCalled();
+  expect(mockApi.recordWorkoutSet).not.toHaveBeenCalled();
+});
+
+test('completed logs expose the same reorder controls only in edit mode and preserve notes', async () => {
+  const current = matchingWorkout();
+  current.log!.exercises.push({
+    exercise: { ...current.log!.exercises[0]!.exercise, id: 2, name: 'Curl' },
+    sets: [],
+  });
+  mockApi.getWorkoutLogging.mockResolvedValue(current);
+  mockApi.reorderWorkoutExercises.mockResolvedValue(current);
+  await mount('Edit workout');
+  expect(screen.queryByRole('button', { name: 'Move Row up' })).toBeNull();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Edit workout' }));
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Move Row down' }));
+  await waitFor(() => expect(mockApi.reorderWorkoutExercises).toHaveBeenCalledWith(2, [2, 1]));
+  expect(mockApi.updateWorkout).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Drag Curl to reorder' })).toBeTruthy();
+});
+
+test('a pending reorder disables further moves and saving the workout until it settles', async () => {
+  const second = { ...exercise, id: 2, name: 'Curl' };
+  const current = {
+    ...workout,
+    template: {
+      ...workout.template,
+      exercises: [...workout.template.exercises, { exercise: second, sets: [] }],
+    },
+  };
+  mockApi.getWorkoutLogging.mockResolvedValue(current);
+  let resolve!: (value: unknown) => void;
+  mockApi.reorderWorkoutExercises.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  await mount();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Move Row down' }));
+  expect(screen.getByRole('button', { name: 'Move Curl down' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Drag Curl to reorder' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Finish workout' })).toBeDisabled();
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Move Curl down' }));
+  expect(mockApi.reorderWorkoutExercises).toHaveBeenCalledTimes(1);
+  resolve(current);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Move Curl down' })).toBeEnabled());
+  expect(mockApi.completeWorkout).not.toHaveBeenCalled();
+});
+
+test('location saves expose pending and saved feedback without logging any sets', async () => {
+  let release!: (value: unknown) => void;
+  mockApi.setWorkoutLocation.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
+  await mount();
+  await fireEventAsync.changeText(screen.getByLabelText('Location (optional)'), 'Central');
+  await fireEventAsync.press(screen.getByRole('button', { name: 'Save location' }));
+  expect(screen.getByText('Workout location: Saving…')).toBeTruthy();
+  expect(screen.queryByText('Workout location: Saved')).toBeNull();
+  release({
+    ...workout,
+    log: {
+      id: 3,
+      date: workout.date,
+      notes: null,
+      completedAt: null,
+      exercises: [],
+      location: 'Central',
+    },
+  });
+  await screen.findByText('Workout location: Saved');
+  expect(mockApi.recordWorkoutSet).not.toHaveBeenCalled();
 });

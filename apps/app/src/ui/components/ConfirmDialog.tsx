@@ -4,6 +4,8 @@ import { Heading } from './Heading';
 import { Label } from './Label';
 import { ErrorNotice } from './ErrorNotice';
 import { Button } from './Button';
+import { SaveStatus } from './SaveStatus';
+import type { SaveFeedback } from '../saveFeedback';
 
 export function ConfirmDialog({
   visible,
@@ -11,6 +13,7 @@ export function ConfirmDialog({
   description,
   busy,
   error,
+  feedback,
   onCancel,
   onConfirm,
   confirmLabel = 'Delete exercise',
@@ -21,6 +24,7 @@ export function ConfirmDialog({
   description: string;
   busy: boolean;
   error?: string;
+  feedback?: SaveFeedback;
   onCancel: () => void;
   onConfirm: () => void;
   confirmLabel?: string;
@@ -51,6 +55,7 @@ export function ConfirmDialog({
             <Heading>{title}</Heading>
             <Label muted>{description}</Label>
             <ErrorNotice message={error} />
+            <SaveStatus feedback={feedback} />
             <Button title={confirmLabel} variant="danger" busy={busy} onPress={onConfirm} />
             <Button title={cancelLabel} variant="secondary" disabled={busy} onPress={onCancel} />
           </Card>

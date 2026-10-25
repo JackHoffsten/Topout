@@ -1,3 +1,5 @@
+import { useSaveMutation } from '../../ui/saveFeedback';
+import { SaveStatus } from '../../ui/components/SaveStatus';
 import { MonthCalendar } from './MonthCalendar';
 import { refreshTraining } from '../training/queries';
 import { useEffect, useRef, useState } from 'react';
@@ -67,13 +69,13 @@ export function CalendarScreen() {
     queryKey: ['climbing-days', from, to],
     queryFn: () => api.listClimbingDays(from, to),
   });
-  const markClimbingDay = useMutation({
+  const markClimbingDay = useSaveMutation('Climbing day', {
     mutationFn: (marked: boolean) => api.setClimbingDay(selected, marked),
     onSuccess: async () => {
       await cache.invalidateQueries({ queryKey: ['climbing-days'] });
     },
   });
-  const create = useMutation({
+  const create = useSaveMutation('Calendar plan', {
     mutationFn: (templateId: number | null) => api.scheduleWorkout({ date: selected, templateId }),
     onSuccess: async () => {
       setPicker(false);
@@ -157,6 +159,8 @@ export function CalendarScreen() {
               All templates
             </Link>
           </View>
+          <SaveStatus feedback={create.feedback} />
+          <SaveStatus feedback={markClimbingDay.feedback} />
           {schedule.isPending ? (
             <Loading text="Loading plans…" />
           ) : schedule.isError ? (
@@ -341,7 +345,7 @@ export function CalendarScreen() {
                       ) && <Label muted>No templates found.</Label>}
                     </>
                   )}
-                  {create.isPending && <Label muted>Saving plan…</Label>}
+
                   <Button
                     title="Cancel"
                     variant="secondary"

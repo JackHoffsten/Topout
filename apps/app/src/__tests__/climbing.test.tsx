@@ -586,6 +586,8 @@ test('photo upload failure retries the saved climb instead of creating another',
   await screen.findByLabelText('Climb photo');
   await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
   await screen.findByText('The climb was saved, but the photo change was not. Try saving again.');
+  expect(screen.getByText('Climb and photo: Partially saved')).toBeTruthy();
+  expect(screen.queryByText('Climb and photo: Saved')).toBeNull();
   expect(mockReplace).not.toHaveBeenCalled();
   await fireEventAsync.press(screen.getByRole('button', { name: 'Save climb' }));
   await waitFor(() => expect(mockApi.saveClimbPhoto).toHaveBeenCalledTimes(2));

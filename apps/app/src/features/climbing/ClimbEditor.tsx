@@ -1,9 +1,11 @@
+import { useSaveMutation } from '../../ui/saveFeedback';
+import { SaveStatus } from '../../ui/components/SaveStatus';
 import { ClimbGradePicker } from './ClimbGradePicker';
 import { createClimbSave, ClimbPhotoSaveError } from './climbSave';
 import { refreshTraining } from '../training/queries';
 import { useRef, useState, type RefObject } from 'react';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   climbingTypes,
   climbingEnvironments,
@@ -110,28 +112,32 @@ export function ClimbEditor({
     gcTime: 0,
   });
   const displayedPhoto = photo === undefined ? existingPhoto.data : photo;
-  const save = useMutation({
-    mutationFn: async (input: ClimbLogInput) => {
-      try {
-        return await saveWorkflow.save(input, undefined, (result) => {
-          setSavedId(result.id);
-          if (result.projectId)
-            setDraft((current) => ({ ...current, projectId: result.projectId, isProject: true }));
-        });
-      } catch (error) {
-        if (error instanceof ClimbPhotoSaveError) {
-          await refreshTraining(cache, 'climb');
-          setPhotoError(error.message);
-          throw error.cause;
+  const save = useSaveMutation(
+    'Climb and photo',
+    {
+      mutationFn: async (input: ClimbLogInput) => {
+        try {
+          return await saveWorkflow.save(input, undefined, (result) => {
+            setSavedId(result.id);
+            if (result.projectId)
+              setDraft((current) => ({ ...current, projectId: result.projectId, isProject: true }));
+          });
+        } catch (error) {
+          if (error instanceof ClimbPhotoSaveError) {
+            await refreshTraining(cache, 'climb');
+            setPhotoError(error.message);
+            throw error;
+          }
+          throw error;
         }
-        throw error;
-      }
+      },
+      onSuccess: async (_, input) => {
+        await refreshTraining(cache, 'climb');
+        onClose(input.date);
+      },
     },
-    onSuccess: async (_, input) => {
-      await refreshTraining(cache, 'climb');
-      onClose(input.date);
-    },
-  });
+    (error) => error instanceof ClimbPhotoSaveError,
+  );
   const patch = (input: Partial<ClimbLogInput>) => {
     setDraft((x) => ({ ...x, ...input }));
     setValidation(undefined);
@@ -561,6 +567,7 @@ export function ClimbEditor({
         )}
         <ErrorNotice message={photoError} />
       </View>
+      <SaveStatus feedback={save.feedback} />
       <Button
         title={log ? 'Save changes' : 'Save climb'}
         busy={save.isPending}

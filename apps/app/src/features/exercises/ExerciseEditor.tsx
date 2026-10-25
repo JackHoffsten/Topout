@@ -1,7 +1,9 @@
+import { useSaveMutation } from '../../ui/saveFeedback';
+import { SaveStatus } from '../../ui/components/SaveStatus';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   type Exercise,
   type ExerciseInput,
@@ -78,7 +80,7 @@ export function ExerciseForm({
       muscleGroups: exercise?.muscleGroups ?? [],
     },
   });
-  const save = useMutation({
+  const save = useSaveMutation('Exercise', {
     mutationFn: (input: ExerciseInput) =>
       exercise ? api.updateExercise(exercise.id, input) : api.createExercise(input),
     onSuccess: async (created) => {
@@ -192,6 +194,7 @@ export function ExerciseForm({
             </View>
           )}
         />
+        <SaveStatus feedback={save.feedback} />
         <ErrorNotice message={save.isError ? errorMessage(save.error) : undefined} />
         <Button
           title={exercise ? 'Save changes' : 'Create exercise'}
