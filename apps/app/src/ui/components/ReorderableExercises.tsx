@@ -69,7 +69,6 @@ export function ReorderableExercises<T extends Item>({
   const [preview, setPreview] = useState<Drag>();
   const [placeholderHeight, setPlaceholderHeight] = useState(150);
   const compactHeight = useRef(150);
-  const edgeOffset = useRef(0);
   const currentOffset = () => area?.metrics.current.offset ?? 0;
   const stopFrame = () => {
     if (frame.current !== undefined) cancelAnimationFrame(frame.current);
@@ -127,7 +126,6 @@ export function ReorderableExercises<T extends Item>({
     const current = drag.current;
     if (!current) return;
     const pointerMoved = x !== current.x || y !== current.y;
-    if (pointerMoved) edgeOffset.current = offset;
     current.x = x;
     current.y = y;
     current.moved ||= Math.abs(y - current.startY) > 6;
@@ -165,7 +163,6 @@ export function ReorderableExercises<T extends Item>({
     drag.current = current;
     boxes.current = [];
     const offset = currentOffset();
-    edgeOffset.current = offset;
     root.current?.measureInWindow((left, top, width) => {
       list.current = { left, top: top + offset, width };
     });
@@ -195,53 +192,24 @@ export function ReorderableExercises<T extends Item>({
       const elapsed = previous ? Math.min(32, time - previous) : 16;
       previous = time;
       const bounds = area?.metrics.current;
-      if (area && bounds && bounds.height > 0) {
-        let offset = bounds.offset;
-        let edgeScrolling = false;
-        const inside =
-          current.moved &&
-          current.x >= bounds.left &&
-          current.x <= bounds.left + bounds.width &&
-          current.y >= bounds.top &&
-          current.y <= bounds.top + bounds.height;
-        if (inside) {
-          const zone = Math.min(96, bounds.height / 4);
-          const top = Math.max(0, 1 - (current.y - bounds.top) / zone);
-          const bottom = Math.max(0, 1 - (bounds.top + bounds.height - current.y) / zone);
-          const speed = (bottom * bottom - top * top) * 850;
-          if (speed) {
-            edgeScrolling = true;
-            // Keep edge progress independent from visibility corrections, which
-            // may hold the actual viewport behind the pointer's next target.
-            offset = Math.max(
-              0,
-              Math.min(
-                edgeOffset.current + (speed * elapsed) / 1000,
-                bounds.contentHeight - bounds.height,
-              ),
-            );
-            edgeOffset.current = offset;
-            track(current.x, current.y, true, offset);
-          }
-        }
-        if (!edgeScrolling) edgeOffset.current = bounds.offset;
-        const source = boxes.current.find((box) => box.index === current.from);
-        const target = boxes.current.find((box) => box.index === current.to);
-        if (source && target) {
-          const top =
-            current.to > current.from ? target.bottom - (source.bottom - source.top) : target.top;
-          const margin = 12;
-          const topOffset = top - bounds.top - margin;
-          const bottomOffset = top + compactHeight.current - bounds.top - bounds.height + margin;
-          // Visibility-only scrolling must not retarget beneath a stationary pointer.
-          offset =
-            compactHeight.current > bounds.height - margin * 2
-              ? topOffset
-              : Math.max(bottomOffset, Math.min(offset, topOffset));
-        }
-        if (Math.abs(offset - bounds.offset) > 0.5) {
-          area.scrollTo(offset);
-          setPreview({ ...current });
+      if (
+        area &&
+        bounds &&
+        bounds.height > 0 &&
+        current.moved &&
+        current.x >= bounds.left &&
+        current.x <= bounds.left + bounds.width &&
+        current.y >= bounds.top &&
+        current.y <= bounds.top + bounds.height
+      ) {
+        const zone = Math.min(96, bounds.height / 4);
+        const top = Math.max(0, 1 - (current.y - bounds.top) / zone);
+        const bottom = Math.max(0, 1 - (bounds.top + bounds.height - current.y) / zone);
+        const speed = (bottom * bottom - top * top) * 850;
+        if (speed) {
+          area.scrollTo(bounds.offset + (speed * elapsed) / 1000);
+          // Use the clamped viewport offset, never an independent scroll target.
+          track(current.x, current.y, true);
         }
       }
       frame.current = requestAnimationFrame(tick);

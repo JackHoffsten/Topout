@@ -104,6 +104,33 @@ async function drag(page: Page, from: string, to: string, cancel = false) {
 }
 
 for (const mode of ['template', 'log'] as const) {
+  test(`${mode}: edge scrolling reverses direction and stops in the middle without snapping`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1100, height: 700 });
+    const state = await app(page, mode, 16);
+    const scroll = page.getByTestId('page-scroll');
+    const bounds = (await scroll.boundingBox())!;
+    const start = (await page
+      .getByRole('button', { name: 'Drag Row to reorder', exact: true })
+      .boundingBox())!;
+    const x = start.x + start.width / 2;
+    await page.mouse.move(x, start.y + start.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(x, bounds.y + bounds.height - 8, { steps: 10 });
+    await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeGreaterThan(800);
+    const down = await scroll.evaluate((node) => node.scrollTop);
+    await page.mouse.move(x, bounds.y + 8, { steps: 4 });
+    await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeLessThan(down - 300);
+    await page.mouse.move(x, bounds.y + bounds.height / 2, { steps: 4 });
+    const stopped = await scroll.evaluate((node) => node.scrollTop);
+    await page.waitForTimeout(250);
+    expect(Math.abs((await scroll.evaluate((node) => node.scrollTop)) - stopped)).toBeLessThan(4);
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    expect(state.saves).toEqual([]);
+  });
+
   test(`${mode}: dragging suppresses text selection and restores it after cancellation`, async ({
     page,
   }) => {
@@ -137,7 +164,7 @@ for (const mode of ['template', 'log'] as const) {
   });
 
   for (const short of [false, true]) {
-    test(`${mode}: reveals ${short ? 'oversized' : 'clipped'} placeholder without changing destination`, async ({
+    test(`${mode}: leaves viewport still for a ${short ? 'oversized' : 'clipped'} placeholder`, async ({
       page,
     }) => {
       await page.setViewportSize({ width: 1100, height: 900 });
@@ -164,18 +191,7 @@ for (const mode of ['template', 'log'] as const) {
       await page.mouse.down();
       const placeholder = page.getByTestId('drag-placeholder');
       await expect(placeholder).toContainText('Drop in position 1');
-      await expect
-        .poll(async () => (await placeholder.boundingBox())!.y)
-        .toBeGreaterThanOrEqual(bounds.y + 10);
-      if (!short)
-        await expect
-          .poll(async () => {
-            const box = (await placeholder.boundingBox())!;
-            return box.y + box.height;
-          })
-          .toBeLessThanOrEqual(bounds.y + bounds.height - 10);
-      else expect((await placeholder.boundingBox())!.height).toBeGreaterThan(bounds.height - 24);
-      await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeLessThan(before - 10);
+      expect(Math.abs((await scroll.evaluate((node) => node.scrollTop)) - before)).toBeLessThan(2);
       const offset = await scroll.evaluate((node) => node.scrollTop);
       await page.waitForTimeout(200);
       expect(Math.abs((await scroll.evaluate((node) => node.scrollTop)) - offset)).toBeLessThan(2);
@@ -320,15 +336,7 @@ for (const mode of ['template', 'log'] as const) {
     await expect(page.getByTestId('drag-placeholder')).toContainText('Drop in position 16', {
       timeout: 15000,
     });
-    await expect
-      .poll(async () => {
-        const placeholder = (await page.getByTestId('drag-placeholder').boundingBox())!;
-        return Math.max(
-          bounds.y + 10 - placeholder.y,
-          placeholder.y + placeholder.height - (bounds.y + bounds.height - 10),
-        );
-      })
-      .toBeLessThanOrEqual(0);
+
     expect(state.saves).toEqual([]);
     await page.mouse.move(x, bounds.y + bounds.height / 2, { steps: 4 });
     const stopped = await scroll.evaluate((node) => node.scrollTop);
