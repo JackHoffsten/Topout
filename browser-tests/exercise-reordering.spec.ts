@@ -104,6 +104,38 @@ async function drag(page: Page, from: string, to: string, cancel = false) {
 }
 
 for (const mode of ['template', 'log'] as const) {
+  test(`${mode}: dragging suppresses text selection and restores it after cancellation`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app(page, mode);
+    const handle = page.getByRole('button', { name: 'Drag Row to reorder', exact: true });
+    const start = (await handle.boundingBox())!;
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    const preview = page.getByTestId('drag-preview');
+    await expect(preview).toBeVisible();
+    const canSelect = () =>
+      page
+        .getByText('Row', { exact: true })
+        .first()
+        .evaluate((node) =>
+          node.dispatchEvent(new Event('selectstart', { bubbles: true, cancelable: true })),
+        );
+    await expect.poll(canSelect).toBe(false);
+    await expect
+      .poll(() =>
+        preview
+          .getByText('Row', { exact: true })
+          .evaluate((node) => getComputedStyle(node).userSelect),
+      )
+      .toBe('none');
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    await expect(preview).toHaveCount(0);
+    await expect.poll(canSelect).toBe(true);
+  });
+
   for (const short of [false, true]) {
     test(`${mode}: reveals ${short ? 'oversized' : 'clipped'} placeholder without changing destination`, async ({
       page,
@@ -243,6 +275,17 @@ for (const mode of ['template', 'log'] as const) {
       type: 'touchStart',
       touchPoints: [{ x, y: start.y + start.height / 2 }],
     });
+    // Holding the handle must remain a drag rather than a text-selection gesture.
+    await page.waitForTimeout(650);
+    await expect(page.getByTestId('drag-preview')).toBeVisible();
+    expect(await page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('');
+    expect(
+      await page
+        .getByTestId('drag-preview')
+        .evaluate((node) =>
+          node.dispatchEvent(new Event('selectstart', { bubbles: true, cancelable: true })),
+        ),
+    ).toBe(false);
     for (let step = 1; step <= 12; step++)
       await session.send('Input.dispatchTouchEvent', {
         type: 'touchMove',

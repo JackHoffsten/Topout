@@ -7,10 +7,17 @@ export function Label({
   muted = false,
   small = false,
   syntax,
-}: React.PropsWithChildren<{ muted?: boolean; small?: boolean; syntax?: SyntaxKind }>) {
+  selectable,
+}: React.PropsWithChildren<{
+  muted?: boolean;
+  small?: boolean;
+  syntax?: SyntaxKind;
+  selectable?: boolean;
+}>) {
   const c = useTheme();
   return (
     <Text
+      selectable={selectable}
       style={{
         color: syntax ? c.syntax[syntax] : muted ? c.muted : c.ink,
         fontSize: small ? 13 : 16,

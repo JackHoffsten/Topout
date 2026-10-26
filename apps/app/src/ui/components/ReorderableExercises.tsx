@@ -92,6 +92,15 @@ export function ReorderableExercises<T extends Item>({
   useReorderReveal(reveal, rows, isDragging, reduced);
   useEffect(() => {
     if (Platform.OS !== 'web' || !isDragging) return;
+    const preventSelection = (event: Event) => event.preventDefault();
+    const selectionStyle = document.createElement('style');
+    // Text descendants can override inherited user-select on the handle.
+    // Limit these rules to the active gesture, including Safari's callout.
+    selectionStyle.textContent =
+      '* { user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none !important; }';
+    document.head.appendChild(selectionStyle);
+    window.getSelection()?.removeAllRanges();
+    document.addEventListener('selectstart', preventSelection, true);
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') cancel();
     };
@@ -105,6 +114,8 @@ export function ReorderableExercises<T extends Item>({
     window.addEventListener('pointerup', release, true);
     window.addEventListener('pointercancel', cancel, true);
     return () => {
+      selectionStyle.remove();
+      document.removeEventListener('selectstart', preventSelection, true);
       window.removeEventListener('keydown', escape);
       window.removeEventListener('blur', cancel);
       window.removeEventListener('mouseup', release, true);
@@ -298,13 +309,15 @@ export function ReorderableExercises<T extends Item>({
                       ? {
                           touchAction: 'none',
                           userSelect: 'none',
+                          WebkitUserSelect: 'none',
+                          WebkitTouchCallout: 'none',
                           cursor: blocked ? 'default' : isDragging ? 'grabbing' : 'grab',
                         }
                       : {}),
                   } as ViewStyle
                 }
               >
-                <Label>⠿</Label>
+                <Label selectable={false}>⠿</Label>
               </View>
               <Button
                 title="↑"
