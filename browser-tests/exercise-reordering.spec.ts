@@ -104,6 +104,60 @@ async function drag(page: Page, from: string, to: string, cancel = false) {
 }
 
 for (const mode of ['template', 'log'] as const) {
+  test(`${mode}: touch edge scrolling continues across a small viewport-boundary overshoot`, async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'CDP supplies real touch input in Chromium.');
+    await page.setViewportSize({ width: 390, height: 700 });
+    const state = await app(page, mode, 16);
+    const scroll = page.getByTestId('page-scroll');
+    await scroll.locator('..').evaluate((node) => {
+      node.style.marginTop = '80px';
+      node.style.marginBottom = '80px';
+    });
+    await expect.poll(async () => (await scroll.boundingBox())!.height).toBeLessThan(680);
+    const bounds = (await scroll.boundingBox())!;
+    const start = (await page
+      .getByRole('button', { name: 'Drag Row to reorder', exact: true })
+      .boundingBox())!;
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+    const x = start.x + start.width / 2;
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x, y: start.y + start.height / 2 }],
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x, y: bounds.y + bounds.height - 8 }],
+    });
+    await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeGreaterThan(300);
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x, y: bounds.y + bounds.height + 8 }],
+    });
+    const bottom = await scroll.evaluate((node) => node.scrollTop);
+    await expect
+      .poll(() => scroll.evaluate((node) => node.scrollTop))
+      .toBeGreaterThan(bottom + 300);
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x, y: bounds.y - 8 }],
+    });
+    const top = await scroll.evaluate((node) => node.scrollTop);
+    await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeLessThan(top - 300);
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x, y: bounds.y - 64 }],
+    });
+    const outside = await scroll.evaluate((node) => node.scrollTop);
+    await page.waitForTimeout(200);
+    expect(Math.abs((await scroll.evaluate((node) => node.scrollTop)) - outside)).toBeLessThan(4);
+    await session.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+    expect(state.saves).toEqual([]);
+  });
+
   test(`${mode}: edge scrolling reverses direction and stops in the middle without snapping`, async ({
     page,
   }) => {
@@ -333,6 +387,15 @@ for (const mode of ['template', 'log'] as const) {
     await expect(page.getByTestId('drag-preview')).toContainText('Row');
     await expect(page.getByTestId('drag-insertion-line')).toBeAttached();
     await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeGreaterThan(500);
+    expect(
+      await page.getByTestId('drag-placeholder').evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        const y = Math.max(0, Math.min(window.innerHeight - 1, box.y + box.height / 2));
+        return !!document
+          .elementFromPoint(box.x + box.width / 2, y)
+          ?.closest('[data-testid="drag-placeholder"]');
+      }),
+    ).toBe(false);
     await expect(page.getByTestId('drag-placeholder')).toContainText('Drop in position 16', {
       timeout: 15000,
     });

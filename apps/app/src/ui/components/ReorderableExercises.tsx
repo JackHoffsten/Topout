@@ -192,6 +192,9 @@ export function ReorderableExercises<T extends Item>({
       const elapsed = previous ? Math.min(32, time - previous) : 16;
       previous = time;
       const bounds = area?.metrics.current;
+      // A finger can drift just beyond the scroll area while still holding an
+      // edge drag. Keep that small overshoot active instead of abruptly stalling.
+      const edgeTolerance = 48;
       if (
         area &&
         bounds &&
@@ -199,12 +202,15 @@ export function ReorderableExercises<T extends Item>({
         current.moved &&
         current.x >= bounds.left &&
         current.x <= bounds.left + bounds.width &&
-        current.y >= bounds.top &&
-        current.y <= bounds.top + bounds.height
+        current.y >= bounds.top - edgeTolerance &&
+        current.y <= bounds.top + bounds.height + edgeTolerance
       ) {
         const zone = Math.min(96, bounds.height / 4);
-        const top = Math.max(0, 1 - (current.y - bounds.top) / zone);
-        const bottom = Math.max(0, 1 - (bounds.top + bounds.height - current.y) / zone);
+        const top = Math.min(1, Math.max(0, 1 - (current.y - bounds.top) / zone));
+        const bottom = Math.min(
+          1,
+          Math.max(0, 1 - (bounds.top + bounds.height - current.y) / zone),
+        );
         const speed = (bottom * bottom - top * top) * 850;
         if (speed) {
           area.scrollTo(bounds.offset + (speed * elapsed) / 1000);
